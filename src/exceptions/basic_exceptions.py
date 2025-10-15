@@ -1,8 +1,9 @@
 import traceback
+from abc import ABC
 
 
-class BasicException(Exception):
-    """Base exception for trading related errors."""
+class BasicException(Exception, ABC):
+    """Base exception for All the Custom Errors."""
     def __init__(
         self,
         message: str | None = None,
