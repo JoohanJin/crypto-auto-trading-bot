@@ -51,7 +51,7 @@ class FutureBase(CommonBaseSDK):
 
         filtered_params: dict[str, str | int] = {
             FutureBase.snake_to_camel(key): value
-            for key, value in (params.items() if params else dict)
+            for key, value in (params.items() if params else dict())
             if value is not None
         }
 

@@ -692,6 +692,7 @@ class FutureMarket(FutureBase):
         self: "FutureMarket",
         sl_price: float,
         tp_price: float,
+        leverage: int,
         symbol_curr_quantity: float,  # get it from the binance websocket possibly.
         symbol: str = "BTCUSDT",
         side: str = Union[Literal["BUY"], Literal["SELL"]],
@@ -709,10 +710,12 @@ class FutureMarket(FutureBase):
 
         # TODO: decide the following:
         # Sequential manner or multi-threaded manner?
-        self.change_initial_leverage()  # change the leverage to the default, 5 for now.
+        self.change_initial_leverage(
+            leverage = leverage,
+        )  # change the leverage to the default, 5 for now.
 
         # MAIN ORDER
-        res = self.__new_order(
+        res = self.new_order(
             symbol = symbol,
             side = side,
             type = "MARKET",
@@ -723,30 +726,30 @@ class FutureMarket(FutureBase):
             operation_logger.info(f"{__name__} - The new order has been opened.")
 
         # STOP LOSS
-        self.__new_order(
+        self.new_order(
             symbol = symbol,
             stop_price = sl_price,
             type = "STOP_MARKET",
             side = "BUY" if side == "SELL" else "SELL",  # Opposite of the Main Order
             close_position = "true",
-            time_in_force = "GTC",
+            time_in_force = "GTE_GTC",
         )
-        operation_logger.info(f"{__name__} - The new order has been opened.")
+        operation_logger.info(f"{__name__} - The new order's STOP LOSS PRICE is at {sl_price}.")
 
         # TAKE PROFIT
-        self.__new_order(
+        self.new_order(
             symbol = symbol,
             stop_price = tp_price,
             type = "TAKE_PROFIT_MARKET",
             side = "BUY" if side == "SELL" else "SELL",  # Opposite of the Main Order
             close_position = "true",
-            time_in_force = "GTC",
+            time_in_force = "GTE_GTC",
         )
-        operation_logger.info(f"{__name__} - The new order has been opened.")
+        operation_logger.info(f"{__name__} - The new order's TAKE PROFIT PRICE is at {tp_price}.")
 
         return
 
-    def __new_order(
+    def new_order(
         self: "FutureMarket",
         side: Union[Literal["BUY"], Literal["SELL"]],
         symbol: str = "BTCUSDT",
@@ -1030,6 +1033,24 @@ class FutureMarket(FutureBase):
             method = "GET",
             params = params,
             url = url,
+        )
+
+    def get_position_information_v2(
+        self: "FutureBase",
+        url: str = "/fapi/v2/positionRisk",
+        symbol: str = "BTCUSDT",
+        recv_window: int = 5_000,
+    ) -> list[dict | None]:
+        params: dict[str, int | float] = dict(
+            symbol = symbol,
+            recv_window = recv_window,
+            timestamp = FutureMarket.generate_timestmap(),
+        )
+
+        return self.call(
+            method = "GET",
+            url = url,
+            params = params,
         )
 
 

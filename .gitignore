@@ -1,14 +1,8 @@
 # ignore auto-generated files
 .vscode/
 
-# ignore json
-src/mexc/*.json
-src/binance/*.json
-# *.json
-
 # virtual environment directory
 gazua/
-venv/
 
 # ignore every tmp files
 *tmp*
@@ -41,4 +35,9 @@ src/pipeline/__pycache__/
 # MacOS Specfiic
 .DS_Store*
 
+# DATA
 *.csv
+
+# Docker Config
+DockerFile
+.dockerignore

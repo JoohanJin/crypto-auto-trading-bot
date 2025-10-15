@@ -70,7 +70,7 @@ class TradeManager:
         telegram_bot: CustomTelegramBot,
         base_symbol: str = "BTC",
         ccy_symbol: str = "USDT",
-        leverage: int = 20,
+        leverage: int = 10,
         trade_amount: float = 0.1,  # 10% of the total asset
         take_profit_rate: float = 0.15,  # 15%
         stop_loss_rate: float = 0.05,  # 5%
@@ -167,7 +167,7 @@ class TradeManager:
     def stop(
         self: "TradeManager",
     ) -> None:
-        # TODO: Need to implement it.
+        # TODO: Implment the destructor.
         return
 
     def __initialize_threads(
@@ -438,9 +438,9 @@ class TradeManager:
             - if the signal is not valid, then it will return None.
         """
         if buy_or_sell == 1:  # Long
-            return current_price * (1 + (self.tp_rate / self.leverage)), current_price * (1 - (self.sl_rate / self.leverage))
+            return round(current_price * (1 + (self.tp_rate / self.leverage)), 2), round(current_price * (1 - (self.sl_rate / self.leverage)), 2)
         else:  # Short
-            return current_price * (1 - (self.tp_rate / self.leverage)), current_price * (1 + (self.sl_rate / self.leverage))
+            return round(current_price * (1 - (self.tp_rate / self.leverage)), 2), round(current_price * (1 + (self.sl_rate / self.leverage)), 2)
 
     def __get_trade_amount(
         self,
@@ -480,10 +480,10 @@ class TradeManager:
         """
         try:
             # currently_holding_order: Dict = self.mexc_future_market_sdk.current_position()
-            currently_holding_order: list = self.binance_future_market.query_all_open_orders()
+            currently_holding_order: list[dict | None] = self.binance_future_market.get_position_information_v2()
 
             if not len(currently_holding_order):
-                # No positions are currently held, so it's okay to make a trade.
+                # No position is currently held, so it's okay to make a trade.
                 return True
             else:
                 # A position is already open, so do not make another trade.
@@ -530,7 +530,8 @@ class TradeManager:
                     self.binance_future_market.order(
                         sl_price = sl_price,
                         tp_price = tp_price,
-                        symbol_curr_quantity = trade_amount,
+                        leverage = self.leverage,
+                        symbol_curr_quantity = max(trade_amount, 0.002),
                         side = "BUY" if order_type == 1 else "SELL"
                     )
                     await self.telegram_bot.send_text(

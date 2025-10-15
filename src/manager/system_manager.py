@@ -215,7 +215,6 @@ class SystemManager:
 
 def main():  # to test run the system manager.
     # ! make the start, stop and terminate command for the SystemManager
-    load_dotenv()
     main_system_manager: SystemManager = SystemManager()
 
 

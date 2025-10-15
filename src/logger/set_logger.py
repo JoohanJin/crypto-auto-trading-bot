@@ -1,6 +1,7 @@
 import logging
 from logging.handlers import TimedRotatingFileHandler
 from functools import wraps
+from pathlib import Path
 
 
 """
@@ -10,6 +11,11 @@ from functools import wraps
 # It logs the operations of the system, such as starting and stopping the system, and any errors that occur.
 ############################################################################################################################################
 """
+# Resolve log directory at project root regardless of CWD
+_PROJECT_ROOT: Path = Path(__file__).resolve().parents[2]
+_LOG_DIR: Path = _PROJECT_ROOT / "log"
+_LOG_DIR.mkdir(parents = True, exist_ok = True)
+
 # Operation logger
 operation_logger: logging.Logger = logging.getLogger("SystemLogger")  # operation logger
 operation_logger.setLevel(logging.INFO)  # Set the logging level to INFO
@@ -21,7 +27,7 @@ operation_logger_formatter: logging.Formatter = logging.Formatter(
 
 # Operation logger - File Handler
 operation_logger_file_handler: TimedRotatingFileHandler = TimedRotatingFileHandler(
-    "log/system-logging.log",
+    _LOG_DIR / "system-logging.log",
     when = "midnight",  # rotate at midnight
     interval = 1,  # Rotate every day
     backupCount = 14,  # keep 14 days of logs
@@ -64,7 +70,7 @@ trading_logger_formatter: logging.Formatter = logging.Formatter(
 
 # Trading Logger - File Handler
 trading_logger_file_handler: TimedRotatingFileHandler = TimedRotatingFileHandler(
-    filename = "log/trading-logging.log",
+    filename = _LOG_DIR / "trading-logging.log",
     when = "midnight",  # rotate at midnight
     interval = 1,  # Rotate every day
     backupCount = 14,  # keep 14 days of logs
