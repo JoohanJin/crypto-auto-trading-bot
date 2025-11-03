@@ -85,7 +85,7 @@ class BasicWebSocketManager(ABC):
         # thread for connection
         wst: threading.Thread = threading.Thread(
             name = "Connection thread",
-            target = lambda: self.ws.run_forever(ping_interval = 0),
+            target = lambda: self.ws.run_forever(ping_interval = 0),  # run_forever will return once connection is lost.
             daemon = False,
         )
 
