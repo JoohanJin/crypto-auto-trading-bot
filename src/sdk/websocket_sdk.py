@@ -30,8 +30,8 @@ class BasicWebSocketManager(ABC):
         secret_key: str | None = None,
         endpoint: str | None = None,
         ws_name: str = "BaseWebSocketManager",
-        ping_interval: int = 5,  # Second
-        connection_interval: int = 10,  # ?
+        ping_interval: int = 5,
+        connection_interval: int = 10,
         ping_timeout: int = 10,
         conn_timeout: int = 30,
         default_callback: Callable | None = None,
@@ -58,119 +58,134 @@ class BasicWebSocketManager(ABC):
         return None
         """
         try:
-            # get the websocket name
-            self.ws_name = ws_name
-
-            self.endpoint: str = endpoint
-
-            # Set API key and Secret Key
-            self.api_key = api_key
-            self.secret_key = secret_key
-
-            # ping settings
+            self.ws_name: str = ws_name
+            self.endpoint: str | None = endpoint
+            self.api_key: str | None = api_key
+            self.secret_key: str | None = secret_key
             self.ping_interval: int = ping_interval
             self.ping_timeout: int = ping_timeout
-
-            # default callback
             self.callback_function: Callable | None = default_callback
-
-            # Connection and timeout interval
             self.conn_interval: int = connection_interval
             self.conn_timeout: int = conn_timeout
+            self.callback_dictionary: dict = dict()
+            self.subscriptions: list = list()
+            self.threads: list[threading.Thread] = list()
+            self.auth: bool = False if (self.api_key is None or self.secret_key is None) else True
+            self._stop_event = threading.Event()
 
-            # to save the list of subcriptions and the function for each subcription
-            # setup the directory as follow:
-            """
-            {
-                <subscription-type>: <callback-function>
-            }
-            """
-            self.callback_dictionary: dict = {}
-
-            # record the subscription made
-            # will store the query for ethe specific topic. -> self.ws.send(json.dumps(query))
-            self.subscriptions = list()
-
-            # has the Websocket been authroized by the API? -> false initially
-            # if api_key and secret_key are given, then it should be authentication needed.
-            self.auth = False if (self.api_key is None or self.secret_key is None) else True
         except Exception as e:
-            operation_logger.error(f"{__name__} - func __init__(): {e}")
+            operation_logger.error(f"{__name__} - func __init__(): {str(e)}")
 
         return None
+
+    def _set_up_threads(self: "BasicWebSocketManager") -> None:
+        """
+        Create connection and ping threads and add them to self.threads list
+        """
+        # thread for connection
+        wst: threading.Thread = threading.Thread(
+            name = "Connection thread",
+            target = lambda: self.ws.run_forever(ping_interval = 0),  # run_forever will return once connection is lost.
+            daemon = False,
+        )
+
+        # thread for ping
+        wsp = threading.Thread(
+            name = "Ping thread",
+            target = lambda: self._ping_loop(),
+            daemon = False,
+        )
+
+        self.threads.extend([wst, wsp])
+        return
+
+    def _start_threads(self: "BasicWebSocketManager") -> None:
+        """
+        Start all threads in self.threads list
+        """
+        for thread in self.threads:
+            thread.start()
+            time.sleep(1)
+        return
+
+    def _clean_up_threads(self: "BasicWebSocketManager") -> None:
+        """
+        Join and remove all threads from self.threads list
+        """
+        operation_logger.info(f"{__name__} - Cleaning up {len(self.threads)} threads")
+
+        # Signal threads to stop
+        self._stop_event.set()
+
+        # Get current thread to avoid self-join deadlock
+        current = threading.current_thread()
+
+        # Join threads with timeout
+        for thread in list(self.threads):
+            # Skip if it's the current thread (avoid deadlock)
+            if thread is current:
+                operation_logger.info(f"{__name__} - Skipping current thread ({thread.name})")
+                continue
+
+            if thread.is_alive():
+                operation_logger.info(f"{__name__} - Waiting for {thread.name} to finish...")
+                thread.join(timeout = 2.0)
+
+                if thread.is_alive():
+                    operation_logger.warning(f"{__name__} - {thread.name} did not stop cleanly")
+                else:
+                    operation_logger.info(f"{__name__} - {thread.name} stopped successfully")
+
+        # Remove all threads from list
+        self.threads.clear()
+        operation_logger.info(f"{__name__} - All threads cleaned up and removed")
+        return
 
     def _connect(
         self: "BasicWebSocketManager",
     ) -> None:
         """
-        func connect():
-            - connect WebSocketApp to the API endpoint
-            - WebSocket tries to connect to the given Endpoint.
-
-        param: url
-            - the endpoint url to establish the connection.
-            - will keep the session witht he API broker
-
-        return None
+        Connect WebSocketApp to the API endpoint
         """
-        # if there is no retries attribute set to True, then no need to try, but we will anyway
-        infinite_reconnect: bool = True
+        self._clean_up_threads()
 
-        # will make the WebSocketApp and will try to connect to the host
+        # Reset stop event for new threads
+        self._stop_event.clear()
+
+        infinite_reconnect: bool = True
         self._closing = False
+
+        # Create new WebSocketApp
         self.ws: websocket.WebSocketApp = websocket.WebSocketApp(
             url = self.endpoint,
             on_message = self.__on_message,
             on_open = self.__on_open,
             on_close = self.__on_close,
-            on_error = self.__on_error,  # TODO: retry
+            on_error = self.__on_error,
         )
 
         time.sleep(1)
 
-        # thread for connection
-        self.wst: threading.Thread = threading.Thread(
-            name = "Connection thread",
-            target = lambda: self.ws.run_forever(
-                # ping_interval = self.conn_interval,  # default 10 sec
-                ping_interval = 0,  # since we do have the explicit ping thread.
-            ),
-            daemon = True,  # set this as the background program where it tries to connect
-        )
-        self.wst.start()  # start the thread for making a connection
+        self._set_up_threads()
+        self._start_threads()
 
-        time.sleep(1)
-
-        # thread for ping
-        self.wsp = threading.Thread(
-            name = "Ping thread",
-            target = lambda: self._ping_loop(
-                ping_interval = self.ping_interval,  # default 10 sec
-            ),
-            daemon = True,  # set this as the background program where it sends the ping to the host every <self.ping_interval> second, default is 10 seconds by the Class Setting.
-        )
-        self.wsp.start()  # start the thread for ping
-
-        # wait until the websocket is connected to the host.
+        # Wait until connected
         while (infinite_reconnect or self.conn_timeout) and not self._is_connected():
             if not infinite_reconnect:
                 self.conn_timeout -= 1
 
             time.sleep(1)
 
-            # if timeout occurred
             if not self.conn_timeout:
                 operation_logger.warning(
                     f"{__name__}: connection to the host time out. You may restart the entire program."
                 )
-                # connection timeout
-                # retry connection is set to False
                 return
 
         operation_logger.info(
             f"{__name__} - func _connect: Websocket Connection to the host has been established."
         )
-        # if api_key and secret_key are given, login to the WebSocketApi
+
         if self.auth:
             time.sleep(1)
             self._authenticate()
@@ -297,13 +312,9 @@ class BasicWebSocketManager(ABC):
             # check if the socket is connected to the endpoint or not
         """
         try:
-            if self.ws.sock or not self.ws.sock.is_connected:
-                return True
-            else:
-                return False
-        except (
-            AttributeError
-        ):  # exception handling, if there is any error occurred just return False
+            sock = getattr(self, "ws", None) and self.ws.sock
+            return sock and sock.connected
+        except AttributeError:  # exception handling, if there is any error occurred just return False
             return False
 
     """
@@ -353,17 +364,17 @@ class BasicWebSocketManager(ABC):
             f"{__name__} - the websocket has been closed: {status_code} - {close_msg}. {self.ws_name} will try to reconnect."
         )
 
-        # if there is no pre-defined endpoint, then it will raise RuntimeError
         if not self.endpoint:
             operation_logger.error(
                 f"{__name__} - {self.ws_name} lost connection but no previous URL recorded; manual restart required."
             )
             raise RuntimeError(f"{__name__} - {self.ws_name} lost connection but no previous URL recorded; manual restart required.")
 
-        # try to construct the channel again.
-        for attempt, delay in enumerate((0, 0.5, 1.0), start = 1):
+        # Try to reconnect
+        for attempt, delay in enumerate((0, 0.5, 1.0), start=1):
             if delay:
                 time.sleep(delay)
+
             try:
                 operation_logger.info(
                     f"{__name__} - Attempting to reconnect ({attempt}) to {self.endpoint}"
@@ -384,6 +395,34 @@ class BasicWebSocketManager(ABC):
             raise RuntimeError(f"{__name__} - {self.ws_name} could not re-establish the websocket connection; manual restart is needed.")
 
         self._resubscribe()
+        return
+
+    def subscribe(
+        self: "BasicWebSocketManager",
+        method: str,
+        callback_function: Callable = None,
+        param: dict | None = None,  # do not modify the param
+    ):
+        if (param is None):
+            param = dict()
+
+        query = dict(method = method, param = param)
+
+        self._check_callback(query)
+
+        while not self._is_connected() and not self.ws:
+            time.sleep(0.1)
+
+        # make dict into json, so that it can be on the header of the HTTP Socket.
+        header = json.dumps(query)
+        self.ws.send(header)
+
+        # set the callback function for specific topic
+        # if there is no given callback function, we just put _print_normal_msg as a callback function
+        if method:  # just in case
+            self._set_callback(method.replace("sub.", ""), callback_function)
+
+        # operation_logger.info(f"new sub has been established: {self.subscriptions}")
         return
 
     def _resubscribe(self: "BasicWebSocketManager") -> None:
@@ -434,18 +473,24 @@ class BasicWebSocketManager(ABC):
 
     def _ping_loop(
         self: "BasicWebSocketManager",
-        ping_interval: int,  # Second
         ping_payload: str = '{"method":"ping"}',
     ) -> None:
         """
-        # method: _ping_loop
-        # for the ping thread of WebSocketApp
+        Ping loop that checks stop event
         """
         curr_timestamp: int = 0
-        while True:
-            if (BasicWebSocketManager.generate_timestamp() - curr_timestamp > (ping_interval * 1_000)):
-                self.ws.send(ping_payload)
-                curr_timestamp = BasicWebSocketManager.generate_timestamp()
+
+        # Check stop event instead of infinite loop
+        while not self._stop_event.is_set() and self._is_connected():
+            if (BasicWebSocketManager.generate_timestamp() - curr_timestamp > (self.ping_interval * 1_000)):
+                try:
+                    if self._is_connected():
+                        self.ws.send(ping_payload)
+                        curr_timestamp = BasicWebSocketManager.generate_timestamp()
+                except Exception as e:
+                    operation_logger.warning(f"{__name__} - Ping failed: {str(e)}")
+
+        operation_logger.info(f"{__name__} - Ping loop stopped")
         return None
 
     def _reset(
@@ -466,13 +511,19 @@ class BasicWebSocketManager(ABC):
         self: "BasicWebSocketManager",
     ):
         """
-        close the websocket
+        Close the websocket and clean up threads
         """
-        self.ws.close()
+        try:
+            if hasattr(self, 'ws') and self.ws:
+                self.ws.close()
 
-        operation_logger.warning(
-            "The WebSocket Manager has been terminated - You might need to restart the entire program"
-        )
+            # ✅ NEW: Clean up threads before exit
+            self._clean_up_threads()
 
-        while self.ws.sock:
-            continue
+            operation_logger.warning(
+                "The WebSocket Manager has been terminated cleanly"
+            )
+        except Exception as e:
+            operation_logger.error(f"{__name__} - Error during exit: {str(e)}")
+
+        return

@@ -582,7 +582,7 @@ class TradeManager:
         '''
         try:
             margin_amt: float = self.leverage * self.trade_amount * self.get_available_usdt_amt()  # we need the current
-            return (margin_amt) / (base_asset_price)
+            return round((margin_amt) / (base_asset_price), 3)  # upto three significant digits for the BTC quantity
         except Exception as e:
             operation_logger.critical(f"{__name__} - Unknown Exception for Calculating the BTC Amount: {str(e)}")
             return None
