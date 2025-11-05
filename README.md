@@ -89,6 +89,8 @@ This bot connects to the MEXC Broker via WebSocket, processes market data, and i
 It is not a high-frequency trading system; rather, it is a simple tool that will execute orders based on a trading strategy I have been used.
 Potentially, a high frequency trading can be developed in the future based on the needs.
 
+Recently deployed v1_0 on my home server.
+
 ---
 
 ## 🛠️ Features
@@ -96,9 +98,14 @@ Potentially, a high frequency trading can be developed in the future based on th
 - Strategy logic for automated decision-making.
 - Future support for order placement.
 - Modular design for testing and expansion.
-- ⚠️ Note: Order placement is currently disabled for safety and testing.
+- Order placement is enabled on Binance Broker.
 
 <!-- <p align="right">(<a href="#readme-top">back to top</a>)</p> -->
+---
+
+## Milestone
+- Please refer to ![TODO Docs](https://github.com/JoohanJin/AutoCryptoTrading/tree/dev/Docs/TODO)
+
 ---
 
 ## Architecture Diagram
@@ -110,7 +117,7 @@ Potentially, a high frequency trading can be developed in the future based on th
 ## 🧰 Tech Stack
 
 * **Lanauge**: [![Python3][Python3-img]][Python3-url]
-* **Exchange**: MEXC, Binance (coming soon!)
+* **Exchange**: MEXC, Binance
 * **libraires**:
   * [![Pandas][Pandas-img]][Pandas-url]
   * [![NumPy][Numpy-img]][Numpy-url]
