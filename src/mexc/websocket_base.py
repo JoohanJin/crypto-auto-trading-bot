@@ -47,35 +47,6 @@ class _FutureWebSocketManager(BasicWebSocketManager):
 
         return
 
-    def subscribe(
-        self: "_FutureWebSocketManager",
-        method: str,
-        callback_function: Callable = None,
-        param: dict | None = None,  # do not modify the param
-    ):
-        if (param is None):
-            param = dict()
-
-        query = dict(method = method, param = param)
-
-        self._check_callback(query)
-
-        while not self._is_connected() and not self.ws:
-            time.sleep(0.1)
-
-        # make dict into json, so that it can be on the header of the HTTP Socket.
-        header = json.dumps(query)
-        self.ws.send(header)
-
-        # set the callback function for specific topic
-        # if there is no given callback function, we just put _print_normal_msg as a callback function
-        if method:  # just in case
-            self._set_callback(method.replace("sub.", ""), callback_function)
-
-        # operation_logger.info(f"new sub has been established: {self.subscriptions}")
-
-        return
-
     def _deal_with_response(
         self: "_FutureWebSocketManager",
         msg: str,
