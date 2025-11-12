@@ -33,24 +33,28 @@ class SignalGenerator:
         return int(time.time() * 1_000)
 
     @staticmethod
-    def __generate_signal(
-        signal: TradeSignal,
-    ) -> Signal:
-        """
-        - func __generate_signal():
-            - Generate the signal based on the data.
-            - It will be used to generate the signal based on the data.
+    def start_threads(threads: list[threading.Thread]) -> None:
+        for thread in threads:
+            try:
+                # start the thread.
+                thread.start()
+                operation_logger.info(
+                    f"{__name__} - Thread '{thread.name}' (ID: {thread.ident}) has started"
+                )
+            except RuntimeError as e:
+                operation_logger.critical(
+                    f"{__name__} - Failed to start thread '{thread.name}': {str(e)}"
+                )
+                raise RuntimeError(f"Failed to start thread '{thread.name}': {str(e)}")
+            except Exception as e:
+                operation_logger.critical(
+                    f"{__name__} - Unexpected error starting thread: '{thread.name}': {str(e)}"
+                )
+                raise Exception(
+                    f"Unexpected error starting thread: '{thread.name}': {str(e)}"
+                )
+        return
 
-        - param self: StrategyHandler
-            - class object
-        - param signal: object.TradeSignal
-            - the signal object to be generated.
-
-        - return indicator
-        """
-        return Signal(
-            signal = signal,
-        )
     '''
     ######################################################################################################################
     #                                               Function Method                                                      #
@@ -96,64 +100,17 @@ class SignalGenerator:
         # threads pool
         self.threads: List[threading.Thread] = list()
 
-        # shared data structure to store Timestamp of the previoius invokation of each signal.
-        self.signal_timestamps: dict[str, int] = dict()
-        self.signal_timestamps_lock: threading.Lock = threading.Lock()
-        self.signal_window: int = signal_window
-
-        # TODO: separate this part as strat()
-        # initialize the threads
-        self._init_threads()
-        # start each thread, which is in the threads pool.
-        self._start_threads()
+        # Start
+        self.start()
 
         return None
 
-    """
-    ######################################################################################################################
-    #                         Send the important message to the Telegram Chat Room as a Logging                          #
-    ######################################################################################################################
-    """
-
-    async def send_telegram_message(
-        self: 'SignalGenerator',
-        message: str = "",
-    ) -> None:
-        """
-        - func send_telegram_message:
-            - Send the message to the telegram chat room.
-            - It will be used to send the notification to the telegram chat room.
-
-        - param self: StrategyHandler
-        - param message: str
-
-        - param None
-        """
-        try:
-            await self.__telegram_bot.send_text(
-                message=message,
-            )
-        except Exception as e:
-            operation_logger.error(
-                f"Error sending Telegram message: {str(e)}"
-            )
-
-    # TODO: This is not used currently.
-    def generate_telegram_msg(
-        self: 'SignalGenerator',
-        data: str,
-    ) -> str:
-        """
-        - func generate_telegram_msg:
-            - Generate the message for the telegram chat room.
-            - It will be used to generate the message for the telegram chat room.
-
-        - param self: StrategyHandler
-        - param data: Tuple[float]
-
-        - return str
-        """
-        return ""
+    def start(self: "SignalGenerator") -> None:
+        # initialize the threads
+        self._init_threads()
+        # start each thread, which is in the threads pool.
+        SignalGenerator.start_threads(self.threads)
+        return
 
     """
     ######################################################################################################################
@@ -174,35 +131,6 @@ class SignalGenerator:
 
         - return None
         """
-
-        # # Update the data
-        # sma_thread: threading.Thread = threading.Thread(
-        #     name = "sma_data_getter",
-        #     target = self.get_sma,
-        #     daemon = True,
-        # )
-        # operation_logger.info(
-        #     f"{__name__}: Thread for sma_data_getter has been set up!"
-        # )
-
-        # ema_thread: threading.Thread = threading.Thread(
-        #     name = "ema_data_getter",
-        #     target = self.get_ema,
-        #     daemon = True,
-        # )
-        # operation_logger.info(
-        #     f"{__name__}: Thread for ema_data_getter has been set up!"
-        # )
-
-        # price_thread: threading.Thread = threading.Thread(
-        #     name = "price_data_getter",
-        #     target = self.get_price,
-        #     daemon = True,
-        # )
-        # operation_logger.info(
-        #     f"{__name__}: Thread for price_data_getter has been set up!"
-        # )
-
         index_thread: threading.Thread = threading.Thread(
             name = 'index_data_getter',
             target = self.get_data,
@@ -212,16 +140,113 @@ class SignalGenerator:
             f"{__name__}: Thread for index data getter has been set up!"
         )
 
-        # add data-update threads into the Threads pool.
         self.threads.extend(
             [
                 index_thread,
-                # sma_thread,
-                # ema_thread,
-                # price_thread,
             ]
         )
 
+        return None
+
+    """
+    ######################################################################################################################
+    #                                      Read Data from the Data Pipeline                                              #
+    ######################################################################################################################
+    """
+    def get_data(
+        self: 'SignalGenerator',
+    ) -> None:
+        while True:
+            try:
+                data: Index = self.data_pipeline_controller.pop(block = True,)
+                # print(f"{data.index_type}: {data.data}")
+                if (data):
+                    with self.indicators_lock:
+                        self.indicators[data.index_type] = data.data
+            except Exception as e:
+                operation_logger.critical(f"{__name__} -  Unexpected Exeption occured - {str(e)}")
+
+        return
+
+    def push_signal(self: "SignalGenerator", signal: Signal) -> None:
+        try:
+            self.signal_pipeline_controller.push(signal)
+        except Exception as e:
+            operation_logger.critical(f"{__name__} - Cannot put signal to the queue: {str(e)}")
+
+
+class StrategyManager:
+    @staticmethod
+    def generate_timestamp() -> int:
+        """
+        static func generate_timestamp():
+            - Generate the timestamp using the current time, in the form of epoch in ms.
+
+        param None
+
+        return int
+            - the timestam in the form of epoch in ms.
+        """
+        return int(time.time() * 1_000)
+
+    @staticmethod
+    def __generate_signal(
+        signal: TradeSignal,
+    ) -> Signal:
+        """
+        - func __generate_signal():
+            - Generate the signal based on the data.
+            - It will be used to generate the signal based on the data.
+
+        - param self: StrategyHandler
+            - class object
+        - param signal: object.TradeSignal
+            - the signal object to be generated.
+
+        - return indicator
+        """
+        return Signal(
+            signal = signal,
+        )
+
+    @staticmethod
+    def start_threads(threads: list[threading.Thread]) -> None:
+        for thread in threads:
+            try:
+                # start the thread.
+                thread.start()
+                operation_logger.info(
+                    f"{__name__} - Thread '{thread.name}' (ID: {thread.ident}) has started"
+                )
+            except RuntimeError as e:
+                operation_logger.critical(
+                    f"{__name__} - Failed to start thread '{thread.name}': {str(e)}"
+                )
+                raise RuntimeError(f"Failed to start thread '{thread.name}': {str(e)}")
+            except Exception as e:
+                operation_logger.critical(
+                    f"{__name__} - Unexpected error starting thread: '{thread.name}': {str(e)}"
+                )
+                raise Exception(
+                    f"Unexpected error starting thread: '{thread.name}': {str(e)}"
+                )
+        return
+
+    def __init__(self: "StrategyManager", signal_window = 5_000,) -> None:
+        # shared data structure to store Timestamp of the previoius invokation of each signal.
+        self.signal_timestamps: dict[str, int] = dict()
+        self.signal_timestamps_lock: threading.Lock = threading.Lock()
+        self.signal_window: int = signal_window
+        self.threads: list[threading.Thread] = list()
+
+        self.start()
+        return
+
+    def start(self: "StrategyManager") -> None:
+        self.__init_threads()
+        StrategyManager.start_threads(self.threads)
+
+    def __init_threads(self: "StrategyManager") -> None:
         # Consume the data.
         golden_cross_thread: threading.Thread = threading.Thread(
             name = "golden_cross_signal_generator",
@@ -279,131 +304,6 @@ class SignalGenerator:
             ]
         )
 
-        return None
-
-    def _start_threads(
-        self: 'SignalGenerator',
-    ) -> None:
-        """
-        - func _start_threads():
-            - start the threads in the thread pool of the class.
-            - will raise issues if there is  problem with the triggering of the thread.
-
-        - param self: StrategyHandler
-            - class object
-
-        - return None
-        """
-        for thread in self.threads:
-            try:
-                # start the thread.
-                thread.start()
-                operation_logger.info(
-                    f"{__name__} - Thread '{thread.name}' (ID: {thread.ident}) has started"
-                )
-            except RuntimeError as e:
-
-                operation_logger.critical(
-                    f"{__name__} - Failed to start thread '{thread.name}': {str(e)}"
-                )
-                raise RuntimeError(f"Failed to start thread '{thread.name}': {str(e)}")
-            except Exception as e:
-                operation_logger.critical(
-                    f"{__name__} - Unexpected error starting thread: '{thread.name}': {str(e)}"
-                )
-                raise Exception(
-                    f"Unexpected error starting thread: '{thread.name}': {str(e)}"
-                )
-        return
-
-    """
-    ######################################################################################################################
-    #                                      Read Data from the Data Pipeline                                              #
-    ######################################################################################################################
-    """
-    def get_data(
-        self: 'SignalGenerator',
-    ) -> None:
-        while True:
-            try:
-                data: Index = self.data_pipeline_controller.pop(block = True,)
-                # print(f"{data.index_type}: {data.data}")
-                if (data):
-                    with self.indicators_lock:
-                        self.indicators[data.index_type] = data.data
-            except Exception as e:
-                operation_logger.critical(f"{__name__} -  Unexpected Exeption occured - {str(e)}")
-
-    """
-    ######################################################################################################################
-    #                                            Functions for Threads                                                   #
-    ######################################################################################################################
-    """
-
-    def get_sma(
-        self: 'SignalGenerator',
-    ) -> bool:
-        """
-        - func get_sma():
-            - get the sma data from the pipeline and put it into the shared structured.
-            - target function of the thread.
-
-        - param self: StrategyHandler
-            - class object
-
-        - return True if the update is successful.
-        - return False if the update is not successful.
-        """
-        while True:
-            data = self.get_smas()
-            if data:
-                # update to the shared structure to use them for analysis.
-                with self.indicators_lock:
-                    self.indicators["sma"] = data
-        return
-
-    def get_ema(
-        self: 'SignalGenerator',
-    ) -> bool:
-        """
-        - func get_ema():
-            - get the ema data from the pipeline and put it into the shared structured.
-            - target function of the thread.
-
-        - param self: StrategyHandler
-            - class object
-
-        - return True if the update is successful.
-        - return False if the update is not successful.
-        """
-        while True:
-            data = self.get_emas()
-            if data:
-                # update to the shared structure to use them for analysis.
-                with self.indicators_lock:
-                    self.indicators["ema"] = data
-        return
-
-    def get_price(
-        self: 'SignalGenerator',
-    ) -> bool:
-        """
-        - func get_price():
-            - get the price data from the pipeline and put it into the shared structured.
-            - target function of the thread.
-
-        - param self: StrategyHandler
-            - class object
-
-        - return True if the update is successful.
-        - return False if the update is not successful.
-        """
-        while True:
-            data = self.get_price_data()
-            if data:
-                # update to the shared structure to use them for analysis.
-                with self.indicators_lock:
-                    self.indicators["price"] = data
         return
 
     """
@@ -413,7 +313,7 @@ class SignalGenerator:
     """
 
     def generate_golden_cross_signal(
-        self: 'SignalGenerator',
+        self: 'StrategyManager',
     ) -> None:
         """
         - func generate_golden_cross_signal():
@@ -432,7 +332,7 @@ class SignalGenerator:
             with self.signal_timestamps_lock:
                 prev_timestamp: int = self.signal_timestamps.get(key, 0)
 
-            curr_timestamp: int = SignalGenerator.generate_timestamp()
+            curr_timestamp: int = StrategyManager.generate_timestamp()
 
             if (curr_timestamp - prev_timestamp > self.signal_window) and (sma_data and ema_data):  # only need to check if the sma and ema data are available.
                 # generate the signal based on the data and passit to the signal pipeline.
@@ -442,10 +342,9 @@ class SignalGenerator:
                 if ten_sec_sma and five_min_ema:
                     if ten_sec_sma > five_min_ema:
                         # generate the signal
-                        signal: Signal = SignalGenerator.__generate_signal(
+                        signal: Signal = StrategyManager.__generate_signal(
                             signal = TradeSignal.LONG_TERM_BUY
                         )
-                        self.signal_pipeline_controller.push(signal)
                         trading_logger.info(
                             f"{__name__} - Golden Cross Signal has been generated!: Bullish Trend."
                         )
@@ -457,7 +356,7 @@ class SignalGenerator:
         return None
 
     def generate_death_cross_signal(
-        self: 'SignalGenerator',
+        self: 'StrategyManager',
     ) -> None:
         """
         - func generate_death_cross_signal():
@@ -490,10 +389,9 @@ class SignalGenerator:
                 if ten_sec_sma and five_min_ema:
                     if ten_sec_sma < five_min_ema:
                         # generate the signal
-                        signal: Signal = SignalGenerator.__generate_signal(
+                        signal: Signal = StrategyManager.__generate_signal(
                             signal=TradeSignal.LONG_TERM_SELL
                         )
-                        self.signal_pipeline_controller.push(signal)
                         trading_logger.info(
                             f"{__name__} - Death Cross Signal has been generated!: Bearish Trend."
                         )
@@ -505,7 +403,7 @@ class SignalGenerator:
         return None
 
     def generate_price_moving_average_signal(
-        self: 'SignalGenerator',
+        self: 'StrategyManager',
     ) -> None:
         """
         - func generate_price_moving_average_signal():
@@ -519,7 +417,7 @@ class SignalGenerator:
             - If the current price crosses above the moving average, generate a "Price Above MA" signal.
             - If the current price crosses below the movign average, generate a "Price Below MA" signal.
         """
-        key: str = "price_moving_average"  # TODO: Check if we need to have the direction -> maybe separate this as well?
+        key: str = "price_moving_average"
         while True:
             with self.indicators_lock:
                 sma_data: Dict[int, float] = self.indicators.get(IndexType.SMA)
@@ -528,7 +426,7 @@ class SignalGenerator:
             with self.signal_timestamps_lock:
                 prev_timestamp: int = self.signal_timestamps.get(key, 0)
 
-            curr_timestamp: int = SignalGenerator.generate_timestamp()
+            curr_timestamp: int = StrategyManager.generate_timestamp()
 
             if (
                 curr_timestamp - prev_timestamp > self.signal_window
@@ -539,19 +437,17 @@ class SignalGenerator:
 
                 if sma_60:
                     if current_price > sma_60:
-                        signal: Signal = SignalGenerator.__generate_signal(
+                        signal: Signal = StrategyManager.__generate_signal(
                             signal = TradeSignal.SHORT_TERM_BUY,
                         )
-                        self.signal_pipeline_controller.push(signal)
                         trading_logger.info(
                             f"{__name__} - Short Term Buy Signal has been generated!: Bullish Trend."
                         )
 
                     elif current_price < sma_60:
-                        signal: Signal = SignalGenerator.__generate_signal(
+                        signal: Signal = StrategyManager.__generate_signal(
                             signal=TradeSignal.SHORT_TERM_SELL,
                         )
-                        self.signal_pipeline_controller.push(signal)
                         trading_logger.info(
                             f"{__name__} - Short Term Sell Signal has been generated!: Bearish Trend."
                         )
@@ -563,8 +459,8 @@ class SignalGenerator:
         return None
 
     def generate_ema_sma_divergence_signal(
-        self: 'SignalGenerator',
-        threshold: float = 0.05,  # TODO: need to define the threshold value.
+        self: 'StrategyManager',
+        threshold: float = 0.05,
     ) -> None:
         """
         - func generate_ema_sma_divergence_signal():
@@ -585,7 +481,7 @@ class SignalGenerator:
 
             with self.signal_timestamps_lock:
                 prev_timestamp: int = self.signal_timestamps.get(key, 0)
-            curr_timestamp: int = SignalGenerator.generate_timestamp()
+            curr_timestamp: int = StrategyManager.generate_timestamp()
 
             if (curr_timestamp - prev_timestamp > self.signal_window) and (
                 sma_data and ema_data
@@ -596,10 +492,9 @@ class SignalGenerator:
                 if sma_60 and ema_60:
                     divergence: float = abs(sma_60 - ema_60)
                     if divergence > threshold:
-                        signal: Signal = SignalGenerator.__generate_signal(
+                        signal: Signal = StrategyManager.__generate_signal(
                             signal=TradeSignal.HOLD,
                         )
-                        self.signal_pipeline_controller.push(signal)
                         trading_logger.info(
                             f"{__name__} - Divergence Signal has been generated!: Potential Trend Change."
                         )
@@ -611,7 +506,7 @@ class SignalGenerator:
         return None
 
     def generate_price_reversal_signal(
-        self: 'SignalGenerator',
+        self: 'StrategyManager',
     ) -> None:
         """
         - func generate_price_reversal_signal():
@@ -629,27 +524,23 @@ class SignalGenerator:
 
             with self.signal_timestamps_lock:
                 prev_timestamp: int = self.signal_timestamps.get(key, 0)
-            curr_timestamp: int = SignalGenerator.generate_timestamp()
+            curr_timestamp: int = StrategyManager.generate_timestamp()
 
-            if (curr_timestamp - prev_timestamp > self.signal_window) and (
-                sma_data and current_price
-            ):
+            if ((curr_timestamp - prev_timestamp > self.signal_window) and (sma_data and current_price)):
                 sma_60: float = sma_data.get(60)
 
                 if sma_60:
                     if current_price > sma_60:
-                        signal: Signal = SignalGenerator.__generate_signal(
-                            signal=TradeSignal.SHORT_TERM_BUY,
+                        signal: Signal = StrategyManager.__generate_signal(
+                            signal = TradeSignal.SHORT_TERM_BUY,
                         )
                         trading_logger.info(
                             f"{__name__} - Price Reversal Signal has been generated!: Bullish Reveral."
                         )
-                        self.signal_pipeline_controller.push(signal)
                     elif current_price < sma_60:
-                        signal: Signal = SignalGenerator.__generate_signal(
-                            signal=TradeSignal.SHORT_TERM_SELL,
+                        signal: Signal = StrategyManager.__generate_signal(
+                            signal = TradeSignal.SHORT_TERM_SELL,
                         )
-                        self.signal_pipeline_controller.push(signal)
                         trading_logger.info(
                             f"{__name__} - Price Reversal Signal has been generated!: Bearish Reveral."
                         )
