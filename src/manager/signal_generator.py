@@ -17,7 +17,7 @@ class SignalGenerator:
     '''
     ######################################################################################################################
     #                                               Static Method                                                        #
-    ######################################################################################################################
+    ######################################################################################################################  
     '''
     @staticmethod
     def generate_timestamp() -> int:
@@ -243,8 +243,13 @@ class StrategyManager:
         return
 
     def start(self: "StrategyManager") -> None:
+        # if this is the thread-based class
         self.__init_threads()
         StrategyManager.start_threads(self.threads)
+
+    def analyze_index(self: "StrategyManager", ) -> None:
+        # What to return? -> list of Signtal?
+        return
 
     def __init_threads(self: "StrategyManager") -> None:
         # Consume the data.
