@@ -546,7 +546,7 @@ class TradeManager:
             currently_holding_order: list[dict | None] = self.binance_future_market.get_all_open_order()
 
             # It will check if there is a currently opened order.
-            if len(currently_holding_order) <= 1:
+            if not len(currently_holding_order):  # if it is 0 then it will make a new order.
                 # No position is currently held, so it's okay to make a trade.
                 # By default, there is one position in Binance to indicate current isolation mode and leverage with 0 margin in it.
                 return True
