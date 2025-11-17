@@ -1053,6 +1053,43 @@ class FutureMarket(FutureBase):
             params = params,
         )
 
+    # TODO: need to re-implement the function
+    def get_current_open_order(
+        self: "FutureBase",
+        url: str = "/fapi/v1/openOrder",
+        symbol: str = "BTCUSDT",
+        recv_window: int = 5_000,
+    ):
+        params: dict[str, int | float] = dict(
+            symbol = symbol,
+            recv_window = recv_window,
+            timestamp = FutureMarket.generate_timestmap()
+        )
+
+        return self.call(
+            method = "GET",
+            url = url,
+            params = params,
+        )
+
+    def get_all_open_order(
+        self: "FutureBase",
+        url: str = "/fapi/v1/openOrders",
+        symbol: str = "BTCUSDT",
+        recv_window = 5_000,
+    ):
+        params: dict[str, int | float] = dict(
+            symbol = symbol,
+            recv_window = recv_window,
+            timestamp = FutureBase.generate_timestmap(),
+        )
+
+        return self.call(
+            method = "GET",
+            url = url,
+            params = params,
+        )
+
 
 class FutureWebSocket:
     """

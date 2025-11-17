@@ -370,9 +370,14 @@ class BasicWebSocketManager(ABC):
             )
             raise RuntimeError(f"{__name__} - {self.ws_name} lost connection but no previous URL recorded; manual restart required.")
 
-        # Try to reconnect
-        for attempt, delay in enumerate((0, 0.5, 1.0), start=1):
-            if delay:
+        # Reconnect logic
+        # retry delay would be increased exponentially
+        base_delay = 0.5
+        attempt = 0
+        while True:
+            attempt += 1
+            if attempt > 1:
+                delay = int(base_delay * (2 ** (attempt - 2)))
                 time.sleep(delay)
 
             try:
@@ -388,11 +393,6 @@ class BasicWebSocketManager(ABC):
                 operation_logger.error(
                     f"{__name__} - {self.ws_name} reconnect attempt {attempt} failed: {str(e)}"
                 )
-        else:
-            operation_logger.critical(
-                f"{__name__} - {self.ws_name} could not re-establish the websocket connection."
-            )
-            raise RuntimeError(f"{__name__} - {self.ws_name} could not re-establish the websocket connection; manual restart is needed.")
 
         self._resubscribe()
         return
