@@ -142,111 +142,86 @@ stable
 
 ---
 
-## 🚀 Getting Started
+## 🚀 Procedure
 
 ### Prerequisites
 
-- Python 3.10+
-- MEXC API Credentials
+Before getting started, ensure you have:
+- **Python 3.10+** (or Docker as an alternative)
+- **MEXC API Credentials** - [MexC Exchange](https://www.mexc.com/)
+- **Binance API Credentials** - [Binance Exchange](https://www.binance.com/en)
+- **Telegram Bot Token & Chat ID** - For trade notifications
+- **Docker** (optional, but recommended for deployment)
 
-<!-- GETTING STARTED -->
-<!-- ## Getting Started -->
+### Getting Started
 
-<!-- This is an example of how you may give instructions on setting up your project locally. -->
-<!-- To get a local copy up and running follow these simple example steps. -->
-<!-- ### Installation
+#### Option 1: Local Setup
 
-1. Get a free API Key at [https://example.com](https://example.com)
-2. Clone the repo
-   ```sh
-   git clone https://github.com/JoohanJin/AutoCryptoTrading.git
-   ```
-3. Install NPM packages
-   ```sh
-   npm install
-   ```
-4. Enter your API in `config.js`
-   ```js
-   const API_KEY = 'ENTER YOUR API';
-   ```
+1. **Clone the repository**
+    ```sh
+    git clone https://github.com/JoohanJin/AutoCryptoTrading.git
+    cd AutoCryptoTrading
+    ```
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p> -->
+2. **Create and configure `.env` file**
+    - Copy `.env_template` to `.env`
+    - Fill in your API credentials and Telegram details
+    ```sh
+    cp .env_template .env
+    ```
 
+3. **Set up Python environment**
+    ```sh
+    python3.10 -m venv <venv_dir_name>
+    source <venv_dir_name>/bin/activate
+    pip install -r requirements.txt
+    ```
 
+4. **Run the bot**
+    ```sh
+    python src/main.py
+    ```
 
-<!-- USAGE EXAMPLES -->
-<!-- ## Usage
+#### Option 2: Docker Deployment (Recommended for 24/7)
 
-Use this space to show useful examples of how a project can be used. Additional screenshots, code examples and demos work well in this space. You may also link to more resources.
+1. **Clone the repository**
+    ```sh
+    git clone https://github.com/JoohanJin/AutoCryptoTrading.git
+    cd AutoCryptoTrading
+    ```
 
-_For more examples, please refer to the [Documentation](https://example.com)_
+2. **Configure `.env` file**
+    ```sh
+    cp .env_template .env
+    # Edit .env with your credentials
+    nano .env
+    ```
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p> -->
+3. **Build the Docker image**
+    ```sh
+    docker buildx build --platform linux/amd64 -t autocrypto-trading:latest .
+    ```
+    > Replace `linux/amd64` with your desired architecture (e.g., `linux/arm64` for ARM)
 
+4. **Run the container**
+    ```sh
+    docker run -d \
+      --name crypto-trading-bot \
+      --env-file .env \
+      --restart unless-stopped \
+      autocrypto-trading:latest
+    ```
 
+5. **Monitor the bot**
+    ```sh
+    docker logs -f crypto-trading-bot
+    ```
 
-<!-- ROADMAP -->
-<!-- ## Roadmap
+### Configuration Notes
 
-- [ ] Feature 1
-- [ ] Feature 2
-- [ ] Feature 3
-    - [ ] Nested Feature
-
-See the [open issues](https://github.com/JoohanJin/AutoCryptoTrading/issues) for a full list of proposed features (and known issues). -->
-
-<!-- <p align="right">(<a href="#readme-top">back to top</a>)</p> -->
-
-
-
-<!-- CONTRIBUTING -->
-<!-- ## Contributing
-
-Contributions are what make the open source community such an amazing place to learn, inspire, and create. Any contributions you make are **greatly appreciated**.
-
-If you have a suggestion that would make this better, please fork the repo and create a pull request. You can also simply open an issue with the tag "enhancement".
-Don't forget to give the project a star! Thanks again!
-
-1. Fork the Project
-2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the Branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p> -->
-
-
-
-<!-- LICENSE -->
-<!-- ## License
-
-Distributed under the MIT License. See `LICENSE.txt` for more information.
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p> -->
-
-
-
-<!-- CONTACT -->
-<!-- ## Contact
-
-Your Name - [@twitter_handle](https://twitter.com/twitter_handle) - email@email_client.com
-
-Project Link: [https://github.com/JoohanJin/AutoCryptoTrading](https://github.com/JoohanJin/AutoCryptoTrading) -->
-
-<!-- <p align="right">(<a href="#readme-top">back to top</a>)</p> -->
-
-
-
-<!-- ACKNOWLEDGMENTS -->
-<!-- ## Acknowledgments
-
-* []()
-* []()
-* []() -->
-
-<!-- <p align="right">(<a href="#readme-top">back to top</a>)</p> -->
-
-
+- **Telegram**: Required for trade notifications (can be optional in future versions)
+- **API Keys**: Ensure you use keys with appropriate permissions (trading enabled, IP whitelisting recommended)
+- **For Production**: Use environment variables instead of storing credentials in `.env` files
 
 <!-- MARKDOWN LINKS & IMAGES -->
 <!-- https://www.markdownguide.org/basic-syntax/#reference-style-links -->
