@@ -104,7 +104,7 @@ Recently deployed v1_0 on my home server.
 ---
 
 ## Milestone
-- Please refer to ![TODO Docs](https://github.com/JoohanJin/AutoCryptoTrading/tree/dev/Docs/TODO)
+- Please refer to [Here](https://github.com/JoohanJin/AutoCryptoTrading/tree/dev/Docs/TODO)
 
 ---
 
@@ -124,6 +124,7 @@ Recently deployed v1_0 on my home server.
 * **Tools**:
   * [![Jupyter Notebook][Jupyter-img]][Jupyter-url]
   * Github Actions (CI)
+  * Docker
 
 <!-- <p align="right">(<a href="#readme-top">back to top</a>)</p> -->
 
