@@ -245,7 +245,7 @@ Before getting started, ensure you have:
 [issues-shield]: https://img.shields.io/github/issues/github_username/repo_name.svg?style=for-the-badge
 [issues-url]: https://github.com/JoohanJin/AutoCryptoTrading/issues
 [license-shield]: https://img.shields.io/github/license/github_username/repo_name.svg?style=for-the-badge
-[license-url]: https://github.com/JoohanJin/AutoCryptoTrading/blob/master/LICENSE.txt
+[license-url]: https://github.com/JoohanJin/AutoCryptoTrading/blob/stable/LICENSE
 [linkedin-shield]: https://img.shields.io/badge/-LinkedIn-black.svg?style=for-the-badge&logo=linkedin&colorB=555
 [linkedin-url]: https://linkedin.com/in/linkedin_username
 [product-screenshot]: images/screenshot.png
