@@ -7,6 +7,7 @@ import time
 from logger.set_logger import operation_logger, trading_logger
 from object.constants import IndexType
 from object.signal import TradeSignal, Signal
+from object.indexes import Index
 
 
 class StrategyManager:
@@ -79,7 +80,7 @@ class StrategyManager:
         self.signal_window: int = signal_window
         self.threads: list[threading.Thread] = list()
 
-        self.indicators: dict[IndexType, Dict[int, float] | float | None] = indicators
+        self.indicators: dict[IndexType, Index] = indicators
         self.indicators_lock: threading.Lock = indicators_lock
         self._push_signal_callback: Callable[[Signal], None] = push_signal_callback
 
@@ -91,9 +92,12 @@ class StrategyManager:
         self.__init_threads()
         StrategyManager.start_threads(self.threads)
 
-    def push_signal(self: "StrategyManager", signal: Signal) -> None:
+    def push_signal(self: "StrategyManager", signal: Signal, details: str) -> None:
         try:
             self._push_signal_callback(signal)
+            trading_logger.info(
+                f"{__name__} - {details} Signal has been generated."
+            )
         except Exception as e:
             operation_logger.critical(
                 f"{__name__} - Cannot push signal '{signal.signal.name}': {str(e)}"
@@ -163,6 +167,25 @@ class StrategyManager:
 
         return
 
+    def __verify_index(
+        self: "StrategyManager",
+        index: Index,
+        time_window: int = 5_000,
+    ) -> bool:
+        if (StrategyManager.generate_timestamp() - index.timestamp < time_window):
+            return True
+        else:
+            return False
+
+    def __extract_data(
+        self: "StrategyManager",
+        index: Index,
+    ) -> dict[int, float] | None:
+        if index:
+            return index.data
+        else:
+            return None
+
     """
     ######################################################################################################################
     #                                                Generating Signal                                                   #
@@ -183,32 +206,29 @@ class StrategyManager:
         key: str = "golden_cross"
         while True:
             with self.indicators_lock:
-                sma_data: dict | None = self.indicators.get(IndexType.SMA)
-                ema_data: dict | None = self.indicators.get(IndexType.EMA)
+                sma_data: Index | None = self.indicators.get(IndexType.SMA)
+                ema_data: Index | None = self.indicators.get(IndexType.EMA)
 
-            with self.signal_timestamps_lock:
-                prev_timestamp: int = self.signal_timestamps.get(key, 0)
-
-            curr_timestamp: int = StrategyManager.generate_timestamp()
-
-            if (curr_timestamp - prev_timestamp > self.signal_window) and (sma_data and ema_data):  # only need to check if the sma and ema data are available.
-                # generate the signal based on the data and passit to the signal pipeline.
-                ten_sec_sma: float | None = sma_data.get(10)
-                five_min_ema: float | None = ema_data.get(300)
-
-                if ten_sec_sma and five_min_ema:
-                    if ten_sec_sma > five_min_ema:
-                        # generate the signal
-                        signal: Signal = StrategyManager.__generate_signal(
-                            signal = TradeSignal.LONG_TERM_BUY
-                        )
-                        self.push_signal(signal)
-                        trading_logger.info(
-                            f"{__name__} - Golden Cross Signal has been generated!: Bullish Trend."
-                        )
+            if (self.__verify_index(sma_data)) and (self.__verify_index(ema_data)):
 
                 with self.signal_timestamps_lock:
-                    self.signal_timestamps[key] = curr_timestamp
+                    prev_timestamp: int = self.signal_timestamps.get(key, 0)
+
+                if (StrategyManager.generate_timestamp() - prev_timestamp > self.signal_window) and (sma_data and ema_data):  # only need to check if the sma and ema data are available.
+                    # generate the signal based on the data and passit to the signal pipeline.
+                    ten_sec_sma: float | None = self.__extract_data(sma_data).get(10)
+                    five_min_ema: float | None = self.__extract_data(ema_data).get(300)
+
+                    if ten_sec_sma and five_min_ema:
+                        if ten_sec_sma > five_min_ema:
+                            # generate the signal
+                            signal: Signal = StrategyManager.__generate_signal(
+                                signal = TradeSignal.LONG_TERM_BUY
+                            )
+                            self.push_signal(signal = signal, details = key)
+
+                    with self.signal_timestamps_lock:
+                        self.signal_timestamps[key] = StrategyManager.generate_timestamp()
 
             time.sleep(1.5)
         return None
@@ -228,35 +248,29 @@ class StrategyManager:
         key: str = "death_cross"
         while True:
             with self.indicators_lock:
-                sma_data: dict = self.indicators.get(IndexType.SMA, None)
-                ema_data: dict = self.indicators.get(IndexType.EMA, None)
+                sma_data: Index | None = self.indicators.get(IndexType.SMA)
+                ema_data: Index | None = self.indicators.get(IndexType.EMA)
 
-            with self.signal_timestamps_lock:
-                prev_timestamp: int = self.signal_timestamps.get(key, 0)
-            curr_timestamp: int = StrategyManager.generate_timestamp()
-
-            if (
-                curr_timestamp - prev_timestamp > self.signal_window
-            ) and (
-                sma_data and ema_data
-            ):  # only need to check if the sma and ema data are available.
-                # generate the signal based on the data and passit to the signal pipeline.
-                ten_sec_sma: float | None = sma_data.get(10)
-                five_min_ema: float | None = ema_data.get(300)
-
-                if ten_sec_sma and five_min_ema:
-                    if ten_sec_sma < five_min_ema:
-                        # generate the signal
-                        signal: Signal = StrategyManager.__generate_signal(
-                            signal=TradeSignal.LONG_TERM_SELL
-                        )
-                        self.push_signal(signal)
-                        trading_logger.info(
-                            f"{__name__} - Death Cross Signal has been generated!: Bearish Trend."
-                        )
-
+            if (self.__verify_index(sma_data)) and (self.__verify_index(ema_data)):
                 with self.signal_timestamps_lock:
-                    self.signal_timestamps[key] = curr_timestamp
+                    prev_timestamp: int = self.signal_timestamps.get(key, 0)
+
+                if (StrategyManager.generate_timestamp() - prev_timestamp > self.signal_window) and (sma_data and ema_data):
+                    # only need to check if the sma and ema data are available.
+                    # generate the signal based on the data and passit to the signal pipeline.
+                    ten_sec_sma: float | None = sma_data.get(10)
+                    five_min_ema: float | None = ema_data.get(300)
+
+                    if ten_sec_sma and five_min_ema:
+                        if ten_sec_sma < five_min_ema:
+                            # generate the signal
+                            signal: Signal = StrategyManager.__generate_signal(
+                                signal = TradeSignal.LONG_TERM_SELL
+                            )
+                            self.push_signal(signal = signal, details = key)
+
+                    with self.signal_timestamps_lock:
+                        self.signal_timestamps[key] = StrategyManager.generate_timestamp()
 
             time.sleep(1.5)
         return None

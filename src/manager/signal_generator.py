@@ -92,7 +92,7 @@ class SignalGenerator:
         # Shared Structure
         # Mutex Lock
         self.indicators_lock: threading.Lock = threading.Lock()
-        self.indicators: dict[IndexType, Dict[int, float] | float | None] = {
+        self.indicators: dict[IndexType, Index | None] = {
             IndexType.SMA: None,
             IndexType.EMA: None,
             IndexType.PRICE: None,
@@ -172,7 +172,7 @@ class SignalGenerator:
                 # print(f"{data.index_type}: {data.data}")
                 if (data):
                     with self.indicators_lock:
-                        self.indicators[data.index_type] = data.data
+                        self.indicators[data.index_type] = data
             except Exception as e:
                 operation_logger.critical(f"{__name__} -  Unexpected Exeption occured - {str(e)}")
 
