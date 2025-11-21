@@ -1,0 +1,128 @@
+{
+  "strategies": [
+    {
+      "name": "golden_cross",
+      "enabled": true,
+      "description": "A golden cross occurs when a short-term moving average (SMA) crosses above a long-term moving average, indicating a potential bullish trend.",
+      "indicators": ["SMA", "EMA"],
+      "verify_freshness": true,
+      "conditions": [
+        {
+          "type": "comparison",
+          "left": {
+            "indicator": "SMA",
+            "window": 10
+          },
+          "operator": ">",
+          "right": {
+            "indicator": "EMA",
+            "window": 300
+          }
+        }
+      ],
+      "signal_type": "LONG_TERM_BUY",
+      "signal_window": 5000
+    },
+    {
+      "name": "death_cross",
+      "enabled": true,
+      "description": "A death cross occurs when a short-term moving average crosses below a long-term moving average, indicating a potential bearish trend.",
+      "indicators": ["SMA", "EMA"],
+      "verify_freshness": true,
+      "conditions": [
+        {
+          "type": "comparison",
+          "left": {
+            "indicator": "SMA",
+            "window": 10
+          },
+          "operator": "<",
+          "right": {
+            "indicator": "EMA",
+            "window": 300
+          }
+        }
+      ],
+      "signal_type": "LONG_TERM_SELL",
+      "signal_window": 5000
+    },
+    {
+      "name": "price_moving_average",
+      "enabled": true,
+      "description": "Price moving average signal occurs when the current price crosses above or below a specified MA, indicating potential buy or sell opportunities.",
+      "indicators": ["SMA", "PRICE"],
+      "verify_freshness": false,
+      "conditions": [
+        {
+          "type": "price_comparison",
+          "price_indicator": "PRICE",
+          "compare_to": {
+            "indicator": "SMA",
+            "window": 60
+          },
+          "buy_operator": ">",
+          "sell_operator": "<",
+          "buy_signal": "SHORT_TERM_BUY",
+          "sell_signal": "SHORT_TERM_SELL"
+        }
+      ],
+      "signal_type": "SHORT_TERM_BUY_OR_SELL",
+      "signal_window": 5000
+    },
+    {
+      "name": "ema_sma_divergence",
+      "enabled": true,
+      "description": "Divergence occurs when there is a significant difference between the EMA and SMA, indicating potential changes in market trends or momentum.",
+      "indicators": ["SMA", "EMA"],
+      "verify_freshness": false,
+      "conditions": [
+        {
+          "type": "divergence",
+          "left": {
+            "indicator": "SMA",
+            "window": 60
+          },
+          "right": {
+            "indicator": "EMA",
+            "window": 60
+          },
+          "threshold": 0.05,
+          "operator": "abs_difference"
+        }
+      ],
+      "signal_type": "HOLD",
+      "signal_window": 5000,
+      "parameters": {
+        "threshold": 0.05
+      }
+    },
+    {
+      "name": "price_reversal",
+      "enabled": true,
+      "description": "A price reversal signal occurs when the price changes direction after a sustained trend, indicating potential buy or sell opportunities.",
+      "indicators": ["SMA", "PRICE"],
+      "verify_freshness": false,
+      "conditions": [
+        {
+          "type": "price_comparison",
+          "price_indicator": "PRICE",
+          "compare_to": {
+            "indicator": "SMA",
+            "window": 60
+          },
+          "buy_operator": ">",
+          "sell_operator": "<",
+          "buy_signal": "SHORT_TERM_BUY",
+          "sell_signal": "SHORT_TERM_SELL"
+        }
+      ],
+      "signal_type": "SHORT_TERM_BUY_OR_SELL",
+      "signal_window": 5000
+    }
+  ],
+  "global_settings": {
+    "default_signal_window": 5000,
+    "sleep_interval": 1.5,
+    "enable_all_strategies": true
+  }
+}

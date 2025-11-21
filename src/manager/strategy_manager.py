@@ -11,6 +11,8 @@ from object.indexes import Index
 
 
 class StrategyManager:
+    SLEEP_INTERVAL: float = 1.5
+
     @staticmethod
     def generate_timestamp() -> int:
         """
@@ -104,64 +106,18 @@ class StrategyManager:
             )
 
     def __init_threads(self: "StrategyManager") -> None:
-        # Consume the data.
-        golden_cross_thread: threading.Thread = threading.Thread(
-            name = "golden_cross_signal_generator",
-            target = self.generate_golden_cross_signal,
-            daemon = True,
-        )
-        operation_logger.info(
-            f"{__name__}: Thread for golden_cross_signal_generator has been set up!"
-        )
+        strategy_threads: list[tuple[str | Callable]] = [
+            ("golden_cross_signal_generator", self.generate_golden_cross_signal),
+            ("death_cross_signal_generator", self.generate_death_cross_signal),
+            ("price_ma_signal_generator", self.generate_price_moving_average_signal),
+            ("ema_sma_divergence_signal_generator", self.generate_ema_sma_divergence_signal),
+            ("price_reversal_signal_generator", self.generate_price_reversal_signal),
+        ]
 
-        death_cross_thread: threading.Thread = threading.Thread(
-            name = "death_cross_signal_generator",
-            target = self.generate_death_cross_signal,
-            daemon = True,
-        )
-        operation_logger.info(
-            f"{__name__}: Thread for death_cross_signal_generator has been set up!"
-        )
-
-        price_ma_thread: threading.Thread = threading.Thread(
-            name = "price_ma_signal_generator",
-            target = self.generate_price_moving_average_signal,
-            daemon = True,
-        )
-        operation_logger.info(
-            f"{__name__}: Thread for price_ma_signal_generator has been set up!"
-        )
-
-        ema_sma_divergence_thread: threading.Thread = threading.Thread(
-            name = "ema_sma_divergence_signal_generator",
-            target = self.generate_ema_sma_divergence_signal,
-            daemon = True,
-        )
-        operation_logger.info(
-            f"{__name__}: Thread for ema_sma_divergence_signal_generator has been set up!"
-        )
-
-        price_reversal_thread: threading.Thread = threading.Thread(
-            name = "price_reversal_signal_generator",
-            target = self.generate_price_reversal_signal,
-            daemon = True,
-        )
-        operation_logger.info(
-            f"{__name__}: Thread for price_reversal_signal_generator has been set up!"
-        )
-
-        # add data consumptions threads into the Threads pool.
-        self.threads.extend(
-            [
-                golden_cross_thread,
-                death_cross_thread,
-                price_ma_thread,
-                ema_sma_divergence_thread,
-                price_reversal_thread,
-            ]
-        )
-
-        return
+        for name, target in strategy_threads:
+            thread = threading.Thread(name=name, target=target, daemon=True)
+            self.threads.append(thread)
+            operation_logger.info(f"{__name__}: Thread for {name} has been set up!")
 
     def __verify_index(
         self: "StrategyManager",
@@ -181,6 +137,14 @@ class StrategyManager:
             return index.data
         else:
             return None
+
+    def _get_indicator_value(
+        self: "StrategyManager",
+        indicator: Index | None,
+        window: int,
+    ) -> float | None:
+        data = self.__extract_data(indicator) if indicator else None
+        return data.get(window) if data else None
 
     def __update_signal_timestamp(
         self: "StrategyManager",
@@ -266,7 +230,7 @@ class StrategyManager:
 
                 self.__update_signal_timestamp(key)
 
-            time.sleep(1.5)
+            time.sleep(self.SLEEP_INTERVAL)
 
     """
     ######################################################################################################################
@@ -292,8 +256,8 @@ class StrategyManager:
             if not (sma_data and ema_data):
                 return None
 
-            ten_sec_sma: float | None = self.__extract_data(sma_data).get(10, 0)
-            five_min_ema: float | None = self.__extract_data(ema_data).get(300, 0)
+            ten_sec_sma: float | None = self._get_indicator_value(sma_data, 10)
+            five_min_ema: float | None = self._get_indicator_value(ema_data, 300)
 
             if ten_sec_sma and five_min_ema and ten_sec_sma > five_min_ema:
                 return StrategyManager.generate_signal(signal=TradeSignal.LONG_TERM_BUY)
@@ -325,8 +289,8 @@ class StrategyManager:
             if not (sma_data and ema_data):
                 return None
             
-            ten_sec_sma: float | None = self.__extract_data(sma_data).get(10)
-            five_min_ema: float | None = self.__extract_data(ema_data).get(300)
+            ten_sec_sma: float | None = self._get_indicator_value(sma_data, 10)
+            five_min_ema: float | None = self._get_indicator_value(ema_data, 300)
             
             if ten_sec_sma and five_min_ema and ten_sec_sma < five_min_ema:
                 return StrategyManager.generate_signal(signal=TradeSignal.LONG_TERM_SELL)
@@ -361,7 +325,7 @@ class StrategyManager:
             if not (sma_data and current_price):
                 return None
             
-            sma_60 = self.__extract_data(sma_data).get(60) if sma_data else None
+            sma_60 = self._get_indicator_value(sma_data, 60)
             
             if sma_60:
                 if current_price > sma_60:
@@ -375,7 +339,7 @@ class StrategyManager:
                     )
                     return StrategyManager.generate_signal(signal=TradeSignal.SHORT_TERM_SELL)
             return None
-        
+
         self._execute_signal_strategy(
             key="price_moving_average",
             required_indicators=[IndexType.SMA, IndexType.PRICE],
@@ -405,8 +369,8 @@ class StrategyManager:
             if not (sma_data and ema_data):
                 return None
             
-            sma_60 = self.__extract_data(sma_data).get(60) if sma_data else None
-            ema_60 = self.__extract_data(ema_data).get(60) if ema_data else None
+            sma_60 = self._get_indicator_value(sma_data, 60)
+            ema_60 = self._get_indicator_value(ema_data, 60)
             
             if sma_60 and ema_60:
                 divergence: float = abs(sma_60 - ema_60)
@@ -416,7 +380,7 @@ class StrategyManager:
                     )
                     return StrategyManager.generate_signal(signal=TradeSignal.HOLD)
             return None
-        
+
         self._execute_signal_strategy(
             key="ema_sma_divergence",
             required_indicators=[IndexType.SMA, IndexType.EMA],
@@ -438,12 +402,12 @@ class StrategyManager:
         def price_reversal_logic(indicators: dict[IndexType, Index | None]) -> Signal | None:
             sma_data: Index | None = indicators.get(IndexType.SMA)
             current_price: float | None = indicators.get(IndexType.PRICE)
-            
+
             if not (sma_data and current_price):
                 return None
-            
-            sma_60: float | None = self.__extract_data(sma_data).get(60) if sma_data else None
-            
+
+            sma_60: float | None = self._get_indicator_value(sma_data, 60)
+
             if sma_60:
                 if current_price > sma_60:
                     trading_logger.info(
@@ -456,7 +420,7 @@ class StrategyManager:
                     )
                     return StrategyManager.generate_signal(signal=TradeSignal.SHORT_TERM_SELL)
             return None
-        
+
         self._execute_signal_strategy(
             key="price_reversal",
             required_indicators=[IndexType.SMA, IndexType.PRICE],
