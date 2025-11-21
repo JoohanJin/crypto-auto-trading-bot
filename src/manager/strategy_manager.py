@@ -25,11 +25,11 @@ class StrategyManager:
         return int(time.time() * 1_000)
 
     @staticmethod
-    def __generate_signal(
+    def generate_signal(
         signal: TradeSignal,
     ) -> Signal:
         """
-        - func __generate_signal():
+        - func generate_signal():
             - Generate the signal based on the data.
             - It will be used to generate the signal based on the data.
 
@@ -102,10 +102,6 @@ class StrategyManager:
             operation_logger.critical(
                 f"{__name__} - Cannot push signal '{signal.signal.name}': {str(e)}"
             )
-
-    def analyze_index(self: "StrategyManager", ) -> None:
-        # What to return? -> list of Signtal?
-        return
 
     def __init_threads(self: "StrategyManager") -> None:
         # Consume the data.
@@ -186,6 +182,92 @@ class StrategyManager:
         else:
             return None
 
+    def __update_signal_timestamp(
+        self: "StrategyManager",
+        key: str,
+    ) -> None:
+        with self.signal_timestamps_lock:
+            self.signal_timestamps[key] = StrategyManager.generate_timestamp()
+        return
+
+    def __get_signal_timestamp(
+        self: "StrategyManager",
+        key: str,
+    ) -> int:
+        with self.signal_timestamps_lock:
+            return self.signal_timestamps.get(key, 0)
+
+    def _should_generate_signal(
+        self: "StrategyManager",
+        key: str,
+    ) -> bool:
+        """
+        Check if enough time has passed since the last signal generation.
+
+        param key: str
+            - The signal identifier key
+
+        return bool
+            - True if signal should be generated, False otherwise
+        """
+        prev_timestamp: int = self.__get_signal_timestamp(key)
+        return StrategyManager.generate_timestamp() - prev_timestamp > self.signal_window
+
+    def _get_indicators_safely(
+        self: "StrategyManager",
+        *indicator_types: IndexType,
+    ) -> dict[IndexType, Index | None]:
+        """
+        Thread-safe retrieval of multiple indicators.
+
+        param indicator_types: IndexType
+            - Variable number of indicator types to retrieve
+
+        return dict[IndexType, Index | None]
+            - Dictionary mapping indicator types to their Index objects
+        """
+        with self.indicators_lock:
+            return {idx_type: self.indicators.get(idx_type) for idx_type in indicator_types}
+
+    def _execute_signal_strategy(
+        self: "StrategyManager",
+        key: str,
+        required_indicators: list[IndexType],
+        signal_logic: Callable[[dict[IndexType, Index | None]], Signal | None],
+        verify_freshness: bool = True,
+    ) -> None:
+        """
+        Generic signal generation loop that handles locking, timing, and callbacks.
+
+        param key: str
+            - Signal identifier for logging and timestamp tracking
+        param required_indicators: list[IndexType]
+            - List of indicator types needed for this signal
+        param signal_logic: Callable
+            - Function that takes indicators dict and returns Signal or None
+        param verify_freshness: bool
+            - Whether to verify indicator timestamps before processing
+        """
+        while True:
+            indicators = self._get_indicators_safely(*required_indicators)
+
+            # Verify all indicators are fresh if required
+            should_process = True
+            if verify_freshness:
+                should_process = all(
+                    self.__verify_index(ind) for ind in indicators.values() if ind
+                )
+
+            if should_process and self._should_generate_signal(key):
+                signal = signal_logic(indicators)
+
+                if signal:
+                    self.push_signal(signal=signal, details=key)
+
+                self.__update_signal_timestamp(key)
+
+            time.sleep(1.5)
+
     """
     ######################################################################################################################
     #                                                Generating Signal                                                   #
@@ -203,35 +285,26 @@ class StrategyManager:
             - a short-term moving average (SMA) crosses above
             - a long-term moving average, indicating a potential bullish trend.
         """
-        key: str = "golden_cross"
-        while True:
-            with self.indicators_lock:
-                sma_data: Index | None = self.indicators.get(IndexType.SMA)
-                ema_data: Index | None = self.indicators.get(IndexType.EMA)
+        def golden_cross_logic(indicators: dict[IndexType, Index | None]) -> Signal | None:
+            sma_data = indicators.get(IndexType.SMA)
+            ema_data = indicators.get(IndexType.EMA)
 
-            if (self.__verify_index(sma_data)) and (self.__verify_index(ema_data)):
+            if not (sma_data and ema_data):
+                return None
 
-                with self.signal_timestamps_lock:
-                    prev_timestamp: int = self.signal_timestamps.get(key, 0)
+            ten_sec_sma: float | None = self.__extract_data(sma_data).get(10, 0)
+            five_min_ema: float | None = self.__extract_data(ema_data).get(300, 0)
 
-                if (StrategyManager.generate_timestamp() - prev_timestamp > self.signal_window) and (sma_data and ema_data):  # only need to check if the sma and ema data are available.
-                    # generate the signal based on the data and passit to the signal pipeline.
-                    ten_sec_sma: float | None = self.__extract_data(sma_data).get(10)
-                    five_min_ema: float | None = self.__extract_data(ema_data).get(300)
+            if ten_sec_sma and five_min_ema and ten_sec_sma > five_min_ema:
+                return StrategyManager.generate_signal(signal=TradeSignal.LONG_TERM_BUY)
+            return None
 
-                    if ten_sec_sma and five_min_ema:
-                        if ten_sec_sma > five_min_ema:
-                            # generate the signal
-                            signal: Signal = StrategyManager.__generate_signal(
-                                signal = TradeSignal.LONG_TERM_BUY
-                            )
-                            self.push_signal(signal = signal, details = key)
-
-                    with self.signal_timestamps_lock:
-                        self.signal_timestamps[key] = StrategyManager.generate_timestamp()
-
-            time.sleep(1.5)
-        return None
+        self._execute_signal_strategy(
+            key="golden_cross",
+            required_indicators=[IndexType.SMA, IndexType.EMA],
+            signal_logic=golden_cross_logic,
+            verify_freshness=True,
+        )
 
     def generate_death_cross_signal(
         self: 'StrategyManager',
@@ -245,35 +318,26 @@ class StrategyManager:
             - a long-term moving average,
             - indicating a potential bearish trend.
         """
-        key: str = "death_cross"
-        while True:
-            with self.indicators_lock:
-                sma_data: Index | None = self.indicators.get(IndexType.SMA)
-                ema_data: Index | None = self.indicators.get(IndexType.EMA)
-
-            if (self.__verify_index(sma_data)) and (self.__verify_index(ema_data)):
-                with self.signal_timestamps_lock:
-                    prev_timestamp: int = self.signal_timestamps.get(key, 0)
-
-                if (StrategyManager.generate_timestamp() - prev_timestamp > self.signal_window) and (sma_data and ema_data):
-                    # only need to check if the sma and ema data are available.
-                    # generate the signal based on the data and passit to the signal pipeline.
-                    ten_sec_sma: float | None = sma_data.get(10)
-                    five_min_ema: float | None = ema_data.get(300)
-
-                    if ten_sec_sma and five_min_ema:
-                        if ten_sec_sma < five_min_ema:
-                            # generate the signal
-                            signal: Signal = StrategyManager.__generate_signal(
-                                signal = TradeSignal.LONG_TERM_SELL
-                            )
-                            self.push_signal(signal = signal, details = key)
-
-                    with self.signal_timestamps_lock:
-                        self.signal_timestamps[key] = StrategyManager.generate_timestamp()
-
-            time.sleep(1.5)
-        return None
+        def death_cross_logic(indicators: dict[IndexType, Index | None]) -> Signal | None:
+            sma_data = indicators.get(IndexType.SMA)
+            ema_data = indicators.get(IndexType.EMA)
+            
+            if not (sma_data and ema_data):
+                return None
+            
+            ten_sec_sma: float | None = self.__extract_data(sma_data).get(10)
+            five_min_ema: float | None = self.__extract_data(ema_data).get(300)
+            
+            if ten_sec_sma and five_min_ema and ten_sec_sma < five_min_ema:
+                return StrategyManager.generate_signal(signal=TradeSignal.LONG_TERM_SELL)
+            return None
+        
+        self._execute_signal_strategy(
+            key="death_cross",
+            required_indicators=[IndexType.SMA, IndexType.EMA],
+            signal_logic=death_cross_logic,
+            verify_freshness=True,
+        )
 
     def generate_price_moving_average_signal(
         self: 'StrategyManager',
@@ -290,48 +354,34 @@ class StrategyManager:
             - If the current price crosses above the moving average, generate a "Price Above MA" signal.
             - If the current price crosses below the movign average, generate a "Price Below MA" signal.
         """
-        key: str = "price_moving_average"
-        while True:
-            with self.indicators_lock:
-                sma_data: Dict[int, float] = self.indicators.get(IndexType.SMA)
-                current_price:       float = self.indicators.get(IndexType.PRICE)
-
-            with self.signal_timestamps_lock:
-                prev_timestamp: int = self.signal_timestamps.get(key, 0)
-
-            curr_timestamp: int = StrategyManager.generate_timestamp()
-
-            if (
-                curr_timestamp - prev_timestamp > self.signal_window
-            ) and (
-                sma_data and current_price
-            ):
-                sma_60 = sma_data.get(60)  # Example for 1 min SMA
-
-                if sma_60:
-                    if current_price > sma_60:
-                        signal: Signal = StrategyManager.__generate_signal(
-                            signal = TradeSignal.SHORT_TERM_BUY,
-                        )
-                        self.push_signal(signal)
-                        trading_logger.info(
-                            f"{__name__} - Short Term Buy Signal has been generated!: Bullish Trend."
-                        )
-
-                    elif current_price < sma_60:
-                        signal: Signal = StrategyManager.__generate_signal(
-                            signal=TradeSignal.SHORT_TERM_SELL,
-                        )
-                        self.push_signal(signal)
-                        trading_logger.info(
-                            f"{__name__} - Short Term Sell Signal has been generated!: Bearish Trend."
-                        )
-
-                with self.signal_timestamps_lock:
-                    self.signal_timestamps[key] = curr_timestamp
-
-            time.sleep(1.5)
-        return None
+        def price_ma_logic(indicators: dict[IndexType, Index | None]) -> Signal | None:
+            sma_data: Index | None = indicators.get(IndexType.SMA)
+            current_price: float | None = indicators.get(IndexType.PRICE)
+            
+            if not (sma_data and current_price):
+                return None
+            
+            sma_60 = self.__extract_data(sma_data).get(60) if sma_data else None
+            
+            if sma_60:
+                if current_price > sma_60:
+                    trading_logger.info(
+                        f"{__name__} - Short Term Buy Signal has been generated!: Bullish Trend."
+                    )
+                    return StrategyManager.generate_signal(signal=TradeSignal.SHORT_TERM_BUY)
+                elif current_price < sma_60:
+                    trading_logger.info(
+                        f"{__name__} - Short Term Sell Signal has been generated!: Bearish Trend."
+                    )
+                    return StrategyManager.generate_signal(signal=TradeSignal.SHORT_TERM_SELL)
+            return None
+        
+        self._execute_signal_strategy(
+            key="price_moving_average",
+            required_indicators=[IndexType.SMA, IndexType.PRICE],
+            signal_logic=price_ma_logic,
+            verify_freshness=False,
+        )
 
     def generate_ema_sma_divergence_signal(
         self: 'StrategyManager',
@@ -348,38 +398,31 @@ class StrategyManager:
             - There is a significant difference between the EMA and SMA.
             - This divergence can indicate potential changes in makret trends or momentum.
         """
-        key: str = "ema_sma_divergence"
-        while True:
-            with self.indicators_lock:
-                sma_data: Dict[int, float] = self.indicators.get(IndexType.SMA)
-                ema_data: Dict[int, float] = self.indicators.get(IndexType.EMA)
-
-            with self.signal_timestamps_lock:
-                prev_timestamp: int = self.signal_timestamps.get(key, 0)
-            curr_timestamp: int = StrategyManager.generate_timestamp()
-
-            if (curr_timestamp - prev_timestamp > self.signal_window) and (
-                sma_data and ema_data
-            ):
-                sma_60 = sma_data.get(60)  # data for 1 min SMA
-                ema_60 = ema_data.get(60)  # data for 1 min EMA
-
-                if sma_60 and ema_60:
-                    divergence: float = abs(sma_60 - ema_60)
-                    if divergence > threshold:
-                        signal: Signal = StrategyManager.__generate_signal(
-                            signal=TradeSignal.HOLD,
-                        )
-                        self.push_signal(signal)
-                        trading_logger.info(
-                            f"{__name__} - Divergence Signal has been generated!: Potential Trend Change."
-                        )
-
-                with self.signal_timestamps_lock:
-                    self.signal_timestamps[key] = curr_timestamp
-
-            time.sleep(1.5)
-        return None
+        def ema_sma_divergence_logic(indicators: dict[IndexType, Index | None]) -> Signal | None:
+            sma_data: Index | None = indicators.get(IndexType.SMA)
+            ema_data: Index | None = indicators.get(IndexType.EMA)
+            
+            if not (sma_data and ema_data):
+                return None
+            
+            sma_60 = self.__extract_data(sma_data).get(60) if sma_data else None
+            ema_60 = self.__extract_data(ema_data).get(60) if ema_data else None
+            
+            if sma_60 and ema_60:
+                divergence: float = abs(sma_60 - ema_60)
+                if divergence > threshold:
+                    trading_logger.info(
+                        f"{__name__} - Divergence Signal has been generated!: Potential Trend Change."
+                    )
+                    return StrategyManager.generate_signal(signal=TradeSignal.HOLD)
+            return None
+        
+        self._execute_signal_strategy(
+            key="ema_sma_divergence",
+            required_indicators=[IndexType.SMA, IndexType.EMA],
+            signal_logic=ema_sma_divergence_logic,
+            verify_freshness=False,
+        )
 
     def generate_price_reversal_signal(
         self: 'StrategyManager',
@@ -392,39 +435,31 @@ class StrategyManager:
             - the price changes direction after a sustained trend.
             - This cna indicate potential buy or sell opportunities based on this.
         """
-        key: str = "price_reversal"
-        while True:
-            with self.indicators_lock:
-                sma_data: Dict[int, float] = self.indicators.get(IndexType.SMA)
-                current_price: float = self.indicators.get(IndexType.PRICE)
-
-            with self.signal_timestamps_lock:
-                prev_timestamp: int = self.signal_timestamps.get(key, 0)
-            curr_timestamp: int = StrategyManager.generate_timestamp()
-
-            if ((curr_timestamp - prev_timestamp > self.signal_window) and (sma_data and current_price)):
-                sma_60: float = sma_data.get(60)
-
-                if sma_60:
-                    if current_price > sma_60:
-                        signal: Signal = StrategyManager.__generate_signal(
-                            signal = TradeSignal.SHORT_TERM_BUY,
-                        )
-                        self.push_signal(signal)
-                        trading_logger.info(
-                            f"{__name__} - Price Reversal Signal has been generated!: Bullish Reveral."
-                        )
-                    elif current_price < sma_60:
-                        signal: Signal = StrategyManager.__generate_signal(
-                            signal = TradeSignal.SHORT_TERM_SELL,
-                        )
-                        self.push_signal(signal)
-                        trading_logger.info(
-                            f"{__name__} - Price Reversal Signal has been generated!: Bearish Reveral."
-                        )
-
-                with self.signal_timestamps_lock:
-                    self.signal_timestamps[key] = curr_timestamp
-
-            time.sleep(1.5)
-        return None
+        def price_reversal_logic(indicators: dict[IndexType, Index | None]) -> Signal | None:
+            sma_data: Index | None = indicators.get(IndexType.SMA)
+            current_price: float | None = indicators.get(IndexType.PRICE)
+            
+            if not (sma_data and current_price):
+                return None
+            
+            sma_60: float | None = self.__extract_data(sma_data).get(60) if sma_data else None
+            
+            if sma_60:
+                if current_price > sma_60:
+                    trading_logger.info(
+                        f"{__name__} - Price Reversal Signal has been generated!: Bullish Reveral."
+                    )
+                    return StrategyManager.generate_signal(signal=TradeSignal.SHORT_TERM_BUY)
+                elif current_price < sma_60:
+                    trading_logger.info(
+                        f"{__name__} - Price Reversal Signal has been generated!: Bearish Reveral."
+                    )
+                    return StrategyManager.generate_signal(signal=TradeSignal.SHORT_TERM_SELL)
+            return None
+        
+        self._execute_signal_strategy(
+            key="price_reversal",
+            required_indicators=[IndexType.SMA, IndexType.PRICE],
+            signal_logic=price_reversal_logic,
+            verify_freshness=False,
+        )
