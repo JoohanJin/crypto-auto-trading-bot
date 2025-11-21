@@ -1,7 +1,6 @@
 """Custom exceptions used across the trading subsystem."""
 
 from __future__ import annotations
-import traceback
 
 from src.exceptions.basic_exceptions import BasicException
 

@@ -1,7 +1,7 @@
 # TODO: Need to re-plan the structure of Signal generator.
 # STANDARD LIBRARY
 import threading
-from typing import Dict, List
+from typing import List
 import time
 
 # CUSTOM LIBRARY

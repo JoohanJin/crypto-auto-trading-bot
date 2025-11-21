@@ -1,10 +1,5 @@
 # Built-in Library
-import sys
-import threading
-from typing import Optional, Callable
-import time
-import json
-from abc import ABC
+from typing import Callable
 
 # Custom Library
 from sdk.websocket_sdk import BasicWebSocketManager
@@ -29,15 +24,15 @@ class _FutureWebSocketManager(BasicWebSocketManager):
     ):
         # BasicWebSocketManager.init()
         kwargs: dict = dict(
-            ws_name = ws_name,
-            api_key = api_key,
-            secret_key = secret_key,
-            endpoint = endpoint,
-            ping_interval = ping_interval,
-            connection_interval = connection_interval,
-            ping_timeout = ping_timeout,
-            conn_timeout = conn_timeout,
-            default_callback = default_callback,
+            ws_name=ws_name,
+            api_key=api_key,
+            secret_key=secret_key,
+            endpoint=endpoint,
+            ping_interval=ping_interval,
+            connection_interval=connection_interval,
+            ping_timeout=ping_timeout,
+            conn_timeout=conn_timeout,
+            default_callback=default_callback,
         )
 
         super().__init__(**kwargs)
@@ -90,9 +85,9 @@ class _FutureWebSocketManager(BasicWebSocketManager):
         '''
 
         if is_auth_response():
-            self._deal_with_auth_msg(msg = msg)
+            self._deal_with_auth_msg(msg=msg)
         elif is_sub_response():
-            self._deal_with_sub_msg(msg = msg)
+            self._deal_with_sub_msg(msg=msg)
         elif is_error_msg():
             operation_logger.info(
                 f"{__name__} - func _deal_with_response(): The error has been received from the host: {msg}"
@@ -100,7 +95,7 @@ class _FutureWebSocketManager(BasicWebSocketManager):
         elif is_pong_msg():  # Do Nothing
             pass
         else:
-            self._deal_with_normal_msg(msg = msg)
+            self._deal_with_normal_msg(msg=msg)
 
         return
 
@@ -179,14 +174,14 @@ class _FutureWebSocket(_FutureWebSocketManager):
         self.active_connections = []
 
         kwargs = dict(
-            api_key = api_key,
-            secret_key = secret_key,
-            endpoint = endpoint,
-            ping_interval = ping_interval,
-            connection_interval = connection_interval,
-            ping_timeout = ping_timeout,
-            conn_timeout = conn_timeout,
-            default_callback = default_callback,
+            api_key=api_key,
+            secret_key=secret_key,
+            endpoint=endpoint,
+            ping_interval=ping_interval,
+            connection_interval=connection_interval,
+            ping_timeout=ping_timeout,
+            conn_timeout=conn_timeout,
+            default_callback=default_callback,
         )
 
         super().__init__(**kwargs)

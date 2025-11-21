@@ -6,14 +6,13 @@ import threading
 
 # CUSTOM LIBRARY
 from custom_telegram.telegram_bot_class import CustomTelegramBot
-from manager.data_collector_and_processor import DataCollectorAndProcessor, IndexFactory
+from manager.data_collector_and_processor import DataCollectorAndProcessor
 from manager.signal_generator import SignalGenerator
 from manager.trade_manager import TradeManager
 from pipeline.data_pipeline import DataPipeline
 from logger.set_logger import operation_logger
 from pipeline.signal_pipeline import SignalPipeline
 from interface.pipeline_interface import PipelineController
-from object.constants import IndexType
 from object.score_mapping import ScoreMapper
 from object.indexes import Index
 from object.signal import Signal
@@ -208,13 +207,13 @@ class SystemManager:
                 api_key = api_key,
                 secret_key = secret_key,
             )
-        except ValueError as e:
+        except ValueError:
             operation_logger.critical(f"{__name__} - binance_api_key or/and binance_secret_key is/are None.")
 
 
 def main():  # to test run the system manager.
     # ! make the start, stop and terminate command for the SystemManager
-    main_system_manager: SystemManager = SystemManager()
+    SystemManager()
 
 
 """

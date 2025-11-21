@@ -7,7 +7,6 @@ from typing import Literal, Union, Callable
 
 from mexc.base_sdk import FutureBase
 from mexc.websocket_base import _FutureWebSocket
-from logger.set_logger import operation_logger
 
 
 # no need to authenticate
@@ -1048,8 +1047,6 @@ class FutureWebSocket(_FutureWebSocket):
         param: dict | None = None,
     ) -> None:
         # TODO: Need to implement the position function
-        method = "sub.personal.position"
-
         raise NotImplementedError
         return
 
@@ -1068,8 +1065,6 @@ class FutureWebSocket(_FutureWebSocket):
         param: dict | None = dict()
     ) -> None:
         # TODO: Need to implement the adl function
-        method = "sub.personal.adl.level"
-
         raise NotImplementedError
         return
 
@@ -1079,7 +1074,5 @@ class FutureWebSocket(_FutureWebSocket):
         param: dict | None = dict()
     ) -> None:
         # TODO: Need to implement the position_mode function
-        method = "sub.personal.position.mode"
-
         raise NotImplementedError
         return

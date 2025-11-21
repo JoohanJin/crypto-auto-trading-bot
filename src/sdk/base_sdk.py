@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 from pydantic import BaseModel, ValidationError
 
 
-TBaseModel = TypeVar("TBaseModel", bound = BaseModel)
+TBaseModel = TypeVar("TBaseModel", bound=BaseModel)
 
 
 class CommonBaseSDK(ABC):
@@ -115,54 +115,10 @@ class CommonBaseSDK(ABC):
             raise ValueError("Secret key is required for signature generation.")
 
         return hmac.new(
-            key = self.secret_key.encode("utf-8"),
-            msg = query_string.encode("utf-8"),
-            digestmod = hashlib.sha256,
+            key=self.secret_key.encode("utf-8"),
+            msg=query_string.encode("utf-8"),
+            digestmod=hashlib.sha256,
         ).hexdigest()
-
-    @staticmethod
-    def parse_response(
-        response: requests.Response,
-        model: Type[TBaseModel] | None = None,
-    ) -> TBaseModel | list[TBaseModel] | dict[str, Any] | list[Any] | str | None:
-        """Parse an HTTP response into structured data.
-
-        Args:
-            response: The raw ``requests.Response`` object returned from the session.
-            model: Optional Pydantic ``BaseModel`` subclass used for validation.
-
-        Returns:
-            The decoded payload (dict/list/str/None) or a validated Pydantic model/
-            list of models when ``model`` is provided.
-
-        Raises:
-            ValueError: When ``model`` is supplied but the response cannot be
-                validated against it.
-        """
-
-        try:
-            payload: Any = response.json()
-        except ValueError:
-            payload = response.text or None
-
-        if model is None or payload is None:
-            return payload
-
-        try:
-            if isinstance(payload, list):
-                return [model.model_validate(item) for item in payload]
-            if isinstance(payload, dict):
-                return model.model_validate(payload)
-        except ValidationError as exc:  # pragma: no cover - pydantic detail
-            raise ValueError(
-                f"Failed to parse response into {model.__name__}: {exc}"
-            ) from exc
-
-        raise ValueError(
-            f"Response body of type {type(payload).__name__} cannot be parsed using {model.__name__}."
-        )
-
-        return
 
     @abstractmethod
     def call(

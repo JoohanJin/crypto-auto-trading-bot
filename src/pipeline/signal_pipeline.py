@@ -47,8 +47,8 @@ class SignalPipeline(BasePipeline[Signal]):
         try:
             self.signal_queue.put(
                 signal,
-                block = False,
-                timeout = 1,
+                block=False,
+                timeout=1,
             )
             return True
         except Full:
@@ -86,8 +86,8 @@ class SignalPipeline(BasePipeline[Signal]):
         '''
         try:
             return self.signal_queue.get(
-                block = block,
-                timeout = timeout,
+                block=block,
+                timeout=timeout,
             )
         except Empty:
             operation_logger.warning(

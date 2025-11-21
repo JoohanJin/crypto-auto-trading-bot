@@ -14,7 +14,7 @@ if str(SRC_DIR) not in sys.path:
 
 from object.constants import IndexType  # type: ignore
 from object.indexes import Index  # type: ignore
-from object.signal import TradeSignal, Signal  # type: ignore
+from object.signal import TradeSignal  # type: ignore
 
 try:
     from manager.strategy import (  # type: ignore
@@ -36,7 +36,18 @@ class StrategyFactoryTest(unittest.TestCase):
 
     def test_build_all_filters_disabled(self) -> None:
         factory = StrategyFactory()
-        raw_config = {"strategies": [{"name": "s1", "enabled": False}, {"name": "s2", "enabled": True, "indicators": [], "conditions": [], "signal_type": "HOLD"}]}
+        raw_config = {
+            "strategies": [
+                {"name": "s1", "enabled": False},
+                {
+                    "name": "s2",
+                    "enabled": True,
+                    "indicators": [],
+                    "conditions": [],
+                    "signal_type": "HOLD",
+                },
+            ]
+        }
 
         configs = factory.build_all(raw_config)
 

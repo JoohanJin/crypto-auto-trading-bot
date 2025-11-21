@@ -1,56 +1,33 @@
-name: basicCI # This sets the name of the workflow as it appears in the GitHub Actions UI.
+name: CI
 
-# CI runs on feature branches when code is pushed.
-# CI runs when merging into main or dev via pull requests.
-# Direct pushes to main and dev are not allowed (enforced via branch protection rules, not here).
-on: # defines when the workflow should run.
-    push: # triggers the workflows when code is pushed to any branch that mathces the pattern dev-*.
-        branches:
-            - 'dev-*' # Feature Branches
-    pull_request: # triggers the workflow when a pull request is opened or updated targeting main or dev.
-        branches: # main and dev branches won't accept any direct push.
-            - stable
-            - dev
+on:
+  push:
+    branches: [ main, master, dev, Stable ]
+  pull_request:
+    branches: [ main, master, dev, Stable ]
 
-jobs: # defines a list of jobs to run
-    lint-test: # the name of the job.
-        runs-on: ubuntu-22.04 # specifies the environment - here, GitHub will use an Ubuntu 22.04 virtual machines
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-        steps:
-        - name: Ensure PR Source is dev when PR destination is stable
-          if: github.event_name == 'pull_request' && github.base_ref == 'stable'
-          run: |
-            echo "Source branch: ${{ github.head_ref }}"
-            if [ "${{ github.head_ref }}" != "dev" ]; then
-              echo "❌ Only pull requests from 'dev' to 'stable' are allowed."
-              exit 1
-            fi
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: "pip"
 
-        - name: Checkout code # to check out the repository code so the workflow can access it
-          uses: actions/checkout@v3
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      - name: Lint with flake8
+        run: |
+          flake8 .
 
-        - name: Set up Python # to set up Python version 3.10 in the runner environment
-          uses: actions/setup-python@v4
-          with:
-            python-version: '3.10'
-
-        - name: Install dependencies
-          run: |
-           python -m pip install --upgrade pip
-           pip install -r requirements.txt
-           pip install flake8 black pylint pytest
-          
-        # Runs flake8 on the entire project to check for style violation.
-        # - name: Run flake8 linting
-        #   run: |
-        #    flake8 .
-        
-        # Runs black in check mode to ensure code is properly formatted
-        # if formatting is incorrect, this step will fail
-        # - name: Check code formatting with black
-          # run: |
-          #  black --check .
-
-        # - name: Run test
-        #   run: |
-        #    pytest
+      - name: Run tests
+        run: |
+          python -m unittest discover -s test -p "test_*.py"
