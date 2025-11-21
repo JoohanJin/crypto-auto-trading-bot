@@ -1,10 +1,9 @@
 # Standard Library
 import queue
-from typing import Dict, Tuple
+from typing import Dict
 
 # CUSTOM LIBRARY
 from logger.set_logger import operation_logger
-from object.constants import IndexType
 from object.indexes import Index
 from .base_pipeline import BasePipeline
 
@@ -75,8 +74,8 @@ class DataPipeline(BasePipeline[Index]):  # TODO: Make the object for th Data ob
         try:
             self.queue.put(
                 data,
-                block = block,
-                timeout = timeout,
+                block=block,
+                timeout=timeout,
             )
             return True
         except queue.Full:
@@ -109,7 +108,7 @@ class DataPipeline(BasePipeline[Index]):  # TODO: Make the object for th Data ob
             - return data if there is a valid data.
         '''
         try:
-            return self.queue.get(block = block, timeout = timeout)
+            return self.queue.get(block=block, timeout=timeout)
         except queue.Empty:
             operation_logger.warning(f"{__name__} - self.queue is empty: Data cannot be retrieved.")
             return None

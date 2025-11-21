@@ -1,9 +1,7 @@
 # Standard Module
 import time
-from typing import Any, Dict, Tuple
-from h11 import Data
+from typing import Dict, Tuple
 import pandas as pd
-import numpy as np
 import threading
 from queue import Queue
 
@@ -13,7 +11,6 @@ from logger.set_logger import operation_logger
 from manager.data_saver import DataSaver
 from object.constants import MA_WRITE_PERIODS, IndexType
 from object.indexes import Index
-from pipeline.data_pipeline import DataPipeline
 from interface.pipeline_interface import PipelineController
 
 
@@ -559,11 +556,14 @@ class DataCollectorAndProcessor:
                             data = self.price_data.iloc[: -self._df_size_limit]
                             self.price_data = self.price_data.iloc[-self._df_size_limit :]
                             operation_logger.info(
-                                f"{__name__} - Data Saver has resized the price DataFrame to {self.price_data.shape[0]} rows and {self.price_data.shape[1]} columns - cleaned up {data.shape[0]} rows and {data.shape[1]} columns"
+                                f"{__name__} - Data Saver resized price DataFrame to "
+                                f"{self.price_data.shape[0]} rows and {self.price_data.shape[1]} columns - "
+                                f"cleaned {data.shape[0]} rows and {data.shape[1]} columns"
                             )
                         else:
                             operation_logger.info(
-                                f"{__name__} - Data Saver has not cleaned up the self.price_data, since the data size is below the threshold: {self.price_data.shape[0]}"
+                                f"{__name__} - Data Saver skipped cleanup; size below threshold: "
+                                f"{self.price_data.shape[0]} rows"
                             )
 
                     # TODO: add the proper database.

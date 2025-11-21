@@ -1,5 +1,4 @@
 # Built in libraries
-from urllib.parse import urlencode
 from typing import Optional, Union, Literal
 import json
 

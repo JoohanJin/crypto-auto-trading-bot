@@ -1,10 +1,7 @@
 # Standard Library
-from abc import abstractmethod
-import time
 from typing import Literal, Union
 
-from websocket import recv
-from logger.set_logger import operation_logger, trading_logger
+from logger.set_logger import operation_logger
 
 # Custom Library
 from binance.base_sdk import FutureBase

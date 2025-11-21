@@ -42,7 +42,7 @@ class PipelineController(Generic[T]):
         try:
             self.pipeline.push(object)
             return True
-        except Exception as e:
+        except Exception:
             operation_logger.warning(
                 f"{__name__} - Unknown Error has been occured. Unsuccessful Push from the pipeline interface."
             )
@@ -65,10 +65,10 @@ class PipelineController(Generic[T]):
                     return data
 
             return None
-        except Exception as e:
+        except Exception:
             # ! raise CustomException
             operation_logger.warning(
-                f"{__name__} - Unknown Error has been occured. Unsuccessful Pop.: {str(e)}"
+                f"{__name__} - Unknown Error has been occured. Unsuccessful Pop."
             )
             raise  # ! raise the custom exception
 

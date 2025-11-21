@@ -1,5 +1,3 @@
-import traceback
-
 from src.exceptions.basic_exceptions import BasicException
 
 __all__ = ["DataFetchingException"]

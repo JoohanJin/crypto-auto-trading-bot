@@ -1,7 +1,7 @@
 # Built-in Library
 import sys
-from abc import ABC, abstractmethod
-from typing import Optional, Callable
+from abc import ABC
+from typing import Callable
 import time
 import websocket
 import json

@@ -2,7 +2,7 @@
 import threading
 import asyncio
 import time
-from typing import List, Dict, Tuple
+from typing import List, Tuple
 
 # Custom Library
 from custom_telegram.telegram_bot_class import CustomTelegramBot
@@ -11,7 +11,6 @@ from mexc.future import FutureMarket as MexCFutureMarket
 from binance.future import FutureMarket as BinanceFutureMarket
 from object.score_mapping import ScoreMapper
 from object.signal import Signal, TradeSignal
-from pipeline.signal_pipeline import SignalPipeline
 from interface.pipeline_interface import PipelineController
 
 
@@ -354,21 +353,29 @@ class TradeManager:
                 # order trigger to the telgram bot
                 if self.__decide_to_make_trade():  # make the trade
                     self.binance_future_market.order(
-                        sl_price = sl_price,
-                        tp_price = tp_price,
-                        leverage = self.leverage,
-                        symbol_curr_quantity = max(trade_amount, 0.002),
-                        side = "BUY" if order_type == 1 else "SELL"
+                        sl_price=sl_price,
+                        tp_price=tp_price,
+                        leverage=self.leverage,
+                        symbol_curr_quantity=max(trade_amount, 0.002),
+                        side="BUY" if order_type == 1 else "SELL",
                     )
-                    await self.telegram_bot.send_text(
-                        f"Trade Signal: {'Buy' if order_type == 1 else 'Sell'}\nEntry Price: {current_price}\nAmount: {trade_amount}\nTake Profit: {tp_price}\nStop Loss: {sl_price}"
+                    message = (
+                        f"Trade Signal: {'Buy' if order_type == 1 else 'Sell'}\n"
+                        f"Entry Price: {current_price}\n"
+                        f"Amount: {trade_amount}\n"
+                        f"Take Profit: {tp_price}\n"
+                        f"Stop Loss: {sl_price}"
                     )
-                    trading_logger.info(
-                        f"Trade Signal: {'Buy' if order_type == 1 else 'Sell'}\nEntry Price: {current_price}\nAmount: {trade_amount}\nTake Profit: {tp_price}\nStop Loss: {sl_price}"
-                    )
+                    await self.telegram_bot.send_text(message)
+                    trading_logger.info(message)
                 else:
                     trading_logger.info(
-                        f"Trade Signal: {'Buy' if order_type == 1 else 'Sell'}\nEntry Price: {current_price}\nAmount: {trade_amount}\nTake Profit: {tp_price}\nStop Loss: {sl_price}\nHowever, the trade has not been occured."
+                        f"Trade Signal: {'Buy' if order_type == 1 else 'Sell'}\n"
+                        f"Entry Price: {current_price}\n"
+                        f"Amount: {trade_amount}\n"
+                        f"Take Profit: {tp_price}\n"
+                        f"Stop Loss: {sl_price}\n"
+                        "However, the trade has not been occured."
                     )
 
         except Exception as e:
