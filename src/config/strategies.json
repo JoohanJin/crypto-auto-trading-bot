@@ -11,7 +11,7 @@
           "type": "comparison",
           "left": {
             "indicator": "SMA",
-            "window": 10
+            "window": 60
           },
           "operator": ">",
           "right": {
@@ -21,7 +21,7 @@
         }
       ],
       "signal_type": "LONG_TERM_BUY",
-      "signal_window": 5000
+      "signal_window": 6000
     },
     {
       "name": "death_cross",
@@ -34,7 +34,7 @@
           "type": "comparison",
           "left": {
             "indicator": "SMA",
-            "window": 10
+            "window": 60
           },
           "operator": "<",
           "right": {
@@ -44,7 +44,30 @@
         }
       ],
       "signal_type": "LONG_TERM_SELL",
-      "signal_window": 5000
+      "signal_window": 6000
+    },
+    {
+      "name": "ema_trend_follow",
+      "enabled": true,
+      "description": "Follow the dominant EMA trend using mid-term (60s) vs long-term (300s) slopes.",
+      "indicators": ["EMA"],
+      "verify_freshness": true,
+      "conditions": [
+        {
+          "type": "comparison",
+          "left": {
+            "indicator": "EMA",
+            "window": 60
+          },
+          "operator": ">",
+          "right": {
+            "indicator": "EMA",
+            "window": 300
+          }
+        }
+      ],
+      "signal_type": "LONG_TERM_BUY",
+      "signal_window": 4000
     },
     {
       "name": "price_moving_average",
@@ -58,7 +81,7 @@
           "price_indicator": "PRICE",
           "compare_to": {
             "indicator": "SMA",
-            "window": 60
+            "window": 300
           },
           "buy_operator": ">",
           "sell_operator": "<",
@@ -67,7 +90,30 @@
         }
       ],
       "signal_type": "SHORT_TERM_BUY_OR_SELL",
-      "signal_window": 5000
+      "signal_window": 4000
+    },
+    {
+      "name": "price_ema_pullback",
+      "enabled": true,
+      "description": "Buys pullbacks when price dips below EMA(60) and trims when price stretches above it.",
+      "indicators": ["EMA", "PRICE"],
+      "verify_freshness": false,
+      "conditions": [
+        {
+          "type": "price_comparison",
+          "price_indicator": "PRICE",
+          "compare_to": {
+            "indicator": "EMA",
+            "window": 60
+          },
+          "buy_operator": "<",
+          "sell_operator": ">",
+          "buy_signal": "SHORT_TERM_BUY",
+          "sell_signal": "SHORT_TERM_SELL"
+        }
+      ],
+      "signal_type": "SHORT_TERM_BUY_OR_SELL",
+      "signal_window": 4000
     },
     {
       "name": "ema_sma_divergence",
@@ -86,20 +132,20 @@
             "indicator": "EMA",
             "window": 60
           },
-          "threshold": 0.05,
+          "threshold": 0.02,
           "operator": "abs_difference"
         }
       ],
       "signal_type": "HOLD",
       "signal_window": 5000,
       "parameters": {
-        "threshold": 0.05
+        "threshold": 0.02
       }
     },
     {
       "name": "price_reversal",
       "enabled": true,
-      "description": "A price reversal signal occurs when the price changes direction after a sustained trend, indicating potential buy or sell opportunities.",
+      "description": "Contrarian fade around the long-term SMA: buy dips below SMA(300) and trim when price stretches above.",
       "indicators": ["SMA", "PRICE"],
       "verify_freshness": false,
       "conditions": [
@@ -108,16 +154,16 @@
           "price_indicator": "PRICE",
           "compare_to": {
             "indicator": "SMA",
-            "window": 60
+            "window": 300
           },
-          "buy_operator": ">",
-          "sell_operator": "<",
+          "buy_operator": "<",
+          "sell_operator": ">",
           "buy_signal": "SHORT_TERM_BUY",
           "sell_signal": "SHORT_TERM_SELL"
         }
       ],
       "signal_type": "SHORT_TERM_BUY_OR_SELL",
-      "signal_window": 5000
+      "signal_window": 4500
     }
   ],
   "global_settings": {
