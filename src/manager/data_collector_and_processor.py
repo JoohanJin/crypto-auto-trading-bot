@@ -61,6 +61,155 @@ class IndexFactory:
             return None
 
 
+class DataCollector:
+    '''
+    - Fetch the data from the broker
+    '''
+    @staticmethod
+    def __generate_timestamp() -> int:
+        '''
+        - return the current timestamp in ms in int.
+        '''
+        return int(time.time() * 1_000)
+
+    def __init__(
+        self: "DataCollector",
+        websocket: FutureWebSocket,  # assume that only fetches the price data.
+    ) -> None:
+        self.threads: list[threading.Thread] = list()
+        return
+
+    def start(self: "DataCollector") -> None:
+        self.__initialize_threads()
+        self.__start_threads()
+        return
+
+    def __initialize_threads(self: "DataCollector") -> None:
+        return
+
+    def __start_threads(self: "DataCollector") -> None:
+        """
+        func _start_threads():
+            - start the threads in the thread pool of the class.
+            - Will raise issues if there is  problem with the triggering of the thread.
+
+        param self: dataCollectorAndProcessor
+            - class object
+
+        return None
+        """
+        for thread in self.threads:
+            try:
+                thread.start()
+                operation_logger.info(
+                    f"{__name__} - {self.__class__.__name__} - Thread '{thread.name}' (ID: {thread.ident}) has started"
+                )
+            except RuntimeError as e:
+                operation_logger.critical(
+                    f"{__name__} - {self.__class__.__name__} - Failed to start thread '{thread.name}': {str(e)}"
+                )
+                raise RuntimeError
+            except Exception as e:
+                operation_logger.critical(
+                    f"{__name__} - {self.__class__.__name__} - Unexpected error starting thread: '{thread.name}': {str(e)}"
+                )
+                raise
+        return
+
+
+class DataProcessor:
+    '''
+    - calculate the ema, sma
+    - pass it to the pipeline
+    '''
+    @staticmethod
+    def __generate_timestamp() -> int:
+        return int(time.time() * 1_000)
+
+    def __init__(
+        self: "DataProcessor",
+        index_factory: IndexFactory = IndexFactory(),  # dependency injection would work.
+    ) -> None:
+        self.threads: list[threading.Thread] = list()
+        return
+
+    def start(self: "DataProcessor") -> None:
+        try:
+            self.__initialize_threads()
+            self.__start_threads()
+        except Exception as e:
+            operation_logger.critical(
+                f"{__name__} - {self.__class__.__name__} - Error while starting DataProcessor: {str(e)}"
+            )
+        return
+
+    def __initialize_threads(self: "DataProcessor") -> None:
+        return
+
+    def __start_threads(self: "DataProcessor") -> None:
+        """
+        func _start_threads():
+            - start the threads in the thread pool of the class.
+            - Will raise issues if there is  problem with the triggering of the thread.
+
+        param self: dataCollectorAndProcessor
+            - class object
+
+        return None
+        """
+        for thread in self.threads:
+            try:
+                thread.start()
+                operation_logger.info(
+                    f"{__name__} - {self.__class__.__name__} - Thread '{thread.name}' (ID: {thread.ident}) has started"
+                )
+            except RuntimeError as e:
+                operation_logger.critical(
+                    f"{__name__} - {self.__class__.__name__} - Failed to start thread '{thread.name}': {str(e)}"
+                )
+                raise RuntimeError
+            except Exception as e:
+                operation_logger.critical(
+                    f"{__name__} - {self.__class__.__name__} - Unexpected error starting thread: '{thread.name}': {str(e)}"
+                )
+                raise Exception
+        return
+
+    """
+    ######################################################################################################################
+    #                                     Get Ticker Data and Put Them in the Buffer                                     #
+    ######################################################################################################################
+    """
+
+    def _put_ticker_data(
+        self: 'DataCollectorAndProcessor',
+        msg: dict,
+    ) -> None:
+        """
+        func _put_ticker_data():
+            - Put price data of the crypto into the buffer.
+
+        param self: DataCollectorAndProcessor
+            - class object
+        param msg: dict
+            - message from the MexC API, json format, but parsed as python dict.
+
+        return None
+        """
+        try:
+            self.price_fetch_buffer.put(
+                msg.get("data"),
+                block = False,
+                timeout = None,
+            )
+            return
+        except Exception as e:
+            operation_logger.critical(
+                f"{__name__}: Error in class {self.__class__.__name__} in method _put_ticker_data(): {e}"
+            )
+        return
+
+
 class DataCollectorAndProcessor:
     '''
     ######################################################################################################################
