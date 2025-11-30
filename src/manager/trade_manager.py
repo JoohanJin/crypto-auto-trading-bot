@@ -12,6 +12,67 @@ from binance.future import FutureMarket as BinanceFutureMarket
 from object.score_mapping import ScoreMapper
 from object.signal import Signal, TradeSignal
 from interface.pipeline_interface import PipelineController
+from src.binance.base_sdk import FutureBase
+from object.price import Price
+from src.object.broker import BrokerRegistry
+from src.object.trade import TradePair
+
+
+class OrderManager:
+    '''
+    - Manage all the order
+    - Manage all the brokers provided.
+    '''
+    @staticmethod
+    def __get_curr_timestamp() -> int:
+        # only for internal usage
+        return int(time.time() * 1_000)
+
+    def __init__(
+        self: "OrderManager",
+        telegram_bot: CustomTelegramBot,
+        brokers: BrokerRegistry,  # MexC and Binanace for now -> Factory? like class path and the configuration?
+    ) -> None:
+        self.brokers: list[FutureBase] = brokers
+        self.telegram_bot: CustomTelegramBot = telegram_bot
+        return
+
+    def order(
+        self: "OrderManager",
+    ) -> None:
+        return
+
+    def get_ticker_current_price(
+        self: "OrderManager",
+        trading_pair: TradePair,
+    ) -> dict[str, float]:
+        '''
+        - Return the current price of the given ticker and quote currency.
+        dict = {
+            "ticker": "BTC",
+            "quote": "USDT",
+            "price": <price_of_ticker_float>
+        }
+        '''
+        return Price(
+            timestamp=OrderManager.__get_curr_timestamp(),
+            ticker=trading_pair.ticker,
+            quote=trading_pair.quote,
+            # price = self.__get_average_ticker_price(
+            #   self.__get_ticker_current_prices(),
+            # ),
+        )
+
+    def __get_average_ticker_price(
+        self: "OrderManager",
+        prices: list[float],
+        rounding: int = 2,  # can be dynamic with the Factory method.
+    ) -> float:
+        # can use numpy for faster and more accurate result?
+        return round(sum(prices) / len(prices), rounding)
+
+    def __get_ticker_current_prices(self: "OrderManager") -> list[float]:
+        return
 
 
 class TradeManager:
@@ -49,9 +110,7 @@ class TradeManager:
         return bool:
             - True if the signal is valid, otherwise False
         """
-        return (
-            TradeManager.generate_timestamp() - signal_data.timestamp < timestamp_window
-        )
+        return TradeManager.generate_timestamp() - signal_data.timestamp < timestamp_window
     """
     ######################################################################################################################
     #                                                Class Method                                                        #
@@ -310,6 +369,12 @@ class TradeManager:
             - -1: sell -> 010: 2
             - 0: hold -> 100: 4
             -> else just nothing.
+
+         0: HOLD
+         1: OPEN_LONG / FLIP_LONG
+        -1: OPEN_SHORT / FLIP_SHORT
+         2: CLOSE_LONG (Go Flat)
+        -2: CLOST_SHORT (Go Flat)
         """
         if (score > self.score_threshold):  # BUY
             return 1
@@ -456,7 +521,7 @@ class TradeManager:
             - delta value based on the signal data.
         """
         return self.delta_mapper.map(
-            signal = signal_data
+            signal = signal_data,
         )
 
     '''
