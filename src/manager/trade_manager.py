@@ -5,23 +5,23 @@ import time
 from typing import List, Tuple
 
 # Custom Library
+from binance.future import FutureMarket as BinanceFutureMarket
 from custom_telegram.telegram_bot_class import CustomTelegramBot
 from logger.set_logger import operation_logger, trading_logger
 from mexc.future import FutureMarket as MexCFutureMarket
-from binance.future import FutureMarket as BinanceFutureMarket
 from object.score_mapping import ScoreMapper
 from object.signal import Signal, TradeSignal
-from interface.pipeline_interface import PipelineController
-from src.binance.base_sdk import FutureBase
 from object.price import Price
+from interface.pipeline_interface import PipelineController
 from src.object.broker import BrokerRegistry
 from src.object.trade import TradePair
+from src.sdk.base_sdk import CommonBaseSDK
 
 
 class OrderManager:
     '''
     - Manage all the order
-    - Manage all the brokers provided.
+    - Manage all the brokers provided
     '''
     @staticmethod
     def __get_curr_timestamp() -> int:
@@ -33,8 +33,11 @@ class OrderManager:
         telegram_bot: CustomTelegramBot,
         brokers: BrokerRegistry,  # MexC and Binanace for now -> Factory? like class path and the configuration?
     ) -> None:
-        self.brokers: list[FutureBase] = brokers
+        self.brokers: list[CommonBaseSDK] = brokers
         self.telegram_bot: CustomTelegramBot = telegram_bot
+        return
+
+    def __del__(self: "OrderManager") -> None:
         return
 
     def order(
@@ -87,7 +90,7 @@ class OrderManager:
             - will get the list of ticker prices returned from multiple brokers.
         '''
         try:
-            return round(sum(prices) / len(prices), rounding)
+            return round((sum(prices) / len(prices)), rounding)
         except Exception as e:
             operation_logger.error(f"{__name__} - {self.__class__.__name__} - Error while getting the average ticker price: {str(e)}")
 
@@ -142,6 +145,7 @@ class TradeManager:
             - True if the signal is valid, otherwise False
         """
         return (TradeManager.generate_timestamp() - signal_data.timestamp < timestamp_window)
+
     """
     ######################################################################################################################
     #                                                Class Method                                                        #

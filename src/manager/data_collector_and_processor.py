@@ -10,7 +10,7 @@ from mexc.future import FutureWebSocket
 from logger.set_logger import operation_logger
 from manager.data_saver import DataSaver
 from object.constants import MA_WRITE_PERIODS, IndexType
-from object.indexes import Index
+from src.object.index import Index
 from interface.pipeline_interface import PipelineController
 
 
