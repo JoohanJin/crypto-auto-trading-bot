@@ -49,6 +49,7 @@ class OrderManager:
         '''
         - Return the current price of the given ticker and quote currency.
         dict = {
+            "timestamp": <timestamp_in_ms_int>,
             "ticker": "BTC",
             "quote": "USDT",
             "price": <price_of_ticker_float>
@@ -68,11 +69,41 @@ class OrderManager:
         prices: list[float],
         rounding: int = 2,  # can be dynamic with the Factory method.
     ) -> float:
-        # can use numpy for faster and more accurate result?
-        return round(sum(prices) / len(prices), rounding)
+        '''
+        - can use numpy for faster and more accurate result
+        - func __get_average_ticker_price()
+            - calculate the average value of the floats in the list passed as a parameter
+            - return the average value in the float format.
+
+        - params:
+            - prices: list[float]
+                - list of floats
+            - rounding: int
+                - precision for the rounding of the given float in the decimals.
+
+        - return:
+            - float
+                - average value of the values in the param
+            - will get the list of ticker prices returned from multiple brokers.
+        '''
+        try:
+            return round(sum(prices) / len(prices), rounding)
+        except Exception as e:
+            operation_logger.error(f"{__name__} - {self.__class__.__name__} - Error while getting the average ticker price: {str(e)}")
 
     def __get_ticker_current_prices(self: "OrderManager") -> list[float]:
-        return
+        '''
+        - func __get_ticker_current_prices()
+            - get the list of ticker prices returned from multiple brokers in the OrderManager.
+
+        - Params: None
+
+        - Return:
+            - prices: list[float]
+        '''
+        res = list()
+
+        return res
 
 
 class TradeManager:
@@ -110,7 +141,7 @@ class TradeManager:
         return bool:
             - True if the signal is valid, otherwise False
         """
-        return TradeManager.generate_timestamp() - signal_data.timestamp < timestamp_window
+        return (TradeManager.generate_timestamp() - signal_data.timestamp < timestamp_window)
     """
     ######################################################################################################################
     #                                                Class Method                                                        #
