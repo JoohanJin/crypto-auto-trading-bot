@@ -1,0 +1,53 @@
+{
+  "strategies": [
+    {
+      "name": "test_buy_signal",
+      "enabled": true,
+      "description": "A dummy strategy that always generates a SHORT_TERM_BUY signal.",
+      "indicators": ["PRICE"],
+      "verify_freshness": true,
+      "conditions": [
+        {
+          "type": "comparison",
+          "left": {
+            "indicator": "PRICE",
+            "window": 1
+          },
+          "operator": ">",
+          "right": {
+            "value": 0
+          }
+        }
+      ],
+      "signal_type": "SHORT_TERM_BUY",
+      "signal_window": 1000
+    },
+    {
+      "name": "test_sell_signal",
+      "enabled": true,
+      "description": "A dummy strategy that always generates a SHORT_TERM_SELL signal.",
+      "indicators": ["PRICE"],
+      "verify_freshness": true,
+      "conditions": [
+        {
+          "type": "comparison",
+          "left": {
+            "indicator": "PRICE",
+            "window": 1
+          },
+          "operator": ">",
+          "right": {
+            "value": 0
+          }
+        }
+      ],
+      "signal_type": "SHORT_TERM_SELL",
+      "signal_window": 1000
+    }
+  ],
+  "global_settings": {
+    "default_signal_window": 1000,
+    "sleep_interval": 0.1,
+    "enable_all_strategies": true
+  }
+}
