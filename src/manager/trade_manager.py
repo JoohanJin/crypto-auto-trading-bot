@@ -13,9 +13,9 @@ from object.score_mapping import ScoreMapper
 from object.signal import Signal, TradeSignal
 from object.price import Price
 from interface.pipeline_interface import PipelineController
-from src.object.broker import BrokerRegistry
-from src.object.trade import TradePair
-from src.sdk.base_sdk import CommonBaseSDK
+from object.broker import BrokerRegistry
+from object.trade import TradePair
+from sdk.base_sdk import CommonBaseSDK
 
 
 class OrderManager:

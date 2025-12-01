@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from src.manager.trade_manager import TradePair
+from object.trade import TradePair
 
 
 @dataclass

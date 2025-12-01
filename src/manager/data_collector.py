@@ -52,19 +52,19 @@ class DataCollector:
             )
             operation_logger.info(f"{__name__} - {self.__class__.__name__} - Thread for price fetch has been set up!")
 
-            thread_memory_save: threading.Thread = threading.Thread(
-                name = "resize_df",
-                target = self._resize_df,
-                daemon = True
-            )
-            operation_logger.info(
-                f"{__name__} - {self.__class__.__name__} - Thread for DataFrame size limit has been set up!"
-            )
+            # thread_memory_save: threading.Thread = threading.Thread(
+            #     name = "resize_df",
+            #     target = self._resize_df,
+            #     daemon = True
+            # )
+            # operation_logger.info(
+            #     f"{__name__} - {self.__class__.__name__} - Thread for DataFrame size limit has been set up!"
+            # )
 
             self.threads.extend(
                 [
                     thread_price_fetch,
-                    thread_memory_save,
+                    # thread_memory_save,
                 ]
             )
         except (RuntimeError, TypeError, AttributeError, MemoryError) as e:

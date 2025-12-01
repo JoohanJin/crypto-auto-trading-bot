@@ -6,7 +6,7 @@ import threading
 
 # CUSTOM LIBRARY
 from custom_telegram.telegram_bot_class import CustomTelegramBot
-from manager.data_collector_and_processor import DataCollectorAndProcessor
+from manager.data_manager import DataManager
 from manager.signal_generator import SignalGenerator
 from manager.trade_manager import TradeManager
 from pipeline.data_pipeline import DataPipeline
@@ -14,7 +14,7 @@ from logger.set_logger import operation_logger
 from pipeline.signal_pipeline import SignalPipeline
 from interface.pipeline_interface import PipelineController
 from object.score_mapping import ScoreMapper
-from object.indexes import Index
+from object.index import Index
 from object.signal import Signal
 
 # MEXC
@@ -65,11 +65,9 @@ class SystemManager:
             self.data_pipeline_controller: PipelineController[Index] = PipelineController(pipeline = self.data_pipeline)
             self.signal_pipeline_controller: PipelineController[Signal] = PipelineController(pipeline = self.signal_pipline)
 
-            self.data_collector_processor: DataCollectorAndProcessor = (
-                DataCollectorAndProcessor(
-                    pipeline_controller = self.data_pipeline_controller,
-                    websocket = self.mexc_ws,  # use MEXC API Endpoint for Real-Time Data Fetching.
-                )
+            self.data_manager: DataManager = DataManager(
+                websocket = self.mexc_ws,
+                pipeline_controller = self.data_pipeline_controller,
             )
 
             self.signal_generator: SignalGenerator = SignalGenerator(

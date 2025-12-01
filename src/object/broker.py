@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 import threading
-from src.binance.base_sdk import FutureBase
-from src.object.trade import TradePair
+from binance.base_sdk import FutureBase
+from object.trade import TradePair
 from logger.set_logger import operation_logger
 
 

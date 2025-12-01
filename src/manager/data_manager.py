@@ -10,8 +10,8 @@ from mexc.future import FutureWebSocket
 from logger.set_logger import operation_logger
 from manager.data_saver import DataSaver
 from object.constants import IndexType
-from src.manager.data_collector import DataCollector
-from src.manager.data_processor import DataProcessor
+from manager.data_collector import DataCollector
+from manager.data_processor import DataProcessor
 from interface.pipeline_interface import PipelineController
 
 
@@ -35,10 +35,11 @@ class DataManager:
         pipeline_controller: PipelineController[dict[str, int | IndexType, dict[int, float]]],
         memory_count_limit: int = 2_000,
     ):
-
         self._memory_saver: DataSaver = DataSaver()  # can be here.
         self.price_fetch_buffer: Queue[Dict[str, Any]] = Queue()
         self._df_size_limit: int = memory_count_limit
+
+        self.threads: list[threading.Thread] = list()
 
         self.lock_price_data: threading.Lock = threading.Lock()
         # default dataframe with the given columns
@@ -78,6 +79,8 @@ class DataManager:
             lock_price_data = self.lock_price_data,
             pipeline_controller = pipeline_controller,
         )
+
+        self.start()
 
         return
 

@@ -4,9 +4,9 @@ from typing import Dict, Tuple
 import pandas as pd
 
 from logger.set_logger import operation_logger
-from src.interface.pipeline_interface import PipelineController
-from src.object.constants import MA_WRITE_PERIODS, IndexType
-from src.object.index import Index
+from interface.pipeline_interface import PipelineController
+from object.constants import MA_WRITE_PERIODS, IndexType
+from object.index import Index
 
 
 class IndexFactory:
@@ -50,7 +50,7 @@ class DataProcessor:
     - pass it to the pipeline
     '''
     @staticmethod
-    def __generate_timestamp() -> int:
+    def generate_timestamp() -> int:
         return int(time.time() * 1_000)
 
     def __init__(
@@ -177,7 +177,7 @@ class DataProcessor:
             - Tuple of SMA and EMA values
         """
         try:
-            current_ts = DataProcessor.__generate_timestamp()
+            current_ts = DataProcessor.generate_timestamp()
             cutoff_ts = current_ts - (periods[-1] * 2 * 1_000)
 
             with self.lock_price_data:

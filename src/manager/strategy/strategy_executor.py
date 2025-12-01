@@ -5,7 +5,7 @@ from typing import Callable, Dict
 # CUSTOM LIBRARY
 from logger.set_logger import trading_logger
 from object.constants import IndexType
-from object.indexes import Index
+from object.index import Index
 from object.signal import Signal
 from object.signal import TradeSignal
 from manager.strategy.strategy_factory import StrategyConfig
