@@ -97,7 +97,7 @@ class StrategyFetcherTest(unittest.TestCase):
             fetcher = StrategyFetcher(Path("non-existent-file.json"))
             data = fetcher.load_strategies()
             self.assertEqual(data.get("strategies"), [])
-            mock_critical_logger.assert_called_once() # Assert that the critical logger was indeed called
+            mock_critical_logger.assert_called_once()  # Assert that the critical logger was indeed called
 
     def test_loads_dummy_json(self) -> None:
         # Assuming dummy_strategies.json exists in the test/ directory
