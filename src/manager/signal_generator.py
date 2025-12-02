@@ -5,7 +5,7 @@ from typing import List
 import time
 
 # CUSTOM LIBRARY
-from object.indexes import Index
+from object.index import Index
 from custom_telegram.telegram_bot_class import CustomTelegramBot
 from logger.set_logger import operation_logger
 from object.signal import Signal, TradeSignal
