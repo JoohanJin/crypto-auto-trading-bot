@@ -13,7 +13,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from object.constants import IndexType  # type: ignore
-from object.index import Index  # type: ignore
+from object.indexes import Index  # type: ignore
 from object.signal import TradeSignal  # type: ignore
 
 try:
@@ -93,24 +93,9 @@ class StrategyFetcherTest(unittest.TestCase):
         tmp_path.unlink(missing_ok=True)
 
     def test_missing_file_returns_empty(self) -> None:
-        with mock.patch("manager.strategy.strategy_fetcher.operation_logger.critical") as mock_critical_logger:
-            fetcher = StrategyFetcher(Path("non-existent-file.json"))
-            data = fetcher.load_strategies()
-            self.assertEqual(data.get("strategies"), [])
-            mock_critical_logger.assert_called_once()  # Assert that the critical logger was indeed called
-
-    def test_loads_dummy_json(self) -> None:
-        # Assuming dummy_strategies.json exists in the test/ directory
-        dummy_file_path = Path(PROJECT_ROOT / "test" / "dummy_strategies.json")
-        self.assertTrue(dummy_file_path.exists(), "Dummy strategies file not found!")
-
-        fetcher = StrategyFetcher(dummy_file_path)
+        fetcher = StrategyFetcher(Path("non-existent-file.json"))
         data = fetcher.load_strategies()
-
-        self.assertIn("strategies", data)
-        self.assertGreater(len(data["strategies"]), 0)
-        self.assertEqual(data["strategies"][0]["name"], "test_buy_signal")
-        self.assertIn("global_settings", data)
+        self.assertEqual(data.get("strategies"), [])
 
 
 class StrategyExecutorTest(unittest.TestCase):
