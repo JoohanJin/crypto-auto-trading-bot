@@ -36,12 +36,12 @@ class Index:
         return int(time.time() * 1_000)
 
     def __init__(
-        self: 'Index',
-        timestamp: int,
+        self,
+        timestamp: int | None,
         index_type: IndexType,
         data: Dict[str, Dict[int, float]],
     ) -> None:
-        self.__timestamp: int = timestamp
+        self.__timestamp: int = Index.generate_timestamp() if timestamp is None else timestamp
         self.__index_type: IndexType = index_type
         self.__data: Dict[str, Dict[int, float]] = data
         return
