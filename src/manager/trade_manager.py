@@ -173,6 +173,10 @@ class TradeManager:
             - initialize the TradeManager with the given signal generator and REST API caller for MexC.
             - initialize the necessary member variables and start the TradeManager.
         """
+
+        # TODO: Need to keep the record of the previous order.
+        # TODO: Keep checking where that order is still alive or not.
+        # TODO: Need to refactor the order layer to get the data from the DTO, order for unified and modular implementation.
         self.base_symbol: str = base_symbol
         self.ccy_symbol: str = ccy_symbol
 
