@@ -15,14 +15,30 @@ from object.price import Price
 from interface.pipeline_interface import PipelineController
 from object.broker import BrokerRegistry
 from object.trade import TradePair
-from sdk.base_sdk import CommonBaseSDK
+from src.object.order import Order, OrderType
+
+'''
+- Get the signal
+- modify the score
+    - assess the current market status
+
+
+- TradeManager
+- SignalFetcher
+- DecisionMaker
+'''
 
 
 class OrderManager:
     '''
     - Manage all the order
+        - make the trade decision? hmm not sure.
     - Manage all the brokers provided
     '''
+    @staticmethod
+    def construct_order() -> Order | None:
+        return
+
     @staticmethod
     def __get_curr_timestamp() -> int:
         # only for internal usage
@@ -33,7 +49,7 @@ class OrderManager:
         telegram_bot: CustomTelegramBot,
         brokers: BrokerRegistry,  # MexC and Binanace for now -> Factory? like class path and the configuration?
     ) -> None:
-        self.brokers: list[CommonBaseSDK] = brokers
+        self.brokers: BrokerRegistry = brokers
         self.telegram_bot: CustomTelegramBot = telegram_bot
         return
 
@@ -446,27 +462,43 @@ class TradeManager:
                 # TODO: interface implement rather than using the instance by itself.
                 # for mexc, it is USDT.
                 # for binance, it is BTC.
-                trade_amount: float = self.get_base_qty(base_asset_price = current_price,)
-                order_type: int = 0
+                ticker_amount: float = max(self.get_base_qty(base_asset_price = current_price,), 0.002)  # Better to make an interface.
+                order_type: OrderType = None
+                side: str = None
 
                 if buy_or_sell == 1:
-                    order_type = 1  # Long
+                    order_type = OrderType.BUY
                 elif buy_or_sell == -1:
-                    order_type = 3  # Short
+                    order_type = OrderType.SELL
+                    side = "SELL"  # SHORT
+
+                order: Order = Order(
+                    type=order_type,
+                    type_str="BUY" if order_type == OrderType.BUY else "SELL",
+                    entry_price = current_price,
+                    leverage=self.leverage,
+                    tp_price = tp_price,
+                    sl_price = sl_price,
+                    ticker = self.base_symbol,
+                    ticker_size = ticker_amount,
+                    quote = self.ccy_symbol,
+                    quote_size = (),
+                    meta_data = None,
+                )
 
                 # order trigger to the telgram bot
                 if self.__decide_to_make_trade():  # make the trade
                     self.binance_future_market.order(
-                        sl_price=sl_price,
-                        tp_price=tp_price,
+                        sl_price=order.sl_price,
+                        tp_price=order.tp_price,
                         leverage=self.leverage,
-                        symbol_curr_quantity=max(trade_amount, 0.002),
-                        side="BUY" if order_type == 1 else "SELL",
+                        symbol_curr_quantity=ticker_amount,
+                        side=order.type_str,
                     )
                     message = (
-                        f"Trade Signal: {'Buy' if order_type == 1 else 'Sell'}\n"
+                        f"Trade Signal: {side}\n"
                         f"Entry Price: {current_price}\n"
-                        f"Amount: {trade_amount}\n"
+                        f"Amount: {ticker_amount}\n"
                         f"Take Profit: {tp_price}\n"
                         f"Stop Loss: {sl_price}"
                     )
@@ -474,9 +506,9 @@ class TradeManager:
                     trading_logger.info(message)
                 else:
                     trading_logger.info(
-                        f"Trade Signal: {'Buy' if order_type == 1 else 'Sell'}\n"
+                        f"Trade Signal: {side}\n"
                         f"Entry Price: {current_price}\n"
-                        f"Amount: {trade_amount}\n"
+                        f"Amount: {ticker_amount}\n"
                         f"Take Profit: {tp_price}\n"
                         f"Stop Loss: {sl_price}\n"
                         "However, the trade has not been occured."
@@ -488,7 +520,7 @@ class TradeManager:
 
     def __thread_get_signal(
         self,
-        timestamp_window: int = 5000,
+        timestamp_window: int = 5_000,
     ) -> None:
         """
         func __thread_get_signal():
@@ -581,7 +613,7 @@ class TradeManager:
             - current price of the asset
         """
         try:
-            return float(self.binance_future_market.mark_price(symbol = f"{self.base_symbol}{self.ccy_symbol}").get("indexPrice", 0))
+            return round(float(self.binance_future_market.mark_price(symbol = f"{self.base_symbol}{self.ccy_symbol}").get("indexPrice", 0)), 2)
         except Exception as e:
             operation_logger.critical(f"{__name__} - Unknown Exception Invoked during fetching the current price: {str(e)}")
             return None
