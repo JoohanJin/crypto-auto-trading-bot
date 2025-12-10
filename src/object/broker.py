@@ -38,7 +38,7 @@ class BrokerRegistry:
                 self._brokers[broker.broker_id] = broker
             operation_logger.info(f"{__name__} - {self.__class__.__name__} - Broker: {broker.broker_id} has been added to the brokers.")
         except Exception as e:
-            operation_logger.error(f"{__name__} - {self.__class_.__name__} - Error while registering the broker: {str(e)}")
+            operation_logger.error(f"{__name__} - {self.__class__.__name__} - Error while registering the broker: {str(e)}")
         return
 
     def get_broker(self: "BrokerRegistry", broker_id: str) -> FutureBase | None:
@@ -46,7 +46,7 @@ class BrokerRegistry:
             with self._lock:
                 return self._brokers.get(broker_id, None)
         except Exception as e:
-            operation_logger.error(f"{__name__} - {self.__class_.__name__} - Error while getting the broker: {str(e)}")
+            operation_logger.error(f"{__name__} - {self.__class__.__name__} - Error while getting the broker: {str(e)}")
         return
 
     def enable_broker(self: "BrokerRegistry", broker_id: str) -> None:
@@ -55,7 +55,7 @@ class BrokerRegistry:
                 self._brokers.get(broker_id, None).enabled = True
             operation_logger.info(f"{__name__} - {self.__class__.__name__} - enabled the Broker: {broker_id}.")
         except Exception as e:
-            operation_logger.error(f"{__name__} - {self.__class_.__name__} - Error while enabling Broker: {broker_id}: {str(e)}")
+            operation_logger.error(f"{__name__} - {self.__class__.__name__} - Error while enabling Broker: {broker_id}: {str(e)}")
         return
 
     def disable_broker(self: "BrokerRegistry", broker_id: str) -> None:
@@ -64,5 +64,5 @@ class BrokerRegistry:
                 self._brokers.get(broker_id, None).enabled = False
             operation_logger.info(f"{__name__} - {self.__class__.__name__} - disabled the Broker: {broker_id}.")
         except Exception as e:
-            operation_logger.error(f"{__name__} - {self.__class_.__name__} - Error while enabling Broker: {broker_id}: {str(e)}")
+            operation_logger.error(f"{__name__} - {self.__class__.__name__} - Error while enabling Broker: {broker_id}: {str(e)}")
         return
