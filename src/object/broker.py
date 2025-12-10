@@ -12,8 +12,8 @@ class Broker:
         - MexC
         - Binance
     '''
-    broker_id: str
-    broker: FutureBase
+    broker_id: str  # Identifier
+    broker: FutureBase  # Avaiable Broker
     enabled: bool = True
     priority: int = 0
     max_leverage: int = 20
@@ -29,12 +29,12 @@ class BrokerRegistry:
     '''
     def __init__(self: "BrokerRegistry") -> None:
         self._brokers: dict[str, Broker]
-        self._lock: threading.Lock = threading.Lock()
+        self._broker_dict_lock: threading.Lock = threading.Lock()
         return
 
     def register_broker(self: "BrokerRegistry", broker: Broker) -> None:
         try:
-            with self._lock:
+            with self._broker_dict_lock:
                 self._brokers[broker.broker_id] = broker
             operation_logger.info(f"{__name__} - {self.__class__.__name__} - Broker: {broker.broker_id} has been added to the brokers.")
         except Exception as e:
@@ -43,7 +43,7 @@ class BrokerRegistry:
 
     def get_broker(self: "BrokerRegistry", broker_id: str) -> FutureBase | None:
         try:
-            with self._lock:
+            with self._broker_dict_lock:
                 return self._brokers.get(broker_id, None)
         except Exception as e:
             operation_logger.error(f"{__name__} - {self.__class__.__name__} - Error while getting the broker: {str(e)}")
@@ -51,7 +51,7 @@ class BrokerRegistry:
 
     def enable_broker(self: "BrokerRegistry", broker_id: str) -> None:
         try:
-            with self._lock:
+            with self._broker_dict_lock:
                 self._brokers.get(broker_id, None).enabled = True
             operation_logger.info(f"{__name__} - {self.__class__.__name__} - enabled the Broker: {broker_id}.")
         except Exception as e:
@@ -60,7 +60,7 @@ class BrokerRegistry:
 
     def disable_broker(self: "BrokerRegistry", broker_id: str) -> None:
         try:
-            with self._lock:
+            with self._broker_dict_lock:
                 self._brokers.get(broker_id, None).enabled = False
             operation_logger.info(f"{__name__} - {self.__class__.__name__} - disabled the Broker: {broker_id}.")
         except Exception as e:
