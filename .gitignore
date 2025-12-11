@@ -10,7 +10,7 @@ tmp/
 *foo*
 foo/
 
-test.py
+*test.py*
 
 # ignore market data directory
 market_data/
