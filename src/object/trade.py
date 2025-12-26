@@ -1,5 +1,17 @@
-from dataclasses import dataclass
+from __future__ import annotations
+from dataclasses import dataclass, replace
 from enum import IntFlag
+
+
+class TradeSignal(IntFlag):
+    '''
+    - Data structure used in trade_manager (ENUM)
+    '''
+    HOLD = 1
+    NEW_BUY = 2
+    NEW_SELL = 4
+    REVERSE_BUY = 8
+    REVERSE_SELL = 16
 
 
 class TrendState(IntFlag):
@@ -31,6 +43,9 @@ class TradePair:
     ticker: str  # = "BTC"
     quote: str  # = "USDT"
 
+    def copy(self) -> TradePair:
+        return replace(self)
+
 
 class ScoreHistory:
     '''
@@ -42,17 +57,18 @@ class ScoreHistory:
         self: "ScoreHistory",
         max_size: int = 100,
     ) -> None:
-        # heap or dequeue?
+        # dict[id, pointer or reference] + linked list
+        # consider heap or dequeue
         return
 
-    def add(self) -> None:
+    def add(self,) -> None:
         return
 
-    def get_recent(n: int):
+    def get_recent(self, n: int):
         return
 
-    def get_scores_since(timestamp: int):
+    def get_scores_since(self, timestamp: int):
         return
 
-    def clear() -> None:
+    def clear(self,) -> None:
         return
