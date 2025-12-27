@@ -130,6 +130,7 @@ class TradeManager:
 
         self.async_loop: asyncio.new_event_loop = asyncio.new_event_loop()  # only for Telegram Client
 
+        self.lock_previous_order = threading.Lock()
         self.previous_order: Order | None = None
 
         # Start the TradeManager
@@ -289,7 +290,7 @@ class TradeManager:
                     score = score,
                 )
 
-                if decision != 1:  # can be further improved in the future.
+                if decision in (2, 4, 6, 8):  # can be further improved in the future.
                     # Trade
                     await self.__execute_trade(
                         buy_or_sell = decision,
@@ -331,14 +332,17 @@ class TradeManager:
             - REVERSE_BUY = 8
             - REVERSE_SELL = 16
         """
-        if (self.previous_order is not None):  # there is a current order
+        with self.lock_previous_order:
+            previous_order = self.previous_order.copy()
+
+        if (previous_order is not None):  # there is a current order
             # Reverse
             if (
-                (score > (self.score_threshold // 2)) and (self.previous_order.type == OrderType.SELL)
+                (score > (self.score_threshold // 2)) and (previous_order.type == OrderType.SELL)
             ):
                 return TradeState.REVERSE_BUY
             if (
-                (score < (-1 * (self.score_threshold // 2))) and (self.previous_order.type == OrderType.BUY)
+                (score < (-1 * (self.score_threshold // 2))) and (previous_order.type == OrderType.BUY)
             ):
                 return TradeState.REVERSE_SELL
         else:  # there is no current order
@@ -353,6 +357,9 @@ class TradeManager:
         buy_or_sell: TradeState,
     ) -> Order:
         try:
+            with self.lock_previous_order:
+                previous_order = self.previous_order.copy()
+
             order_type: OrderType
             order_type_str: str
             entry_price: float = self.__get_current_price()
@@ -377,8 +384,8 @@ class TradeManager:
                 order_type = OrderType.BUY if buy_or_sell == 8 else OrderType.SELL
                 order_type_str = "BUY" if buy_or_sell == 8 else "SELL"
 
-                ticker_size = self.previous_order.ticker_size * 2
-                quote_size = self.previous_order.quote_size * 2
+                ticker_size = previous_order.ticker_size * 2
+                quote_size = previous_order.quote_size * 2
 
                 meta_data = dict(
                     reverse = True
@@ -475,7 +482,9 @@ class TradeManager:
                 symbol_curr_quantity=order.ticker_size,
                 side=order.type_str,
             )
-            self.previous_order = order
+
+            with self.lock_previous_order:
+                self.previous_order = order
         except Exception as e:
             operation_logger.critical(
                 f"{__name__} - {self.__class__.__name__} - Unexpected Error while ordering: {str(e)}"
