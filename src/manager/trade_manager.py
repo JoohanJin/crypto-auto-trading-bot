@@ -82,8 +82,8 @@ class TradeManager:
         ccy_symbol: str = "USDT",
         leverage: int = 10,
         trade_amount: float = 0.1,  # 10% of the total asset
-        take_profit_rate: float = 0.1,  # 10%
-        stop_loss_rate: float = 0.05,  # 5%
+        take_profit_rate: float = 0.2,  # 20% -> to prevent the error
+        stop_loss_rate: float = 0.2,  # 20% -> to preven the error
         score_threashold: int = 2_000,  # 1_000,
         score_trend_management: int = 200,  # 200
     ) -> None:
