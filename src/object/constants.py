@@ -1,5 +1,3 @@
-from enum import IntFlag
-
 '''
 # this is the DataCollectorProcessor side.
 # EMA and SMA PERIODS
@@ -29,9 +27,3 @@ MA_READ_PERIODS: tuple[int] = (
     1200,  # 1200 sec, 20 min
     1800,  # 1800 sec, 30 min
 )
-
-
-class IndexType(IntFlag):
-    EMA = 1    # 0001
-    SMA = 2    # 0010
-    PRICE = 4  # 0100

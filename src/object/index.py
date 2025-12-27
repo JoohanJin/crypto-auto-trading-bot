@@ -1,12 +1,16 @@
+from enum import IntFlag
 import time
 from typing import Dict
-from object.constants import IndexType
+
+
+class IndexType(IntFlag):
+    EMA = 1    # 0001
+    SMA = 2    # 0010
+    PRICE = 4  # 0100
 
 
 class Index:
     '''
-    json-like dictionary object
-
     data_struct = {
         "timestamp" = <int>, # int(time.time() * 1_000)
         "type" = "ema" || "sma",
