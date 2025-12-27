@@ -22,15 +22,22 @@ class Broker:
         enabled: bool,
         priority: int,
         max_leverage: int = 20,
-        supported_pairs: set[TradePair] = None,
+        supported_pairs: dict[TradePair] = None,
     ) -> None:
         self.broker_id: str  # Identifier
         self.broker: FutureBase  # Avaiable Broker
         self.enabled: bool = enabled
         self.priority: int = priority
         self.max_leverage: int = 20
-        self.supported_pairs: set[TradePair] = supported_pairs
+        self.supported_pairs: dict[str, TradePair] = supported_pairs
 
+        return
+
+    def get_trade_pair(self, key: str) -> TradePair | None:
+        return self.supported_pairs.get(key)
+
+    def write_trade_pair(self, trade_pair: TradePair) -> None:
+        self.supported_pairs[f"{trade_pair.ticker}{trade_pair.quote}"] = trade_pair
         return
 
     def get_ticker_amt(
