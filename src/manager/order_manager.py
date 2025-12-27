@@ -18,6 +18,11 @@ class OrderManager:
         # only for internal usage
         return int(time.time() * 1_000)
 
+    '''
+    ##############################################################################
+    #                                 Class Method                               #
+    ##############################################################################
+    '''
     def __init__(
         self,
         telegram_bot: CustomTelegramBot,
@@ -39,7 +44,9 @@ class OrderManager:
             # TODO: implement the broker registry
             self.brokers
         except Exception as e:
-            operation_logger.critical(f"{__name__} - {self.__class__.__name__} - Error during the Order: {str(e)}")
+            operation_logger.critical(
+                f"{__name__} - {self.__class__.__name__} - Error during the Order: {str(e)}"
+            )
         return
 
     def get_ticker_current_price(
