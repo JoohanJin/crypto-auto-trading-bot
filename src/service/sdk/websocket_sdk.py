@@ -25,7 +25,7 @@ class BasicWebSocketManager(ABC):
     # Class Method
     '''
     def __init__(
-        self: "BasicWebSocketManager",
+        self,
         api_key: str | None = None,
         secret_key: str | None = None,
         endpoint: str | None = None,
@@ -78,7 +78,7 @@ class BasicWebSocketManager(ABC):
 
         return None
 
-    def _set_up_threads(self: "BasicWebSocketManager") -> None:
+    def _set_up_threads(self) -> None:
         """
         Create connection and ping threads and add them to self.threads list
         """
@@ -99,7 +99,7 @@ class BasicWebSocketManager(ABC):
         self.threads.extend([wst, wsp])
         return
 
-    def _start_threads(self: "BasicWebSocketManager") -> None:
+    def _start_threads(self) -> None:
         """
         Start all threads in self.threads list
         """
@@ -108,11 +108,13 @@ class BasicWebSocketManager(ABC):
             time.sleep(1)
         return
 
-    def _clean_up_threads(self: "BasicWebSocketManager") -> None:
+    def _clean_up_threads(self) -> None:
         """
         Join and remove all threads from self.threads list
         """
-        operation_logger.info(f"{__name__} - Cleaning up {len(self.threads)} threads")
+        operation_logger.info(
+            f"{__name__} - {self.__class__.__name__} - Cleaning up {len(self.threads)} threads."
+        )
 
         # Signal threads to stop
         self._stop_event.set()
@@ -124,25 +126,35 @@ class BasicWebSocketManager(ABC):
         for thread in list(self.threads):
             # Skip if it's the current thread (avoid deadlock)
             if thread is current:
-                operation_logger.info(f"{__name__} - Skipping current thread ({thread.name})")
+                operation_logger.info(
+                    f"{__name__} - {self.__class__.__name__} - Skipping current thread ({thread.name})."
+                )
                 continue
 
             if thread.is_alive():
-                operation_logger.info(f"{__name__} - Waiting for {thread.name} to finish...")
+                operation_logger.info(
+                    f"{__name__} - {self.__class__.__name__} - Waiting for {thread.name} to finish..."
+                )
                 thread.join(timeout = 2.0)
 
                 if thread.is_alive():
-                    operation_logger.warning(f"{__name__} - {thread.name} did not stop cleanly")
+                    operation_logger.warning(
+                        f"{__name__} - {self.__class__.__name__} - {thread.name} did not stop cleanly."
+                    )
                 else:
-                    operation_logger.info(f"{__name__} - {thread.name} stopped successfully")
+                    operation_logger.info(
+                        f"{__name__} - {self.__class__.__name__} - {thread.name} stopped successfully."
+                    )
 
         # Remove all threads from list
         self.threads.clear()
-        operation_logger.info(f"{__name__} - All threads cleaned up and removed")
+        operation_logger.info(
+            f"{__name__} - {self.__class__.__name__} - All threads cleaned up and removed."
+        )
         return
 
     def _connect(
-        self: "BasicWebSocketManager",
+        self,
     ) -> None:
         """
         Connect WebSocketApp to the API endpoint
@@ -178,7 +190,7 @@ class BasicWebSocketManager(ABC):
 
             if not self.conn_timeout:
                 operation_logger.warning(
-                    f"{__name__}: connection to the host time out. You may restart the entire program."
+                    f"{__name__} - {self.__class__.__name__} connection to the host time out. You may restart the entire program."
                 )
                 return
 
@@ -192,7 +204,7 @@ class BasicWebSocketManager(ABC):
 
         return None
 
-    def _authenticate(self: "BasicWebSocketManager",) -> None:
+    def _authenticate(self) -> None:
         """
         func authenticate():
             - authenticate the WebSocket connection to the API endpoint
@@ -215,9 +227,9 @@ class BasicWebSocketManager(ABC):
                 subscribe = False,
                 method = "login",
                 param = dict(
-                    apiKey = self.api_key,
-                    reqTime = timestamp,
-                    signature = signature,
+                    apiKey=self.api_key,
+                    reqTime=timestamp,
+                    signature=signature,
                 ),
             )
         )
@@ -225,7 +237,7 @@ class BasicWebSocketManager(ABC):
         return None
 
     def _generate_signature(
-        self: "BasicWebSocketManager",
+        self,
         timestamp: str | None = None,
     ) -> str | None:
         """
@@ -246,7 +258,10 @@ class BasicWebSocketManager(ABC):
 
         return
 
-    def _are_connections_connected(self: "BasicWebSocketManager", connections: list) -> bool:
+    def _are_connections_connected(
+        self,
+        connections: list
+    ) -> bool:
         """
         func _are_connections_connected():
             - check if the connection is connected to the endpoint or not
@@ -264,7 +279,7 @@ class BasicWebSocketManager(ABC):
         return True
 
     def _set_callback(
-        self: "BasicWebSocketManager",
+        self,
         topic: str,
         callback_function: Callable | None = None,
     ) -> None:
@@ -285,10 +300,7 @@ class BasicWebSocketManager(ABC):
         return None
 
     # get the callback function according to the topic
-    def _get_callback(
-        self: "BasicWebSocketManager",
-        topic: str,
-    ) -> Callable | None:
+    def _get_callback(self, topic: str) -> Callable | None:
         """
         func _get_callback():
             - get the callback function for the specific topic from the callback_directory in the class
@@ -304,9 +316,7 @@ class BasicWebSocketManager(ABC):
         """
         return self.callback_dictionary.get(topic)
 
-    def _is_connected(
-        self: "BasicWebSocketManager",
-    ):
+    def _is_connected(self,):
         """
         # method: _is_connected()
             # check if the socket is connected to the endpoint or not
@@ -336,37 +346,39 @@ class BasicWebSocketManager(ABC):
 
         return
 
-    def __on_error(self: "BasicWebSocketManager", wsa, exception):
+    def __on_error(self, wsa, exception):
         """
         # when there is an error
             # Exit and raise errors OR
             # attempt to reconnect
         """
         operation_logger.error(
-            f"{__name__} - WebSocket API: Unknown Error Occurred: {exception}"
+            f"{__name__} - {self.__class__.__name__} - WebSocket API: Unknown Error Occurred: {exception}"
         )
         sys.exit()
         return
 
-    def __on_open(self: "BasicWebSocketManager", wsa):
+    def __on_open(self, wsa):
         """
         # when the websocket is open
         """
-        operation_logger.info(f"{__name__} - WebSocket has been opened")
+        operation_logger.info(
+            f"{__name__} - {self.__class__.__name__} - WebSocket has been opened"
+        )
         return
 
-    def __on_close(self: "BasicWebSocketManager", wsa, status_code, close_msg):
+    def __on_close(self, wsa, status_code, close_msg):
         """
         # websocket close
         # logging the status code and the msg into the operation_logger
         """
         operation_logger.warning(
-            f"{__name__} - the websocket has been closed: {status_code} - {close_msg}. {self.ws_name} will try to reconnect."
+            f"{__name__} - {self.__class__.__name__} - the websocket has been closed: {status_code} - {close_msg}. {self.ws_name} will try to reconnect."
         )
 
         if not self.endpoint:
             operation_logger.error(
-                f"{__name__} - {self.ws_name} lost connection but no previous URL recorded; manual restart required."
+                f"{__name__} - {self.__class__.__name__} - {self.ws_name} lost connection but no previous URL recorded; manual restart required."
             )
             raise RuntimeError(f"{__name__} - {self.ws_name} lost connection but no previous URL recorded; manual restart required.")
 
@@ -382,23 +394,23 @@ class BasicWebSocketManager(ABC):
 
             try:
                 operation_logger.info(
-                    f"{__name__} - Attempting to reconnect ({attempt}) to {self.endpoint}"
+                    f"{__name__} - {self.__class__.__name__} - Attempting to reconnect ({attempt}) to {self.endpoint}"
                 )
                 self._connect()
                 operation_logger.info(
-                    f"{__name__} - {self.ws_name} reconnected successfully."
+                    f"{__name__} - {self.__class__.__name__} - {self.ws_name} reconnected successfully."
                 )
                 break
             except Exception as e:
                 operation_logger.error(
-                    f"{__name__} - {self.ws_name} reconnect attempt {attempt} failed: {str(e)}"
+                    f"{__name__} - {self.__class__.__name__} - {self.ws_name} reconnect attempt {attempt} failed: {str(e)}"
                 )
 
         self._resubscribe()
         return
 
     def subscribe(
-        self: "BasicWebSocketManager",
+        self,
         method: str,
         callback_function: Callable = None,
         param: dict | None = None,  # do not modify the param
@@ -425,12 +437,12 @@ class BasicWebSocketManager(ABC):
         # operation_logger.info(f"new sub has been established: {self.subscriptions}")
         return
 
-    def _resubscribe(self: "BasicWebSocketManager") -> None:
+    def _resubscribe(self) -> None:
         """
         Resend cached subscriptions after the connection has been re-established.
         """
         if not self.subscriptions:
-            raise RuntimeError(f"{__name__} - {self.ws_name} could not re-establish the websocket connection; manual restart is needed.")
+            raise RuntimeError(f"{__name__} - {self.__class__.__name__} - {self.ws_name} could not re-establish the websocket connection; manual restart is needed.")
 
         for query in self.subscriptions:
             try:
@@ -443,12 +455,26 @@ class BasicWebSocketManager(ABC):
                 )
             except Exception as e:
                 operation_logger.critical(
-                    f"{__name__} - {self.ws_name} could not resubscribe the query: {query} with the following error msg: {str(e)}"
+                    f"{__name__} - {self.__class__.__name__} - {self.ws_name} could not resubscribe the query: {query} with the following error msg: {str(e)}"
                 )
         return
 
-    def _method_subscribe(self, method, callback, param: dict = {}, is_retry: bool = False,):
-        """ """
+    def _method_subscribe(
+        self,
+        method: dict[str, str | float | int],
+        callback: Callable,
+        param: dict = {},
+        is_retry: bool = False,
+    ) -> None:
+        """
+        func _method_subsribe():
+            a function to be used to subscribe a certain topic.
+
+        ;params method: json-like data structure
+        ;params callback: callback function
+        ;params param: json-like data structure
+        ;params is_retry: bool, retry or not
+        """
         if not self.is_connected():
             # if there is no websocket object that has been established.
             self.__initialize_websocket()
@@ -472,7 +498,7 @@ class BasicWebSocketManager(ABC):
         return
 
     def _ping_loop(
-        self: "BasicWebSocketManager",
+        self,
         ping_payload: str = '{"method":"ping"}',
     ) -> None:
         """
@@ -494,7 +520,7 @@ class BasicWebSocketManager(ABC):
         return None
 
     def _reset(
-        self: "BasicWebSocketManager",
+        self,
     ):
         """
         # _reset the WebSocket when reset signal incurred
@@ -508,7 +534,7 @@ class BasicWebSocketManager(ABC):
         return
 
     def exit(
-        self: "BasicWebSocketManager",
+        self,
     ):
         """
         Close the websocket and clean up threads
