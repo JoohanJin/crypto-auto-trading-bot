@@ -1,0 +1,10 @@
+{
+    "binance": {
+        "endpoint": "wss://ws-fapi.binance.com/ws-fapi/v1",
+        "ping_interval": 20
+    },
+    "mexc": {
+        "endpoint": "wss://ws.mexc.com/ws/v1",
+        "ping_interval": 20
+    }
+}
