@@ -18,10 +18,10 @@ from object.index import Index
 from object.signal import Signal
 
 # MEXC
-from mexc.future import FutureMarket as MexcFutureMarket, FutureWebSocket as MexcFutureWebSocket
+from service.mexc.future import FutureMarket as MexcFutureMarket, FutureWebSocket as MexcFutureWebSocket
 
 # BINANCE
-from binance.future import FutureMarket as BinanceFutureMarket
+from service.binance.future import FutureMarket as BinanceFutureMarket
 
 
 class SystemManager:
@@ -85,9 +85,6 @@ class SystemManager:
                 telegram_bot = self.telegram_bot,
             )
 
-            # Start working
-            while True:
-                time.sleep(0.5)  # Sleep to reduce the cpu usage.
         except KeyboardInterrupt:
             operation_logger.info("Program interrupted by user. Exiting...")
             sys.exit(0)
