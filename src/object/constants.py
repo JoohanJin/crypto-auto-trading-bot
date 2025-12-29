@@ -1,12 +1,11 @@
 from enum import IntFlag
-from typing import Tuple
 
 '''
 # this is the DataCollectorProcessor side.
 # EMA and SMA PERIODS
 #
 '''
-MA_WRITE_PERIODS: Tuple[int, ...] = (
+MA_WRITE_PERIODS: tuple[int] = (
     5,    # 10 sec
     15,   # 30 sec
     30,   # 60 sec, 1 min
@@ -21,7 +20,7 @@ MA_WRITE_PERIODS: Tuple[int, ...] = (
 # this is the SignalGenerator side
 #
 '''
-MA_READ_PERIODS: Tuple[int, ...] = (
+MA_READ_PERIODS: tuple[int] = (
     10,    # 10 sec
     30,    # 30 sec
     60,    # 60 sec, 1 min

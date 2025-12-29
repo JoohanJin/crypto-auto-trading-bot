@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from enum import IntFlag
 
 
 class OrderHistory:
@@ -16,7 +17,7 @@ class OrderHistory:
         return
 
 
-class OrderType:
+class OrderType(IntFlag):
     BUY = 1  # 1
     SELL = 2  # 10
 
@@ -31,3 +32,4 @@ class Order:
     ticker_size: float
     quote: str
     quote_size: float
+    meta_data: dict  # to keep the meta-data in the form of json.
