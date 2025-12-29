@@ -37,10 +37,7 @@ def main():
         project_root = Path(__file__).resolve().parents[1]
         load_dotenv(project_root / ".env")
 
-        main_system_manager: SystemManager = SystemManager()
-        operation_logger.info(
-            f"{main_system_manager} has been started."
-        )
+        main_system_manager: SystemManager = SystemManager()  # noqa: F841
 
         # Start working
         while True:
