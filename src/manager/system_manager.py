@@ -85,6 +85,13 @@ class SystemManager:
                 telegram_bot = self.telegram_bot,
             )
 
+            operation_logger.info(
+                (
+                    f"{__name__} - {self.__class__.__name__} - SystemManager has been started "
+                    f"and completed all the required setup!"
+                )
+            )
+
         except KeyboardInterrupt:
             operation_logger.info("Program interrupted by user. Exiting...")
             sys.exit(0)
