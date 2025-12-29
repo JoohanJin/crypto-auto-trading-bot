@@ -24,6 +24,7 @@ SOFTWARE.
 
 import sys
 from pathlib import Path
+import time
 from dotenv import load_dotenv
 
 from manager.system_manager import SystemManager
@@ -40,6 +41,10 @@ def main():
         operation_logger.info(
             f"{main_system_manager} has been started."
         )
+
+        # Start working
+        while True:
+            time.sleep(0.5)  # Sleep to reduce the cpu usage.
     except RuntimeError as e:
         operation_logger.critical(
             f"{__name__}: function main() has raised an RuntimeError: {str(e)}"
