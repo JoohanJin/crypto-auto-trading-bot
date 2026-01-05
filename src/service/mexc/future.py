@@ -5,14 +5,10 @@ Documentation: https://mexcdevelop.github.io/apidocs/contract_v1_en
 
 from typing import Literal, Union, Callable
 
-# from mexc.base_sdk import FutureBase
-# from mexc.websocket_base import BasicWebSocketManager
-
 from service.mexc.base_sdk import FutureBase
 from service.mexc.websocket_base import FutureWebSocket
 
 
-# no need to authenticate
 class FutureMarket(FutureBase):
     """
     ######################################################################################################################
@@ -1087,4 +1083,3 @@ class FutureWebSocketClient(FutureWebSocket):
         # TODO: Need to implement the position_mode function
         raise NotImplementedError
         return
-
