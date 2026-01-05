@@ -6,10 +6,10 @@ import threading
 from queue import Queue
 
 # Custom Module
-from mexc.future import FutureWebSocket
+from service.mexc.future import FutureWebSocket
 from logger.set_logger import operation_logger
 from manager.data_saver import DataSaver
-from object.constants import IndexType
+from object.index import IndexType
 from manager.data_collector import DataCollector
 from manager.data_processor import DataProcessor
 from interface.pipeline_interface import PipelineController

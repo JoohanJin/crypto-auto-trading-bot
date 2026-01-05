@@ -3,7 +3,7 @@ import threading
 import pandas as pd
 from queue import Queue
 
-from mexc.future import FutureWebSocket
+from service.mexc.future import FutureWebSocket
 from logger.set_logger import operation_logger
 
 

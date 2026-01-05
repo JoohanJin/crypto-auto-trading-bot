@@ -5,8 +5,11 @@ Documentation: https://mexcdevelop.github.io/apidocs/contract_v1_en
 
 from typing import Literal, Union, Callable
 
-from mexc.base_sdk import FutureBase
-from mexc.websocket_base import _FutureWebSocket
+# from mexc.base_sdk import FutureBase
+# from mexc.websocket_base import BasicWebSocketManager
+
+from service.mexc.base_sdk import FutureBase
+from service.mexc.websocket_base import FutureWebSocket
 
 
 # no need to authenticate
@@ -18,7 +21,7 @@ class FutureMarket(FutureBase):
     """
 
     def ping(
-        self: "FutureMarket",
+        self,
     ) -> dict:
         """
         - func ping():
@@ -36,12 +39,12 @@ class FutureMarket(FutureBase):
         url: str = "api/v1/contract/ping"
 
         return self.call(
-            method = "GET",
+            topic = "GET",
             url = url,
         )
 
     def detail(
-        self: "FutureMarket",
+        self,
         symbol: str | None = "BTC_USDT",
     ) -> dict:
         """
@@ -61,13 +64,13 @@ class FutureMarket(FutureBase):
         url: str = "api/v1/contract/detail"
 
         return self.call(
-            method = "GET",
+            topic = "GET",
             url = url,
             params = dict(symbol = symbol),
         )
 
     def support_currencies(
-        self: "FutureMarket",
+        self,
     ) -> dict:
         """
         - func support_currencies():
@@ -85,12 +88,12 @@ class FutureMarket(FutureBase):
         url: str = "/api/v1/contract/support_currencies"
 
         return self.call(
-            method="GET",
+            topic="GET",
             url=url,
         )
 
     def depth(
-        self: "FutureMarket",
+        self,
         symbol: str = "BTC_USDT",
         limit: int | None = None,
     ) -> dict:
@@ -115,13 +118,13 @@ class FutureMarket(FutureBase):
             params["limit"] = limit
 
         return self.call(
-            method = "GET",
+            topic = "GET",
             url = url,
             params = params,
         )
 
     def depth_commits(
-        self: "FutureMarket",
+        self,
         symbol: str = "BTC_USDT",
         limit: int = 5,
     ) -> dict:
@@ -146,13 +149,13 @@ class FutureMarket(FutureBase):
             params["limit"] = limit
 
         return self.call(
-            method = "GET",
+            topic = "GET",
             url = url,
             params = params,
         )
 
     def index_price(
-        self: "FutureMarket",
+        self,
         symbol: str = "BTC_USDT",
     ) -> dict:
         """
@@ -171,12 +174,12 @@ class FutureMarket(FutureBase):
         url: str = f"api/v1/contract/index_price/{symbol}"
 
         return self.call(
-            method = "GET",
+            topic = "GET",
             url = url,
         )
 
     def fair_price(
-        self: "FutureMarket",
+        self,
         symbol: str = "BTC_USDT",
     ) -> dict:
         """
@@ -194,12 +197,12 @@ class FutureMarket(FutureBase):
         """
         url: str = f"api/v1/contract/fair_price/{symbol}"
         return self.call(
-            method = "GET",
+            topic = "GET",
             url = url,
         )
 
     def funding_rate(
-        self: "FutureMarket",
+        self,
         symbol: str = "BTC_USDT",
     ) -> dict:
         """
@@ -214,7 +217,7 @@ class FutureMarket(FutureBase):
         """
         url: str = f"api/v1/contract/funding_rate/{symbol}"
         return self.call(
-            method = "GET",
+            topic = "GET",
             url = url,
         )
 
@@ -272,7 +275,7 @@ class FutureMarket(FutureBase):
             params["endTime"] = end_time
 
         return self.call(
-            method = "GET",
+            topic = "GET",
             url = url,
             params = params,
         )
@@ -324,7 +327,7 @@ class FutureMarket(FutureBase):
             params["endTime"] = end_time
 
         return self.call(
-            method = "GET",
+            topic = "GET",
             url = url,
             params = params,
         )
@@ -376,13 +379,13 @@ class FutureMarket(FutureBase):
             params["endTime"] = end_time
 
         return self.call(
-            method = "GET",
+            topic = "GET",
             url = url,
             params = params,
         )
 
     def deals(
-        self: "FutureMarket",
+        self,
         limit: int | None = 100,
         symbol: str = "BTC_USDT",
     ) -> dict:
@@ -405,13 +408,13 @@ class FutureMarket(FutureBase):
         )
 
         return self.call(
-            method = "GET",
+            topic = "GET",
             url = url,
             params = params,
         )
 
     def ticker(
-        self: "FutureMarket",
+        self,
         symbol: str | None = "BTC_USDT",
     ):
         """
@@ -431,13 +434,13 @@ class FutureMarket(FutureBase):
         )
 
         return self.call(
-            method = "GET",
+            topic = "GET",
             url = url,
             params = params,
         )
 
     def risk_reverse(
-        self: "FutureMarket",
+        self,
     ):
         """
         - func risk_reverse():
@@ -451,12 +454,12 @@ class FutureMarket(FutureBase):
         """
         url: str = "api/v1/contract/risk_reverse"
         return self.call(
-            method = "GET",
+            topic = "GET",
             url = url,
         )
 
     def risk_reverse_history(
-        self: "FutureMarket",
+        self,
         symbol: str = "BTC_USDT",
         page_num: int = 1,
         page_size: int = 100,
@@ -482,7 +485,7 @@ class FutureMarket(FutureBase):
         )
 
         return self.call(
-            method = "GET",
+            topic = "GET",
             url = url,
             params = params,
         )
@@ -515,7 +518,7 @@ class FutureMarket(FutureBase):
 
         return self.call(
             url = url,
-            method = "GET",
+            topic = "GET",
             params = params,
         )
 
@@ -525,9 +528,9 @@ class FutureMarket(FutureBase):
     ######################################################################################################################
     """
 
-    def assets(self: "FutureMarket",):
+    def assets(self,):
         """
-        - method: assets()
+        - topic: assets()
             - Getting all information of user's asset
             - Required Permissions: Trade reading permission
 
@@ -537,16 +540,16 @@ class FutureMarket(FutureBase):
             - None
         """
         return self.call(
-            method = "GET",
+            topic = "GET",
             url = "api/v1/private/account/assets",
         )
 
     def asset(
-        self: "FutureMarket",
+        self,
         currency: str = "USDT",
     ):
         """
-        - method: assets(currency: str)
+        - topic: assets(currency: str)
             - get the user's single currency asset information
             - Required Permissions: Account reading permission
 
@@ -558,14 +561,14 @@ class FutureMarket(FutureBase):
         return self.call("GET", f"api/v1/private/account/asset/{currency}")
 
     def history_position(
-        self: "FutureMarket",
+        self,
         symbol: str = "BTC_USDT",
         type: int = None,
         page_num: int | None = 1,
         page_size: int | None = 100,
     ):
         """
-        - method: history_position()
+        - topic: history_position()
             - get the user's history position information
             - trade reading permission
 
@@ -585,14 +588,17 @@ class FutureMarket(FutureBase):
         )
 
         return self.call(
-            method = "GET",
+            topic = "GET",
             url = "api/v1/private/position/list/history_positions",
             params = params,
         )
 
-    def current_position(self, symbol: str = "BTC_USDT"):
+    def current_position(
+        self,
+        symbol: str = "BTC_USDT"
+    ):
         """
-        - method: current_position()
+        - topic: current_position()
             - get the user's current holding position
             - trade reading permission
 
@@ -606,19 +612,19 @@ class FutureMarket(FutureBase):
         )
 
         return self.call(
-            method = "GET",
+            topic = "GET",
             url = "api/v1/private/position/open_positions",
             params = params,
         )
 
     def pending_order(
-        self: "FutureMarket",
+        self,
         symbol: str | None = "BTC_USDT",
         page_num: int | None = 1,
         page_size: int | None = 100,
     ):
         """
-        - method: pending_order
+        - topic: pending_order
             - get the user's current pending order
             - trade reading permission
 
@@ -638,14 +644,17 @@ class FutureMarket(FutureBase):
         )
 
         return self.call(
-            method = "GET",
+            topic = "GET",
             url = url,
             params = params,
         )
 
-    def risk_limit(self: "FutureMarket", symbol: str = "BTC_USDT"):
+    def risk_limit(
+        self,
+        symbol: str = "BTC_USDT",
+    ):
         """
-        - method: risk_limit()
+        - topic: risk_limit()
             - get the user's current pending order
             - trade reading permission
 
@@ -659,12 +668,15 @@ class FutureMarket(FutureBase):
         )
 
         return self.call(
-            method = "GET", url = "api/v1/private/account/risk_limit", params = params,
+            topic = "GET", url = "api/v1/private/account/risk_limit", params = params,
         )
 
-    def fee_rate(self: "FutureMarket", symbol: str = "BTC_USDT"):
+    def fee_rate(
+        self,
+        symbol: str = "BTC_USDT",
+    ):
         """
-        - method: fee_rate()
+        - topic: fee_rate()
             - get the user's current rading fee rate
             - trade reading permission
 
@@ -674,13 +686,13 @@ class FutureMarket(FutureBase):
             - symbol: str, optional, the nmae of the contract
         """
         return self.call(
-            method = "GET",
+            topic = "GET",
             url = "api/v1/private/account/tiered_fee_rate",
             params = dict(symbol = symbol),
         )
 
     def place_order(
-        self: "FutureMarket",
+        self,
         price: float,
         vol: float,
         side: int,  # 1 and 3
@@ -697,7 +709,7 @@ class FutureMarket(FutureBase):
     ) -> dict:
         """
         - Under-Maintanence on Broker Side
-        - method: place_order()
+        - topic: place_order()
             - USDT perpetual contract trading offers limit and market orders.
             - POST
 
@@ -792,35 +804,31 @@ class FutureMarket(FutureBase):
         )
 
         return self.call(
-            method = "POST",
+            topic = "POST",
             url = "api/v1/private/order/submit",
             params = params,
         )
 
 
-class FutureWebSocket(_FutureWebSocket):
+class FutureWebSocketClient(FutureWebSocket):
     def __init__(
-        self: "FutureWebSocket",
-        ws_name: str | None = None,
-        endpoint: str = "wss://contract.mexc.com/edge",
+        self,
+        url: str = "wss://contract.mexc.com/edge",
+        name: str | None = None,
         api_key: str | None = None,
         secret_key: str | None = None,
         ping_interval: int | None = 20,  # as it is recommended
-        ping_timeout: int | None = 10,
-        conn_timeout: int | None = 30,
+        default_callback: Callable | None = None,
     ) -> None:
 
-        # pass the parameters to the FutureWebSocket
-        kwargs = dict(
-            api_key = api_key,
-            secret_key = secret_key,
-            ping_interval = ping_interval,
-            ping_timeout = ping_timeout,
-            conn_timeout = conn_timeout,
-            endpoint = endpoint
+        super().__init__(
+            url=url,
+            name=name,
+            api_key=api_key,
+            secret_key=secret_key,
+            ping_interval=ping_interval,
+            default_callback=default_callback,
         )
-
-        super().__init__(**kwargs)
         return
 
     """
@@ -835,19 +843,22 @@ class FutureWebSocket(_FutureWebSocket):
         - Fair Price
     """
 
-    def tickers(self: "FutureWebSocket", callback: Callable) -> None:
+    def tickers(
+        self,
+        callback_function: Callable,
+    ) -> None:
         """
         - Get the latest transaction price, buy-price, sell-price and 24 transaction volume
         - of all the perpetual contracts on the platform without login.
         - Send once a second after subscribing
         """
-        method = "sub.tickers"
-        self._method_subscribe(method = method, callback = callback, param = {})
+        topic = "sub.tickers"
+        self.subscribe(topic = topic, callback_function = callback_function, param = {})
         return
 
     def ticker(
-        self: "FutureWebSocket",
-        callback: Callable,
+        self,
+        callback_function: Callable,
         param: dict | None = None,
     ) -> None:
         """
@@ -858,13 +869,13 @@ class FutureWebSocket(_FutureWebSocket):
         if (param is None):
             param = dict(symbol = "BTC_USDT")
 
-        method: str = "sub.ticker"
-        self._method_subscribe(method = method, callback = callback, param = param)
+        topic: str = "sub.ticker"
+        self.subscribe(topic = topic, callback_function = callback_function, param = param)
         return
 
     def transaction(
-        self: "FutureWebSocket",
-        callback: Callable,
+        self,
+        callback_function: Callable,
         param: dict | None = None,
     ) -> None:
         """
@@ -873,25 +884,25 @@ class FutureWebSocket(_FutureWebSocket):
         if (param is None):
             param: dict[str, str] = dict(symbol = "BTC_USDT")
 
-        method = "sub.deal"
-        self._method_subscribe(method=method, callback=callback, param=param)
+        topic = "sub.deal"
+        self.subscribe(topic=topic, callback_function=callback_function, param=param)
         return
 
     def depth(
-        self: "FutureWebSocket",
-        callback: Callable,
+        self,
+        callback_function: Callable,
         param: dict | None = None,
     ):
         if param is None:
             param: dict[str, str] = dict(symbol = "BTC_USDT")
 
-        method = "sub.depth"
-        self._method_subscribe(method=method, callback=callback, param=param)
+        topic = "sub.depth"
+        self.subscribe(topic=topic, callback_function=callback_function, param=param)
         return
 
     def kline(
-        self: "FutureWebSocket",
-        callback: Callable,
+        self,
+        callback_function: Callable,
         symbol: str | None = "BTC_USDT",
         interval: Union[
             Literal["Min1"],
@@ -922,13 +933,13 @@ class FutureWebSocket(_FutureWebSocket):
             - Month1
         """
         param = dict(symbol = symbol, interval = interval)
-        method = "sub.kline"
-        self._method_subscribe(method = method, callback = callback, param = param)
+        topic = "sub.kline"
+        self.subscribe(topic = topic, callback_function = callback_function, param = param)
         return
 
     def funding_rate(
-        self: "FutureWebSocket",
-        callback: Callable,
+        self,
+        callback_function: Callable,
         param: dict | None = None,
     ) -> None:
         """
@@ -937,13 +948,13 @@ class FutureWebSocket(_FutureWebSocket):
         if param is None:
             param: dict[str, str] = dict(symbol = "BTC_USDT")
 
-        method: str = "sub.funding.rate"
-        self._method_subscribe(method = method, callback = callback, param = param)
+        topic: str = "sub.funding.rate"
+        self.subscribe(topic = topic, callback_function = callback_function, param = param)
         return
 
     def index_price(
-        self: "FutureWebSocket",
-        callback: Callable,
+        self,
+        callback_function: Callable,
         param: dict | None = None,
     ) -> None:
         """
@@ -952,17 +963,17 @@ class FutureWebSocket(_FutureWebSocket):
         if param is not None:
             param: dict[str, str] = dict(symbol = "BTC_USDT")
 
-        method = "sub.index.price"
-        self._method_subscribe(
-            method = method,
-            callback = callback,
+        topic = "sub.index.price"
+        self.subscribe(
+            topic = topic,
+            callback_function = callback_function,
             param = param,
         )
         return
 
     def fair_price(
-        self: "FutureWebSocket",
-        callback: Callable,
+        self,
+        callback_function: Callable,
         param: dict | None = None,
     ) -> None:
         """
@@ -971,10 +982,10 @@ class FutureWebSocket(_FutureWebSocket):
         if param is None:
             param: dict[str, str] = dict(symbol = "BTC_USDT")
 
-        method = "sub.fair_price"
-        self._method_subscribe(
-            method = method,
-            callback = callback,
+        topic = "sub.fair_price"
+        self.subscribe(
+            topic = topic,
+            callback_function = callback_function,
             param = param,
         )
         return
@@ -992,8 +1003,8 @@ class FutureWebSocket(_FutureWebSocket):
     """
 
     def order(
-        self: "FutureWebSocket",
-        callback: Callable,
+        self,
+        callback_function: Callable,
         param: dict | None = None,
     ) -> None:
         """
@@ -1005,25 +1016,25 @@ class FutureWebSocket(_FutureWebSocket):
         if param is None:
             param: dict[str, str] = dict(symbol = "BTC_USDT")
 
-        method = "sub.personal.order"
-        self._method_subscribe(
-            method=method,
-            callback=callback,
+        topic = "sub.personal.order"
+        self.subscribe(
+            topic=topic,
+            callback_function=callback_function,
             param=param,
         )
         return
 
     def asset(
-        self: "FutureWebSocket",
-        callback: Callable,
+        self,
+        callback_function: Callable,
         param: dict | None = dict()
     ) -> None:
         """
         func asset:
             - A function to subscribe to the asset information of the user.
 
-        param callback:
-            - The callback function to handle the asset information.
+        param callback_function:
+            - The callback_function function to handle the asset information.
         param param:
             - Optional[dict], optional parameters for the subscription.
             - default is empty dictionary
@@ -1033,17 +1044,17 @@ class FutureWebSocket(_FutureWebSocket):
         if param is None:
             param: dict[str, str] = dict()
 
-        method = "sub.personal.asset"
-        self._method_subscribe(
-            method = method,
-            callback = callback,
+        topic = "sub.personal.asset"
+        self.subscribe(
+            topic = topic,
+            callback_function = callback_function,
             param = param,
         )
         return None
 
     def position(
-        self: "FutureWebSocket",
-        callback: Callable,
+        self,
+        callback_function: Callable,
         param: dict | None = None,
     ) -> None:
         # TODO: Need to implement the position function
@@ -1051,8 +1062,8 @@ class FutureWebSocket(_FutureWebSocket):
         return
 
     def risk_limitation(
-        self: "FutureWebSocket",
-        callback: Callable,
+        self,
+        callback_function: Callable,
         param: dict | None = dict()
     ) -> None:
         # TODO: Need to implement the risk_limitation function
@@ -1060,8 +1071,8 @@ class FutureWebSocket(_FutureWebSocket):
         return
 
     def adl(
-        self: "FutureWebSocket",
-        callback: Callable,
+        self,
+        callback_function: Callable,
         param: dict | None = dict()
     ) -> None:
         # TODO: Need to implement the adl function
@@ -1069,10 +1080,11 @@ class FutureWebSocket(_FutureWebSocket):
         return
 
     def position_mode(
-        self: "FutureWebSocket",
-        callback: Callable,
+        self,
+        callback_function: Callable,
         param: dict | None = dict()
     ) -> None:
         # TODO: Need to implement the position_mode function
         raise NotImplementedError
         return
+
