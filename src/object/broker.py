@@ -1,7 +1,7 @@
 from __future__ import annotations
 import time
 
-from binance.base_sdk import FutureBase
+from service.binance.base_sdk import FutureBase
 from object.trade import TradePair
 
 

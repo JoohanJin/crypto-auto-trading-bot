@@ -5,11 +5,9 @@ import time
 import websocket
 import threading
 
-# Get the logger
-
 
 class BasicWebSocketManager(ABC):
-    _intance_counter: int = 0  # shared across all instance
+    _instance_counter: int = 0  # shared across all instance
 
     @classmethod
     def _generate_id(cls) -> int:

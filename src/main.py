@@ -24,6 +24,11 @@ SOFTWARE.
 
 import sys
 from pathlib import Path
+
+# Fix import paths - add src/ to Python path
+_src_dir = Path(__file__).resolve().parent
+sys.path.insert(0, str(_src_dir))
+
 import time
 from dotenv import load_dotenv
 

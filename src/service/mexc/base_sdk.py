@@ -3,7 +3,7 @@ from typing import Optional, Union, Literal
 import json
 
 # Custom libraries
-from sdk.base_sdk import CommonBaseSDK
+from service.sdk.base_sdk import CommonBaseSDK
 from logger.set_logger import operation_logger
 
 

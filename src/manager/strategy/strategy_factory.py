@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 # CUSTOM LIBRARY
-from object.constants import IndexType
+from object.index import IndexType
 from object.signal import TradeSignal
 
 
