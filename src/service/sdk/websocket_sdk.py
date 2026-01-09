@@ -6,7 +6,7 @@ import websocket
 import threading
 
 
-class BasicWebSocketManager(ABC):
+class BasicWebSocketClient(ABC):
     _instance_counter: int = 0  # shared across all instance
 
     @classmethod
@@ -25,7 +25,6 @@ class BasicWebSocketManager(ABC):
         api_key: str | None,
         secret_key: str | None,
         ping_interval: int = 20,  # in seconds -> every <ping_interval> send the hearbeat
-
     ) -> None:
         # wss endpoint
         self.url: str = url
