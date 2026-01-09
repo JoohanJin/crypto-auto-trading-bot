@@ -810,7 +810,7 @@ class FutureWebSocketClient(FutureWebSocket):
     def __init__(
         self,
         url: str = "wss://contract.mexc.com/edge",
-        name: str | None = None,
+        name: str = "MexCWebSocketClient",
         api_key: str | None = None,
         secret_key: str | None = None,
         ping_interval: int | None = 20,  # as it is recommended
@@ -839,7 +839,7 @@ class FutureWebSocketClient(FutureWebSocket):
         - Fair Price
     """
 
-    def tickers(
+    def sub_tickers(
         self,
         callback_function: Callable,
     ) -> None:
@@ -848,11 +848,11 @@ class FutureWebSocketClient(FutureWebSocket):
         - of all the perpetual contracts on the platform without login.
         - Send once a second after subscribing
         """
-        topic = "sub.tickers"
+        topic = "tickers"
         self.subscribe(topic = topic, callback_function = callback_function, param = {})
         return
 
-    def ticker(
+    def sub_ticker(
         self,
         callback_function: Callable,
         param: dict | None = None,
@@ -865,11 +865,11 @@ class FutureWebSocketClient(FutureWebSocket):
         if (param is None):
             param = dict(symbol = "BTC_USDT")
 
-        topic: str = "sub.ticker"
+        topic: str = "ticker"
         self.subscribe(topic = topic, callback_function = callback_function, param = param)
         return
 
-    def transaction(
+    def sub_transaction(
         self,
         callback_function: Callable,
         param: dict | None = None,
@@ -880,11 +880,11 @@ class FutureWebSocketClient(FutureWebSocket):
         if (param is None):
             param: dict[str, str] = dict(symbol = "BTC_USDT")
 
-        topic = "sub.deal"
+        topic = "deal"
         self.subscribe(topic=topic, callback_function=callback_function, param=param)
         return
 
-    def depth(
+    def sub_depth(
         self,
         callback_function: Callable,
         param: dict | None = None,
@@ -892,11 +892,11 @@ class FutureWebSocketClient(FutureWebSocket):
         if param is None:
             param: dict[str, str] = dict(symbol = "BTC_USDT")
 
-        topic = "sub.depth"
+        topic = "depth"
         self.subscribe(topic=topic, callback_function=callback_function, param=param)
         return
 
-    def kline(
+    def sub_kline(
         self,
         callback_function: Callable,
         symbol: str | None = "BTC_USDT",
@@ -929,11 +929,11 @@ class FutureWebSocketClient(FutureWebSocket):
             - Month1
         """
         param = dict(symbol = symbol, interval = interval)
-        topic = "sub.kline"
+        topic = "kline"
         self.subscribe(topic = topic, callback_function = callback_function, param = param)
         return
 
-    def funding_rate(
+    def sub_funding_rate(
         self,
         callback_function: Callable,
         param: dict | None = None,
@@ -944,11 +944,11 @@ class FutureWebSocketClient(FutureWebSocket):
         if param is None:
             param: dict[str, str] = dict(symbol = "BTC_USDT")
 
-        topic: str = "sub.funding.rate"
+        topic: str = "funding.rate"
         self.subscribe(topic = topic, callback_function = callback_function, param = param)
         return
 
-    def index_price(
+    def sub_index_price(
         self,
         callback_function: Callable,
         param: dict | None = None,
@@ -956,10 +956,10 @@ class FutureWebSocketClient(FutureWebSocket):
         """
         - Get the index price and will keep updating if there is any changes
         """
-        if param is not None:
+        if param is None:
             param: dict[str, str] = dict(symbol = "BTC_USDT")
 
-        topic = "sub.index.price"
+        topic = "index.price"
         self.subscribe(
             topic = topic,
             callback_function = callback_function,
@@ -967,7 +967,7 @@ class FutureWebSocketClient(FutureWebSocket):
         )
         return
 
-    def fair_price(
+    def sub_fair_price(
         self,
         callback_function: Callable,
         param: dict | None = None,
@@ -978,7 +978,7 @@ class FutureWebSocketClient(FutureWebSocket):
         if param is None:
             param: dict[str, str] = dict(symbol = "BTC_USDT")
 
-        topic = "sub.fair_price"
+        topic = "fair_price"
         self.subscribe(
             topic = topic,
             callback_function = callback_function,
@@ -998,7 +998,7 @@ class FutureWebSocketClient(FutureWebSocket):
     #########################################################################################################################################################
     """
 
-    def order(
+    def sub_order(
         self,
         callback_function: Callable,
         param: dict | None = None,
@@ -1012,7 +1012,7 @@ class FutureWebSocketClient(FutureWebSocket):
         if param is None:
             param: dict[str, str] = dict(symbol = "BTC_USDT")
 
-        topic = "sub.personal.order"
+        topic = "personal.order"
         self.subscribe(
             topic=topic,
             callback_function=callback_function,
@@ -1020,7 +1020,7 @@ class FutureWebSocketClient(FutureWebSocket):
         )
         return
 
-    def asset(
+    def sub_asset(
         self,
         callback_function: Callable,
         param: dict | None = dict()
@@ -1040,7 +1040,7 @@ class FutureWebSocketClient(FutureWebSocket):
         if param is None:
             param: dict[str, str] = dict()
 
-        topic = "sub.personal.asset"
+        topic = "personal.asset"
         self.subscribe(
             topic = topic,
             callback_function = callback_function,
@@ -1048,7 +1048,7 @@ class FutureWebSocketClient(FutureWebSocket):
         )
         return None
 
-    def position(
+    def sub_position(
         self,
         callback_function: Callable,
         param: dict | None = None,
@@ -1057,7 +1057,7 @@ class FutureWebSocketClient(FutureWebSocket):
         raise NotImplementedError
         return
 
-    def risk_limitation(
+    def sub_risk_limitation(
         self,
         callback_function: Callable,
         param: dict | None = dict()
@@ -1066,7 +1066,7 @@ class FutureWebSocketClient(FutureWebSocket):
         raise NotImplementedError
         return
 
-    def adl(
+    def sub_adl(
         self,
         callback_function: Callable,
         param: dict | None = dict()
@@ -1075,7 +1075,7 @@ class FutureWebSocketClient(FutureWebSocket):
         raise NotImplementedError
         return
 
-    def position_mode(
+    def sub_position_mode(
         self,
         callback_function: Callable,
         param: dict | None = dict()

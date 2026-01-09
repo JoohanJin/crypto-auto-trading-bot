@@ -8,13 +8,20 @@ import threading
 import websocket
 
 # Custom Library
-from service.sdk.websocket_sdk import BasicWebSocketManager
+from service.sdk.websocket_sdk import BasicWebSocketClient
 
-# Logger Getter
+# Getting Logger access
 from logger.set_logger import operation_logger
 
 
-class FutureWebSocket(BasicWebSocketManager):
+class FutureWebSocket(BasicWebSocketClient):
+    '''
+    mexc websocket
+    payload = {
+        "method": "sub.tickers",
+        "param": {}
+    }
+    '''
     def __init__(
         self,
         url: str,   # = "wss://contract.mexc.com/edge",
@@ -34,13 +41,18 @@ class FutureWebSocket(BasicWebSocketManager):
 
         self.default_callback: Callable
         self.authenticated: bool = False
+        self.subscriptions: list[str] = list()
 
+        # Thread Events
         self._thread_stop: threading.Event = threading.Event()
         self._connection_ready: threading.Event = threading.Event()
         self._thread_pause: threading.Event = threading.Event()
-        self._thread_pause.set()  # set to True
+        self._intentional_close: threading.Event = threading.Event()  # Track intentional disconnects
 
-        self.ws: websocket.WebSocketApp | None = None
+        self._reconnect_lock: threading.Lock = threading.Lock()  # Prevent concurrent reconnects
+        # self._thread_pause.set()  # set to True
+
+        self.ws: websocket.WebSocketApp | None = self._construct_websocket()
         return
 
     def start(self,) -> None:
@@ -55,14 +67,15 @@ class FutureWebSocket(BasicWebSocketManager):
 
         # Threads-related
         self._initialize_threads()
+
         self._start_threads()
         return
 
     # Override
     def disconnect(self) -> None:
-        '''
-        '''
-        self.ws.close()
+        self._intentional_close.set()  # Mark as intentional before closing
+        if self.ws and self.ws.sock and self.ws.sock.connected:
+            self.ws.close()
         return
 
     def _construct_websocket(
@@ -89,8 +102,8 @@ class FutureWebSocket(BasicWebSocketManager):
                 on_error=on_error or self.on_error,
                 on_ping=on_ping or self.on_ping,
             )
+            time.sleep(0.5)
 
-            time.sleep(2)
             return ws
         except Exception as e:
             operation_logger.error(
@@ -99,11 +112,11 @@ class FutureWebSocket(BasicWebSocketManager):
             raise
 
     def pause(self,) -> None:
-        self._thread_pause.clear()
+        self._thread_pause.set()
         return
 
     def resume(self) -> None:
-        self._thread_pause.set()
+        self._thread_pause.clear()
         return
 
     def _initialize_threads(self) -> None:
@@ -114,7 +127,7 @@ class FutureWebSocket(BasicWebSocketManager):
             daemon=True,
         )
         ws_hm: threading.Thread = threading.Thread(
-            name="websocket_hm",
+            name="websocket_hb",
             target=self._heartbeat,
             daemon=True
         )
@@ -127,21 +140,21 @@ class FutureWebSocket(BasicWebSocketManager):
             for thread in self.threads:
                 thread.start()
                 operation_logger.info(
-                    f"{__name__} - {self.__class__.__name__} - Started thred {thread.name}"
+                    f"{__name__} - {self.__class__.__name__} - Started thread: {thread.name}"
                 )
+                time.sleep(0.5)
         except Exception as e:
             operation_logger.critical(
                 f"{__name__} - {self.__class__.__name__} - Failed to start thread {thread.name}: {str(e)}"
             )
             raise
-
         return
 
     def _pause_threads(self) -> None:
         self._thread_pause.set()
         return
 
-    def _clean_up_threads(self) -> None:
+    def _clean_up_connections(self) -> None:
         '''
         Join and remove all threads from self.threads container
         '''
@@ -151,9 +164,15 @@ class FutureWebSocket(BasicWebSocketManager):
 
         self._thread_stop.set()  # Set it to the True to stop threads
 
-        if self.ws and self.ws.sock and self.ws.sock.connected:
-            operation_logger.info("Closing Websocket to unblock run_forever...")
-            self.disconnect()  # force the run_forever function to return.
+        # Only try to close if socket exists and is actually connected
+        try:
+            if self.ws and self.ws.sock and self.ws.sock.connected:
+                operation_logger.info("Closing Websocket to unblock run_forever...")
+                self.ws.close()  # force the run_forever function to return.
+        except Exception as e:
+            operation_logger.warning(
+                f"{__name__} - {self.__class__.__name__} - Socket already closed or error during close: {str(e)}"
+            )
 
         # Get current thread to avoid self-join deadlock
         current_thread: threading.Thread = threading.current_thread()
@@ -191,6 +210,8 @@ class FutureWebSocket(BasicWebSocketManager):
 
         # remove all threads from list
         self.threads.clear()
+        self._thread_stop.clear()
+        self.ws = None
         operation_logger.info(
             f"{__name__} - {self.__class__.__name__} - All threads cleaned up and removed."
         )
@@ -204,11 +225,12 @@ class FutureWebSocket(BasicWebSocketManager):
         param: dict | None = None,
     ) -> None:
         if param is None:
-            param_to_send: dict = dict()
-        else:
-            param_to_send = param.copy()
+            param: dict = dict()
 
         self._push_callback_func(topic, callback_function)
+
+        if not topic.startswith("sub."):
+            topic = "sub." + topic
 
         while not self._is_connected():
             time.sleep(0.1)
@@ -216,12 +238,13 @@ class FutureWebSocket(BasicWebSocketManager):
         header = json.dumps(
             dict(
                 method = topic,
-                param = param_to_send
+                param = param,
             )
         )
 
         try:
             self.send(header)
+            self.subscriptions.append(header)
         except Exception as e:
             operation_logger.warning(
                 f"{__name__} - {self.__class__.__name__} - Unexpected error during subscription: {str(e)}"
@@ -240,6 +263,20 @@ class FutureWebSocket(BasicWebSocketManager):
 
     # Override
     def unsubscribe(self, topic: str) -> None:
+        if self.callbacks.get(topic, None):
+            del self.callbacks[topic]
+
+        if topic.startswith("unsub."):
+            topic = "unsub." + topic
+
+        self.send(
+            json.dumps(
+                dict(
+                    method = topic,
+                    param = dict(),
+                )
+            )
+        )
         return
 
     def _pop_callback_func(
@@ -264,26 +301,49 @@ class FutureWebSocket(BasicWebSocketManager):
 
     # Override
     def _reconnect(self) -> None:
-        if self.ws and self.ws.sock and self.ws.sock.connected:
-            self.disconnect()
-        self._clean_up_threads()
-        self.connect()
+        # Prevent concurrent reconnection attempts
+        if not self._reconnect_lock.acquire(blocking=False):
+            operation_logger.info(
+                f"{__name__} - {self.__class__.__name__} - Reconnection already in progress, skipping."
+            )
+            return
+
+        try:
+            operation_logger.info(
+                f"{__name__} - {self.__class__.__name__} - Starting reconnection process..."
+            )
+
+            # Signal threads to stop
+            self._thread_stop.set()
+            self._connection_ready.clear()
+
+            # Don't try to close the socket here - it's already closed when on_close is called
+            # Just clean up threads (skipping the current one if called from on_close)
+            self._clean_up_connections()
+
+            # Now reconnect
+            self.connect()
+        finally:
+            self._reconnect_lock.release()
         return
 
     # Override: previously ping method
     def _heartbeat(
         self,
-        hm_payload: str = "{'method':'ping'}",
+        hb_payload: str = '{"method":"ping"}',
     ) -> None:
-        curr_timestamp: int = 0
+        prev_timestamp: int = 0
 
         while (not (self._thread_stop.is_set()) and (self._is_connected())):
             # self._thread_pause.wait()
-
-            if (self.__class__.generate_timestamp() - curr_timestamp > (self.ping_interval * 1_000)):
+            if (self.generate_timestamp() - prev_timestamp > (self.ping_interval * 1_000)):
                 try:
                     # ! websocket.send() requires str or bytes -> needs to dump it using json, i.e., json.dump(dict)
-                    self.send(hm_payload)
+                    self.send(hb_payload)
+                    operation_logger.info(
+                        f"{__name__} - {self.__class__.__name__} - Successfully sent a ping message to {self.ws.url}"
+                    )
+                    prev_timestamp = self.generate_timestamp()
                 except Exception as e:
                     operation_logger.warning(
                         f"{__name__} - {self.__class__.__name__} - Failed to send ping message: {str(e)}"
@@ -298,7 +358,7 @@ class FutureWebSocket(BasicWebSocketManager):
         ws: websocket.WebSocketApp,
         msg: str | bytes,
     ) -> None:
-        if not self._thread_pause.is_set():
+        if self._thread_pause.is_set():
             return  # ignore all the data from websocket
 
         try:
@@ -336,7 +396,76 @@ class FutureWebSocket(BasicWebSocketManager):
             f"{__name__} - {self.__class__.__name__} - The WebSocket has been closed with {status_code}: {close_msg}"
         )
 
-        self._reconnect()
+        # Check if this was an intentional close
+        if self._intentional_close.is_set():
+            operation_logger.info(
+                f"{__name__} - {self.__class__.__name__} - Intentional close detected, not reconnecting."
+            )
+            self._intentional_close.clear()  # Reset the flag
+            return
+
+        # Only reconnect for accidental closes
+        # Status 1000 = normal closure, 1006 = abnormal closure (no close frame), None = network issue
+        else:
+            operation_logger.info(
+                f"{__name__} - {self.__class__.__name__} - Accidental MexC WebSocket close detected, spawning reconnection thread."
+            )
+            # Spawn a separate thread for reconnection to avoid deadlock
+            # (on_close runs inside the websocket_connection thread)
+            reconnect_thread = threading.Thread(
+                name="websocket_reconnect",
+                target=self._handle_reconnect,
+                daemon=True,
+            )
+            reconnect_thread.start()
+        return
+
+    def _handle_reconnect(
+        self,
+        retry_delay: float = 3.0,
+    ) -> None:
+        """
+        Handle reconnection in a separate thread to avoid deadlock.
+        Called from on_close which runs inside the websocket_connection thread.
+
+        Keeps trying until connection is established.
+        """
+        # Give the old websocket_connection thread time to fully exit
+        time.sleep(0.5)
+
+        while True:
+            # Check if intentional close happened during retry
+            if self._intentional_close.is_set():
+                operation_logger.info(
+                    f"{__name__} - {self.__class__.__name__} - Intentional close detected during reconnect, aborting."
+                )
+                return
+
+            try:
+                operation_logger.info(
+                    f"{__name__} - {self.__class__.__name__} - Attempting reconnection..."
+                )
+
+                self._reconnect()
+
+                # Wait for connection to be ready
+                if self._connection_ready.wait(timeout=10.0):
+                    self._resubscribe()
+                    operation_logger.info(
+                        f"{__name__} - {self.__class__.__name__} - Reconnection completed successfully."
+                    )
+                    return  # Success!
+
+            except Exception as e:
+                operation_logger.warning(
+                    f"{__name__} - {self.__class__.__name__} - Reconnection attempt failed: {str(e)}"
+                )
+
+            # Wait before next attempt
+            operation_logger.info(
+                f"{__name__} - {self.__class__.__name__} - Waiting {retry_delay}s before next reconnect attempt..."
+            )
+            time.sleep(retry_delay)
         return
 
     # Override
@@ -362,7 +491,7 @@ class FutureWebSocket(BasicWebSocketManager):
         if isinstance(data, bytes):
             data = data.encode("utf-8")
             if (data.get("channel", "") == 'ping' or data.get('method', "") == 'ping'):
-                self.send(payload)
+                ws.send(payload)
         else:
             return
         return
@@ -377,7 +506,7 @@ class FutureWebSocket(BasicWebSocketManager):
 
         ;return None
         '''
-        timestamp: str = str(self.__class__.generate_timestamp())
+        timestamp: str = str(self.generate_timestamp())
 
         # hmac using sha256
         signature = self._generate_signature(timestamp)
@@ -402,7 +531,7 @@ class FutureWebSocket(BasicWebSocketManager):
         timestamp: str | None,
     ) -> str:
         if (timestamp is None):
-            timestamp = str(self.__class__.generate_timestamp())
+            timestamp = str(self.generate_timestamp())
 
         if (self.api_key and self.secret_key):
             query_str = f"{self.api_key}{timestamp}"
@@ -482,12 +611,12 @@ class FutureWebSocket(BasicWebSocketManager):
                 )
                 and (msg.get("channel", "") != "rs.error")
             ):
-                operation_logger.warning(
-                    f"{__name__} - {self.__class__.__name__} - Subscription to {topic} has failed to establish."
+                operation_logger.info(
+                    f"{__name__} - {self.__class__.__name__} - Subscription to {topic} has been established: [v]"
                 )
             else:
                 operation_logger.warning(
-                    f"{__name__} - {self.__class__.__name__} - Subscription to {topic} has failed to establish."
+                    f"{__name__} - {self.__class__.__name__} - Subscription to {topic} has NOT been establish: [x]"
                 )
             return
 
@@ -528,7 +657,10 @@ class FutureWebSocket(BasicWebSocketManager):
 
     def _is_connected(self):
         try:
-            sock = getattr(self, "ws", None) and self.ws.sock
-            return sock and sock.connected
+            return self.ws and self.ws.sock and self.ws.sock.connected
         except AttributeError:
             return False
+
+    def _resubscribe(self) -> None:
+        for subscription in self.subscriptions:
+            self.send(subscription)
