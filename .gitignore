@@ -2,7 +2,7 @@
 .vscode/
 
 # virtual environment directory
-gazua/
+.venv/
 
 # ignore every tmp files
 *tmp*
