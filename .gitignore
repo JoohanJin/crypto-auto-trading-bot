@@ -11,6 +11,7 @@ tmp/
 foo/
 
 *test.py*
+*test.json*
 
 # ignore market data directory
 market_data/
