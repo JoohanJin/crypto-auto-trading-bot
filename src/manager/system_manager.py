@@ -123,9 +123,9 @@ class SystemManager:
         self._stop.set()
         # add the stop for other compponents as well.
     """
-    ######################################################################################################################
-    #                                                Static Method                                                       #
-    ######################################################################################################################
+    ####################################################################################
+    #                                      Static Method                               #
+    ####################################################################################
     """
     def __set_up_telegram_bot(
         self: "SystemManager",
@@ -163,8 +163,8 @@ class SystemManager:
 
     @staticmethod
     def __get_mexc_future_credentials():
-        api_key = os.getenv("MEXC_API_KEY")
-        secret_key = os.getenv("MEXC_SECRET_KEY")
+        api_key = os.getenv("MEXC_HMAC_API_KEY")
+        secret_key = os.getenv("MEXC_HMAC_SECRET_KEY")
         if not api_key or not secret_key:
             raise ValueError("MEXC_API_KEY and MEXC_SECRET_KEY must be set in environment variables.")
         return api_key, secret_key
@@ -172,8 +172,8 @@ class SystemManager:
     @staticmethod
     def __get_binance_future_credentials():
         try:
-            api_key: str = os.getenv("BINANCE_API_KEY")
-            secret_key: str = os.getenv("BINANCE_SECRET_KEY")
+            api_key: str = os.getenv("BINANCE_HMAC_API_KEY")
+            secret_key: str = os.getenv("BINANCE_HMAC_SECRET_KEY")
             if not api_key or not secret_key:
                 operation_logger.critica(f"{__name__} - API_KEY and/or SECRET_KEY is None.")
                 raise ValueError
