@@ -809,8 +809,8 @@ class FutureMarket(FutureBase):
 class FutureWebSocketClient(FutureWebSocket):
     def __init__(
         self,
+        name: str,
         url: str = "wss://contract.mexc.com/edge",
-        name: str = "MexCWebSocketClient",
         api_key: str | None = None,
         secret_key: str | None = None,
         ping_interval: int | None = 20,  # as it is recommended

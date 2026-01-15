@@ -33,24 +33,24 @@ class FutureWebSocket(BasicWebSocketClient):
     ) -> None:
         super().__init__(
             url = url,
-            name = name,
+            name = name or f"MexC_WebSocket_Client_{self.id}",
             api_key = api_key,
             secret_key = secret_key,
             ping_interval = ping_interval,
         )
 
-        self.default_callback: Callable
+        # internal DataStructure
+        self.default_callback: Callable = default_callback
         self.authenticated: bool = False
         self.subscriptions: list[str] = list()
 
         # Thread Events
         self._thread_stop: threading.Event = threading.Event()
-        self._connection_ready: threading.Event = threading.Event()
         self._thread_pause: threading.Event = threading.Event()
+        self._connection_ready: threading.Event = threading.Event()
         self._intentional_close: threading.Event = threading.Event()  # Track intentional disconnects
 
         self._reconnect_lock: threading.Lock = threading.Lock()  # Prevent concurrent reconnects
-        # self._thread_pause.set()  # set to True
 
         self.ws: websocket.WebSocketApp | None = self._construct_websocket()
         return
@@ -74,7 +74,7 @@ class FutureWebSocket(BasicWebSocketClient):
     # Override
     def disconnect(self) -> None:
         self._intentional_close.set()  # Mark as intentional before closing
-        if self.ws and self.ws.sock and self.ws.sock.connected:
+        if self._is_connected():
             self.ws.close()
         return
 
@@ -136,18 +136,18 @@ class FutureWebSocket(BasicWebSocketClient):
         return
 
     def _start_threads(self) -> None:
-        try:
-            for thread in self.threads:
+        for thread in self.threads:
+            try:
                 thread.start()
                 operation_logger.info(
                     f"{__name__} - {self.__class__.__name__} - Started thread: {thread.name}"
                 )
                 time.sleep(0.5)
-        except Exception as e:
-            operation_logger.critical(
-                f"{__name__} - {self.__class__.__name__} - Failed to start thread {thread.name}: {str(e)}"
-            )
-            raise
+            except Exception as e:
+                operation_logger.critical(
+                    f"{__name__} - {self.__class__.__name__} - Failed to start thread {thread.name}: {str(e)}"
+                )
+                raise
         return
 
     def _pause_threads(self) -> None:
@@ -166,7 +166,7 @@ class FutureWebSocket(BasicWebSocketClient):
 
         # Only try to close if socket exists and is actually connected
         try:
-            if self.ws and self.ws.sock and self.ws.sock.connected:
+            if self._is_connected():
                 operation_logger.info("Closing Websocket to unblock run_forever...")
                 self.ws.close()  # force the run_forever function to return.
         except Exception as e:
@@ -393,13 +393,13 @@ class FutureWebSocket(BasicWebSocketClient):
         close_msg: str,
     ) -> None:
         operation_logger.warning(
-            f"{__name__} - {self.__class__.__name__} - The WebSocket has been closed with {status_code}: {close_msg}"
+            f"{__name__} - {self.__class__.__name__} - MexC WebSocket has been closed with {status_code}: {close_msg}"
         )
 
         # Check if this was an intentional close
         if self._intentional_close.is_set():
             operation_logger.info(
-                f"{__name__} - {self.__class__.__name__} - Intentional close detected, not reconnecting."
+                f"{__name__} - {self.__class__.__name__} - MexC WebSocket - Intentional close detected, not reconnecting."
             )
             self._intentional_close.clear()  # Reset the flag
             return
@@ -408,7 +408,7 @@ class FutureWebSocket(BasicWebSocketClient):
         # Status 1000 = normal closure, 1006 = abnormal closure (no close frame), None = network issue
         else:
             operation_logger.info(
-                f"{__name__} - {self.__class__.__name__} - Accidental MexC WebSocket close detected, spawning reconnection thread."
+                f"{__name__} - {self.__class__.__name__} - MexC WebSocket - Accidental MexC WebSocket close detected, spawning reconnection thread."
             )
             # Spawn a separate thread for reconnection to avoid deadlock
             # (on_close runs inside the websocket_connection thread)
@@ -437,13 +437,14 @@ class FutureWebSocket(BasicWebSocketClient):
             # Check if intentional close happened during retry
             if self._intentional_close.is_set():
                 operation_logger.info(
-                    f"{__name__} - {self.__class__.__name__} - Intentional close detected during reconnect, aborting."
+                    f"{__name__} - {self.__class__.__name__} - MexC WebSocket - "
+                    f"Intentional close detected during reconnect, aborting."
                 )
                 return
 
             try:
                 operation_logger.info(
-                    f"{__name__} - {self.__class__.__name__} - Attempting reconnection..."
+                    f"{__name__} - {self.__class__.__name__} - MexC WebSocket - Attempting reconnection..."
                 )
 
                 self._reconnect()
@@ -452,18 +453,19 @@ class FutureWebSocket(BasicWebSocketClient):
                 if self._connection_ready.wait(timeout=10.0):
                     self._resubscribe()
                     operation_logger.info(
-                        f"{__name__} - {self.__class__.__name__} - Reconnection completed successfully."
+                        f"{__name__} - {self.__class__.__name__} - MexC WebSocket - Reconnection completed successfully."
                     )
                     return  # Success!
 
             except Exception as e:
                 operation_logger.warning(
-                    f"{__name__} - {self.__class__.__name__} - Reconnection attempt failed: {str(e)}"
+                    f"{__name__} - {self.__class__.__name__} - MexC WebSocket - Reconnection attempt failed: {str(e)}"
                 )
 
             # Wait before next attempt
             operation_logger.info(
-                f"{__name__} - {self.__class__.__name__} - Waiting {retry_delay}s before next reconnect attempt..."
+                f"{__name__} - {self.__class__.__name__} - MexC WebSocket - "
+                "Waiting {retry_delay}s before next reconnect attempt..."
             )
             time.sleep(retry_delay)
         return
