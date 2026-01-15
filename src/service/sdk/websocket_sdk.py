@@ -3,15 +3,16 @@ from abc import ABC, abstractmethod
 from typing import Callable
 import time
 import threading
+import websocket
 
 
 class BasicWebSocketClient(ABC):
-    _instance_counter: int = 0  # shared across all instance
+    _instance_counter: int = 1  # shared across all instance
 
     @classmethod
     def _generate_id(cls) -> int:
         cls._instance_counter += 1
-        return cls._instance_counter
+        return (cls._instance_counter - 1)
 
     def generate_timestamp(self) -> int:
         return int(time.time() * 1_000)
@@ -19,10 +20,10 @@ class BasicWebSocketClient(ABC):
     def __init__(
         self,
         name: str,
-        url: str | None,
         api_key: str | None,
         secret_key: str | None,
         ping_interval: int,  # in seconds -> every <ping_interval> send the hearbeat
+        url: str | None = None,
     ) -> None:
         # wss endpoint
         self.url: str = url
@@ -43,7 +44,7 @@ class BasicWebSocketClient(ABC):
         self.threads: list[threading.Thread] = list()
 
         # callback function map based on the topics
-        self.callbacks: dict[str, Callable] = dict()
+        self.callbacks: dict[str | int, Callable] = dict()
 
         return
 
@@ -114,31 +115,39 @@ class BasicWebSocketClient(ABC):
         '''
         return
 
+    '''
+    ####################################################################################
+    #                       Abstract Method - WebSocketApp                             #
+    ####################################################################################
+    '''
     @abstractmethod
-    def _heartbeat(self) -> None:
-        '''
-        ;func _heartbeat()
-            - send heartbeat signal
-            - can be ping or pong
-        '''
+    def on_open(
+        self,
+        ws: websocket.WebSocketApp,
+    ) -> None:
         return
 
     @abstractmethod
-    def on_open(self) -> None:
+    def on_message(
+        self,
+        ws: websocket.WebSocketApp,
+        msg: str | bytes,
+    ) -> None:
         return
 
     @abstractmethod
-    def on_message(self) -> None:
+    def on_close(
+        self,
+        ws: websocket.WebSocketApp,
+        status_cod: int,
+        close_msg: int,
+    ) -> None:
         return
 
     @abstractmethod
-    def on_close(self) -> None:
-        return
-
-    @abstractmethod
-    def on_error(self) -> None:
-        return
-
-    @abstractmethod
-    def on_ping(self) -> None:
+    def on_error(
+        self,
+        ws: websocket.WebSocketApp,
+        error: Exception,
+    ) -> None:
         return
