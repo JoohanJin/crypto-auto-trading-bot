@@ -1,529 +1,511 @@
 # Standard Library
-import hmac
+import base64
 import json
-import threading
-import websocket_base  # as 1.recommended in the API page, https://websocket-client.readthedocs.io/en/latest/index.html
 import time
-import hashlib
+from typing import Callable
+import threading
+from urllib.parse import urlencode
 
-# Custom Library
+import websocket
+from cryptography.hazmat.primitives.serialization import load_pem_private_key
+
+from service.sdk.websocket_sdk import BasicWebSocketClient
 from logger.set_logger import operation_logger
 
 
-class __BasicWebSocketManager:
+class UserWebSocketClient(BasicWebSocketClient):
+    def generate_method_id(self) -> int:
+        return self.generate_timestamp()
+
+    def __repr__(self):
+        return f"Binance_UserWebSocketClient:{self.name}"
+
     def __init__(
-        self: "__BasicWebSocketManager",
-        # callback_function = None,
-        # endpoint: Optional[str] = "wss://contract.mexc.com/edge",
-        ws_name: str | None = None,
-        api_key: str | None = None,
-        secret_key: str | None = None,
-        ping_interval: int | None = 20,
-        ping_timeout: int | None = 10,
-        retries: bool | None = True,
-        restart_on_error: bool | None = True,
-        log_or_not: bool | None = True,
-        conn_timeout: int | None = 30,
-    ):
-        """
-        # method: __init__()
-            # params:
-                # callback_function: function, general callback_function for entire response from the endpoint
-                # endpoint: MexC Websocket API endpoint
-                # ws_name: WebSocketName
-                # api_key: api_key for API usage
-                # secret_key: secret_key for API usage
-                # ping_interval: WebSocketConnection ping interval, default 20 seconds
-                # ping_timeout: if there is no response for ping resposne for 10 seconds, close the websocket with the endpoint
-                # retries: retries for WebSocket Connection for error
-                    # TODO: error handling not yet implemented
-                # restart_on_error: retries on error
-                # log_or_not: if the WebSocket behavior will be logged or not
-                # conn_timeout: WebSocket will try to connect to the endpoint for the timeout interval
-                # login_required: if the websocket needs to authenticate to the system or not
-        """
-        # Set API key
-        self.api_key: str = api_key
-        self.secret_key: str = secret_key
-
-        # do we need to login for this WebSocketManager?
-
-        # get the callback function
-        # self.callback = callback_function
-
-        # get the websocket name
-        self.ws_name: str = ws_name
-
-        # ping settings
-        self.ping_interval: int = ping_interval
-        self.ping_timeout: int = ping_timeout
-        self.retry_count: int = retries
-
-        # callback function setting
-        # self.callback_function = callback_function
-
-        # connection timeout interval
-        self.conn_timeout: int = conn_timeout
-
-        # to save the list of subcriptions and the function for each subcription
-        # setup the directory as follow:
-        """
-        {
-            <subscription-type>: <callback-function>
-        }
-        """
-        self.callback_dictionary: dict = {}
-
-        # record the subscription made
-        self.subscriptions: list = []
-
-        self.retries = True
-        self.restart_on_error = restart_on_error
-
-        # has the Websocket been authroized by the API? -> false initially
-        self.auth = False
-
-        # enable logging -> TODO: Test
-        websocket_base.enableTrace(
-            traceable = log_or_not, handler = operation_logger, level = "INFO",
-        )
-
-    def _connect(
-        self: "__BasicWebSocketManager",
-        url: str,
+        self,
+        api_key: str,
+        secret_key: str,
+        ping_interval: int | None,
+        url: str = "wss://ws-fapi.binance.com/ws-fapi/v1",  # User Stream
+        default_callback: Callable | None = None,
+        name: str = None,
     ) -> None:
-        """
-        # connect WebSocketApp to the API endpoint
-
-        # method: _connect()
-            # WebSocket tries to connect to the Endpoint, with the given endpoint
-        """
-        # if there is no retries attribute set to True, then no need to try, but we will anyway
-        infinite_reconnect: bool = False
-        if self.retries:
-            infinite_reconnect = True
-
-        # will make the WebSocketApp and will try to connect to the host
-        self.ws = websocket_base.WebSocketApp(
-            url = url,
-            on_message = self.__on_message,
-            on_open = self.__on_open,
-            on_close = self.__on_close,
-            on_error = self.__on_error,
+        super().__init__(
+            name=name or f"Binance_User_WebSocket_Client_{self.id}",
+            url=url,
+            api_key=api_key,
+            secret_key=secret_key,
+            ping_interval=ping_interval,
         )
 
-        # thread for connection
-        self.wst = threading.Thread(
-            target = lambda: self.ws.run_forever(
-                ping_interval = 30,
+        self.private_key = None
+        if secret_key:
+            # Load from PEM content string
+            self.private_key = load_pem_private_key(
+                data=secret_key.encode('utf-8'),
+                password=None
             )
-        )
-        self.wst.daemon = (
-            True  # set this as the background program where it tries to connect
-        )
-        self.wst.start()  # start the thread for making a connection
 
-        # thread for ping
-        self.wsp = threading.Thread(
-            target = lambda: self._ping_loop(
-                ping_interval = 20,
-            )
-        )
-        self.wsp.daemon = True  # set as the background thread
-        self.wsp.start()  # start the thread for ping
+        self.callbacks_lock : threading.Lock = threading.Lock()
 
-        # wait until the websocket is connected to the endpoint
-        while (infinite_reconnect or self.conn_timeout) and not self._is_connected():
-            if not infinite_reconnect:
-                self.conn_timeout -= 1
+        self.subscriptions_lock: threading.Lock = threading.Lock()
+        self.subscriptions: dict[int, dict] = dict()  # {id: str | bytes} to be sent
 
-            time.sleep(1)
+        self.default_callback: Callable = default_callback
+        self._authenticated: bool = False
 
-        # if timeout occurred
-        if not self.conn_timeout:
-            # connection timeout
-            # retry connection is set to False
-            operation_logger.info("connection timeout for the WebSocket")
-            return
+        # threading Event
+        self._thread_stop: threading.Event = threading.Event()
+        self._thread_pause: threading.Event = threading.Event()
+        self._connection_ready: threading.Event = threading.Event()
+        self._intentional_close: threading.Event = threading.Event()
 
-        # log the connection result
-        operation_logger.info(f"WebSocket has been connected to {url}")
+        # Lock
+        self._reconnect_lock: threading.Lock = threading.Lock()
 
-        # if api_key and secret_key are given, login to the WebSocketApi
-        if self.api_key and self.secret_key:
-            time.sleep(0.5)
-            self._authenticate()
-
+        # WebSocketApp
+        self.ws: websocket.WebSocketApp = self._construct_wsa()
         return
 
-    def _authenticate(self: "__BasicWebSocketManager") -> None:
-        """
-        # method: _authenticate
-        # login to the endpoint for private endpoint
-        """
-        # create the timestamp
-        timestamp: str = str(int(time.time() * 1000))
-        # basic signature
-        _signature: str = self.api_key + timestamp
-
-        # hmac using sha256
-        signature = hmac.new(
-            self.secret_key.encode("utf-8"),  # encoded secret key
-            _signature.encode("utf-8"),  # encoded _signature
-            hashlib.sha256,
-        ).hexdigest()
-
-        # make the parameter dictionary into json string
-        header = json.dumps(
-            dict(
-                subscribe = False,
-                method = "login",
-                param = dict(apiKey = self.api_key, reqTime = timestamp, signature = signature,),
-            )
-        )
-        self.ws.send(header)  # send the header to the endpoint
-        operation_logger.info("login request has been sent!")  # log the request
-        return
-
-    def _are_connections_connected(self: "__BasicWebSocketManager", connections: list) -> bool:
-        # if there is connection which is not active, return False
-        for connection in connections:
-            if not connection.is_connected():
-                return False
-
-        return True
-
-    def _set_callback(self: "__BasicWebSocketManager", topic: str, callback_function = callable,) -> None:
-        """
-        method: _set_callback
-            - set the callback function for the specific topic and save it into the directory in the class for response handling
-        """
-        self.callback_dictionary[topic] = callback_function
-        return
-
-    # get the callback function according to the topic
-    def _get_callback(self: "__BasicWebSocketManager", topic: str,) -> callable | None:
-        """
-        - method: _get_callback
-            - get the callback function for the specific topic from the callback_directory in the class
-        """
-        return self.callback_dictionary.get(topic)
-
-    def _is_connected(self: "__BasicWebSocketManager") -> bool:
-        """
-        - method: _is_connected()
-            - check if the socket is connected to the endpoint or not
-        """
+    def _is_connected(self) -> bool:
         try:
-            if self.ws.sock or not self.ws.sock.is_connected:
+            if (self.ws and self.ws.sock and self.ws.sock.connected):
                 return True
+        except Exception as e:
+            operation_logger.critical(
+                f"{__name__} - {self.__class__.__name__} - {self.name} - "
+                f"Unexpected problem whic checking the connection state: {str(e)}"
+            )
+        return False
+
+    def start(self) -> None:
+        self.connect()
+
+    def send(
+        self,
+        data: str | bytes,
+    ) -> None:
+        if isinstance(data, dict):
+            payload = json.dumps(data)
+
+            try:
+                if self._is_connected():
+                    self.ws.send(payload)
+            except Exception as e:
+                operation_logger.info(
+                    f"{__name__} - {self.__class__.__name__} - {self.name} - Unexpected error while authenticating: "
+                    f"{str(e)}"
+                )
+        else:
+            operation_logger.critical(
+                f"{__name__} - {self.__class__.__name__} - {self.name} - type of the data passed is not dictionary."
+            )
+            raise
+        return
+
+    def _authenticate(self) -> None:
+        '''
+        user_ws: websocket.WebSocketApp = self.wss[1]
+        {
+            "id": <ts>,
+            "method": "session.logon",
+            "params": {
+                "apiKey": <api-key>,
+                "signature": <signature>,
+                "timestamp": <ts>
+            }
+        }
+        '''
+        id: int = self.generate_timestamp()
+
+        params = dict(
+            apiKey=self.api_key,
+            timestamp=id,
+        )
+
+        signature: str = self._generate_signature(params)
+
+        params["signature"] = signature
+
+        payload: dict = dict(
+            id=id,
+            method="session.logon",
+            params=params,
+        )
+
+        with self.callbacks_lock:
+            self.callbacks[id] = self._update_authenticated
+        try:
+            self.send(payload)
+            time.sleep(1)
+            return
+        except Exception as e:
+            operation_logger.critical(
+                f"{__name__} - {self.__class__.__name__} - Binance WebSocket has unexpected error: {str(e)}"
+            )
+        return
+
+    def _update_authenticated(self, data: dict | list) -> None:
+        if isinstance(data, dict):
+            if data.get('status', None) == 200:
+                self._authenticated = True
+                operation_logger.info(
+                    f"{__name__} - {self.__class__.__name__} - {self.name} - "
+                    f"Authentication to {self.url} has been successful."
+                )
+        else:
+            operation_logger.critical(
+                f"{__name__} - {self.__class__.__name__} - {self.name} - "
+                f"Authentication to {self.url} has not been successful."
+            )
+            raise TypeError("authentication msg format is wrong.")
+        return
+
+    def _generate_signature(
+        self,
+        params: dict,
+    ) -> str:
+        # sort params based on the key
+        query_str: str = urlencode(sorted(params.items()))
+
+        # Sign with Ed25519 private key and base64 encode
+        signature = self.private_key.sign(query_str.encode('ASCII'))
+        return base64.b64encode(signature).decode('ASCII')
+
+    def _thread_sending_requests(
+        self,
+    ) -> None:
+        while not self._thread_stop.is_set():
+            # Skip if paused
+            if self._thread_pause.is_set():
+                time.sleep(0.5)
+                continue
+
+            with self.subscriptions_lock:
+                tmp_subs: dict[int, dict] = self.subscriptions.copy()
+            for id in tmp_subs:
+                if self._thread_stop.is_set():
+                    break
+                self._construct_params(tmp_subs[id]["params"])
+                self.send(tmp_subs[id])
+            time.sleep(2)
+        return
+
+    def _construct_params(self, params: dict) -> dict:
+        # Remove old signature before regenerating (signature should not be part of signed payload)
+        params.pop("signature", None)
+        params["apiKey"] = self.api_key
+        params["timestamp"] = self.generate_timestamp()
+        params["signature"] = self._generate_signature(params)
+
+    '''
+    ####################################################################################
+    #                                    Threads                                     #
+    ####################################################################################
+    '''
+    def _initialize_threads(self) -> None:
+        self.threads.append(
+            threading.Thread(
+                name=f"{self.name}_connection_thread",
+                target=self.ws.run_forever,
+                kwargs={'ping_interval': 0},
+                daemon=True,
+            )
+        )
+
+        self.threads.append(
+            threading.Thread(
+                name=f"{self.name}_custom_stream_thread",
+                target=self._thread_sending_requests,
+                daemon=True,
+            )
+        )
+        return
+
+    def _start_threads(self) -> None:
+        for thread in self.threads:
+            try:
+                thread.start()
+                operation_logger.info(
+                    f"{__name__} - {self.__class__.__name__} - {self.name} - "
+                    f"{thread.name} has been started successfully."
+                )
+            except Exception as e:
+                operation_logger.critical(
+                    f"{__name__} - {self.__class__.__name__} - {self.name}- "
+                    f"{thread.name} has not been started successfully: {str(e)}"
+                )
+                raise
+        return
+
+    def _clean_up_connections(self) -> None:
+        operation_logger.info(
+            f"{__name__} - {self.__class__.__name__} - {self.name} - Cleaning up {len(self.threads)} threads."
+        )
+
+        self._thread_stop.set()
+
+        try:
+            if self._is_connected():
+                self.ws.close()
             else:
-                return False
-        except (
-            AttributeError
-        ):  # exception handling, if there is any error occurred just return False
-            return False
+                operation_logger.critical(
+                    f"{__name__} - {self.__class__.__name__} - {self.name} - "
+                    f"WebSocket already closed."
+                )
+        except Exception as e:
+            operation_logger.critical(
+                f"{__name__} - {self.__class__.__name__} - {self.name} - "
+                f"Unexpected Error during close: {str(e)}"
+            )
 
-    def __on_message(
-        self: "__BasicWebSocketManager",
-        wsa,
-        message: str,
-    ) -> dict | None:
-        """
-        - Parsing the message from the server
-        """
-        # parsing the message into the json
-        response = json.loads(message)
-
-        # now response is parsed as a dictionary so that we can do something with it.
-        return self.callback_function(response)
-
-    def __on_error(
-        self: "__BasicWebSocketManager",
-        wsa,
-        exception: Exception,
-    ) -> None:
-        """
-        - when there is an error
-        - Exit and raise errors or attempt to reconnect
-        """
-        operation_logger.error(f"Unknown Error Occurred: {exception}")
+        self.threads.clear()
+        self._thread_stop.clear()
+        self.ws = None
         return
 
-    def __on_open(self: "__BasicWebSocketManager", wsa) -> None:
-        """
-        - when the websocket is open
-        """
-        operation_logger.info("ws has been opened")
-        return
-
-    def __on_close(
-        self: "__BasicWebSocketManager",
-        wsa,
-        status_code: str,
-        close_msg: str,
-    ) -> None:
-        """
-        - websocket close
-        - logging the status code and the msg into the logger
-        """
-        operation_logger.info(
-            f"operation_logger has been closed: status code - {status_code}, close message = {close_msg}"
-        )
-        return
-
-    def _ping_loop(
-        self: "__BasicWebSocketManager",
-        ping_interval: int,
-        ping_payload: str = '{"method":"ping"}',
-    ) -> None:
-        """
-        - method: _ping_loop
-        - for the ping thread of WebSocketApp
-        """
-        time.sleep(ping_interval)
-        while True:
-            self.ws.send(ping_payload)
-            time.sleep(ping_interval)
-
-    def _reset(self: "__BasicWebSocketManager") -> None:
-        """
-        - _reset the WebSocket when reset signal incurred
-            - e.g., when there is error and we need to reset the entire program
-        """
-        self.subscriptions.clear()
-        self.callback_dictionary.clear()
-        operation_logger.info(f"WebSocketApp, {self.ws_name} has been reset.")
-        return
-
-    def exit(self: "__BasicWebSocketManager") -> None:
-        """
-        - close the websocket
-        """
-        self.ws.close()
-
-        operation_logger.info(
-            "The WebSocket Manager has been terminated - might need to restart the entire program"
-        )
-
-        while self.ws.sock:
-            continue
-
-
-class _FutureWebSocketManager(__BasicWebSocketManager):
-    def __init__(
-        self: "_FutureWebSocketManager",
-        ws_name: str | None = "FutureWebSocketV1",
-        **kwargs: dict,
+    def _handle_reconnect(
+        self,
+        retry_delay: float = 3.0,
     ):
-        operation_logger.debug(f"{kwargs}")
-        # self.callback_function = kwargs.pop("callback_function") if kwargs.get("callback_function") else self._default_callback
+        # Give the old websocket_connection thread time to fully exit
+        time.sleep(0.5)
 
-        super().__init__(ws_name=ws_name, **kwargs)
+        while True:
+            if self._intentional_close.is_set():
+                operation_logger.info(
+                    f"{__name__} - {self.__class__.__name__} - Binance User WebSocket - "
+                    f"Intentional close detected during reconnect, aborting."
+                )
+                return
 
-        # if not callback_fuction:
-        self.callback_function = self._deal_with_response
+            try:
+                operation_logger.info(
+                    f"{__name__} - {self.__class__.__name__} - Binance User WebSocket - Attempting reconnection..."
+                )
 
+                self._reconnect()
+
+            except Exception as e:
+                operation_logger.warning(
+                    f"{__name__} - {self.__class__.__name__} - Binance WebSocket - Reconnection attempt failed: {str(e)}"
+                )
+
+            # Wait before next attempt
+            operation_logger.info(
+                f"{__name__} - {self.__class__.__name__} - Binance WebSocket - "
+                f"Waiting {retry_delay}s before next reconnect attempt..."
+            )
+            time.sleep(retry_delay)
+        return
+
+    '''
+    ####################################################################################
+    #                                    Overriden                                     #
+    ####################################################################################
+    '''
+    def connect(self) -> None:
+        self._initialize_threads()
+        self._start_threads()
+        return
+
+    def disconnect(self) -> None:
+        if self._is_connected():
+            self.ws.close()
+            self._intentional_close.set()
         return
 
     def subscribe(
-        self: "_FutureWebSocketManager",
-        method: str | None,
-        callback_function: callable | None,
-        param: dict | None = None,
-    ):
-        if (param is None):
-            param = dict()
-
-        query = dict(method=method, param=param)
-
-        self._check_callback(query)
-
-        while not self._is_connected() and not self.ws:
-            time.sleep(0.1)
-
-        operation_logger.info(f"subscription header for {method} has been sent!")
-
-        header = json.dumps(query)
-        self.ws.send(header)
-        self.subscriptions.append(query)
-
-        # set the callback function for specific topic
-        # if there is no given callback function, we just put _print_normal_msg as a callback function
-        self._set_callback(method.replace("sub.", ""), callback_function)
-
-        # logger.info(f"new sub has been established: {self.subscriptions}")
-
-        return
-
-    def _deal_with_response(
-        self: "_FutureWebSocketManager",
-        msg: str,
-    ):
-        # comprehensive callback function which can deal with all of the message
-        """
-        Types of Response
-            # auth_message
-            # subscribe response
-            # pong
-        """
-        def is_auth_response():
-            if msg.get("channel") == "rs.login":
-                return True
-            return False
-
-        def is_sub_response():
-            if str(msg.get("channel", "")).startswith("rs.sub."):
-                return True
-            return False
-
-        def is_pong_msg():
-            if msg.get("channel", "") == "pong":
-                return True
-            return False
-
-        def is_error_msg():
-            if msg.get("channel", "") == "rs.error":
-                return True
-            return False
-
-        if is_auth_response():
-            self._deal_with_auth_msg(msg = msg)
-
-        elif is_sub_response():
-            self._deal_with_sub_msg(msg = msg)
-
-        elif is_error_msg():
-            operation_logger.info(f"The error has been received from the host: {msg}")
-
-        elif is_pong_msg():
-            pass
-
-        else:
-            self._deal_with_normal_msg(msg = msg)
-
-        return
-
-    def _deal_with_auth_msg(
-        self: "_FutureWebSocketManager",
-        msg: str,
-    ) -> None:
-        """
-        Determine if the login has been successful.
-        # notify the result to the user by logger.
-        """
-        if msg.get("data") == "success":  # login success
-            operation_logger.info(
-                f"Authorization for {self.ws_name} has been successful."
-            )
-            self.auth = True
-        else:  # login fail
-            operation_logger.debug(
-                f"Authoriztion for {self.ws_name} has not been successful."
-                f"Please check your keys!"
-            )
-        return
-
-    def _deal_with_sub_msg(
-        self: "_FutureWebSocketManager",
-        msg: str,
-    ):
-        topic = msg.get("channel")
-
-        if ((msg.get("channel", "").startswith("rs.") or msg.get("channel", "").startswith("push.")) and msg.get("channel", "") != "rs.error"):
-            operation_logger.info(f"Subcription to {topic} has been establisehd")
-
-        else:
-            operation_logger.info(
-                f"Estabilishment of {topic} subscription has been failed."
-            )
-
-        if (msg.get("channel", "") != "rs.error"):
-            operation_logger.info(f"Subscription to {topic} has been established")
-
-        elif (msg.get("channel", "") == "rs.error"):
-            operation_logger.debug(f"Subscription to {topic} has failed to establish")
-
-        return
-
-    def _deal_with_normal_msg(
-        self: "_FutureWebSocketManager",
-        msg: str,
-    ):
-        topic = msg.get("channel").replace("push.", "").replace("sub.", "")
-
-        callback_function = self._get_callback(topic)
-
-        callback_function(msg)
-
-        return
-
-    def _check_callback(
-        self: "_FutureWebSocketManager",
-        topics: list[str],
-    ):
-        for topic in topics:
-            if topic in self.callback_dictionary:
-                operation_logger.info(f"{topic} is already subscribed")
-                raise Exception
-
-
-class _FutureWebSocket(_FutureWebSocketManager):
-    def __init__(
-        self: "_FutureWebSocket",
-        ws_name: str = "FutureMarketWebSocketV1",
-        end_point: str = "wss://contract.mexc.com/edge",
-        **kwargs,
-    ) -> None:
-        self.ws_name = ws_name
-        self.endpoint = end_point
-
-        self.active_connections = []
-
-        super().__init__(**kwargs)
-
-        self.private_topics = [
-            "personal.order",
-            "personal.asset",
-            "personal.position",
-            "personal.risk.limit",
-            "personal.adl.level",
-            "personal.position.mode",
-        ]
-
-        # initialize the WebSocket for Future End-point
-        self.ws = _FutureWebSocketManager(
-            ws_name = self.ws_name,
-            api_key = self.api_key,
-            secret_key = self.secret_key,
-        )
-        # connect the WebSocket to the API
-        self.ws._connect(self.endpoint)
-
-        return
-
-    def is_connected(
-        self: "_FutureWebSocket",
-    ) -> bool:
-        return self._are_connections_connected(self.active_connections)
-
-    def _method_subscribe(
-        self: "_FutureWebSocket",
+        self,
         method: str,
-        callback: callable,
-        param: dict | None = None,
+        callback_function: Callable,
+        params: dict | None = None,
     ) -> None:
-        if param is None:
-            param = dict()
+        id: int = self.generate_method_id()
 
-        if not self.ws:
-            self.ws = _FutureWebSocketManager(
-                ws_name = self.ws_name,
-                api_key = self.api_key,
-                secret_key = self.secret_key,
+        if params is None:
+            params = dict()
+
+        payload = dict(
+            id = id,
+            method = method,
+            params = params,
+        )
+
+        with self.callbacks_lock :
+            self.callbacks[id] = callback_function
+
+        with self.subscriptions_lock:
+            self.subscriptions[id] = payload
+
+        return
+
+    def unsubscribe(self) -> None:
+        return
+
+    def _resubscribe(self) -> None:
+        return
+
+    def _reconnect(self) -> None:
+        # Prevent concurrent reconnection attempts
+        if not self._reconnect_lock.acquire(blocking=False):
+            operation_logger.info(
+                f"{__name__} - {self.__class__.__name__} - Reconnection already in progress, skipping."
+            )
+            return
+
+        try:
+            operation_logger.info(
+                f"{__name__} - {self.__class__.__name__} - Starting reconnection process..."
             )
 
-            self.ws._connect(url = self.endpoint)
+            # Signal threads to stop
+            self._thread_stop.set()
+            self._connection_ready.clear()
 
-        self.ws.subscribe(method = method, callback_function = callback, param = param)
+            # Don't try to close the socket here - it's already closed when on_close is called
+            # Just clean up threads (skipping the current one if called from on_close)
+            self._clean_up_connections()
+
+            # Now reconnect
+            self.connect()
+        finally:
+            self._reconnect_lock.release()
+        return
+
+    def authenticate(self) -> None:
+        """Public API for authentication. Delegates to _authenticate()."""
+        self._authenticate()
+        return
+
+    '''
+    ####################################################################################
+    #                           Overriden - WebSocketApp                               #
+    ####################################################################################
+    '''
+    def on_open(
+        self,
+        ws: websocket.WebSocketApp,
+    ) -> None:
+        operation_logger.info(
+            f"{__name__} - {self.__class__.__name__} - {self.name}"
+            f"WebSocket has been opened and made a connection to {ws.url} [v]"
+        )
+        return
+
+    def on_message(
+        self,
+        ws: websocket.WebSocketApp,
+        msg: str | bytes,
+    ) -> None:
+        data = json.loads(msg)
+        method_id = data.get("id")
+
+        if method_id and isinstance(method_id, int):
+            with self.callbacks_lock :
+                callback = self.callbacks.get(method_id, None)
+
+            if isinstance(callback, Callable):
+                callback(data)
+        return
+
+    def on_close(
+        self,
+        ws: websocket.WebSocketApp,
+        status_code: int,
+        close_msg: str,
+    ) -> None:
+        operation_logger.warning(
+            f"{__name__} - {self.__class__.__name__} - Binance WebSocket has been closed with {status_code}: {close_msg}"
+        )
+
+        if self._intentional_close.is_set():
+            self._intentional_close.clear()
+            return
+
+        else:
+            operation_logger.info(
+                f"{__name__} - {self.__class__.__name__} - {self.name} - Accidential Websocket closure Detected. "
+                f"Spawining a reconnection thread."
+            )
+        # handle reconnection logic
+            reconnection_thread: threading.Thread = threading.Thread(
+                name=f"{self.name}_reconnection_thread",
+                target=self._handle_reconnect,
+                daemon=True,
+            )
+            reconnection_thread.start()
+        return
+
+    def on_error(
+        self,
+        ws: websocket.WebSocketApp,
+        error: Exception,
+    ) -> None:
+        return
+
+    def on_ping(
+        self,
+        ws: websocket.WebSocketApp,
+        data: str | bytes,
+    ) -> None:
+        # Send pong response via underlying socket
+        ws.sock.pong(data)
+        operation_logger.debug(
+            f"{__name__} - {self.__class__.__name__} - Binance WebSocket API: Sent pong response to {ws.url}"
+        )
+        return
+
+    '''
+    ####################################################################################
+    #                                    WebSocketApp                                  #
+    ####################################################################################
+    '''
+    def _construct_wsa(
+        self,
+        on_open: Callable | None = None,
+        on_close: Callable | None = None,
+        on_message: Callable | None = None,
+        on_error: Callable | None = None,
+    ) -> websocket.WebSocketApp | None:
+        def on_open_wrapper(ws: websocket.WebSocketApp):
+            self._connection_ready.set()
+
+            (on_open or self.on_open)(ws)
+            return
+
+        return websocket.WebSocketApp(
+            url = self.url,
+            on_open=on_open_wrapper,
+            on_close=on_close or self.on_close,
+            on_message=on_message or self.on_message,
+            on_error=on_error or self.on_error,
+            on_ping=self.on_ping,
+        )
+
+
+class MarketWebSocketClient(BasicWebSocketClient):
+    def __repr__(self):
+        return f"Binance_MarketWebSocketClient: {self.name}"
+
+    def __init__(
+        self,
+        ping_interval: int | None,
+        url: str = "wss://fstream.binance.com/ws",  # Market Stream
+        default_callback: Callable | None = None,
+        name: str = None,
+    ) -> None:
+        super().__init__(
+            name=name or f"Binance_Market_WebSocket_Client_{self.id}",
+            url=url,
+            api_key=None,
+            secret_key=None,
+            ping_interval=ping_interval,
+        )
+
+        self.default_callback = default_callback
+        return
+
+
+class TradingWebSocketClient(BasicWebSocketClient):
+    def __init__(self) -> None:
         return
