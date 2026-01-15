@@ -1,10 +1,11 @@
 # Standard Library
-from typing import Literal, Union
+from typing import Callable, Literal, Union
 
 from logger.set_logger import operation_logger
 
 # Custom Library
 from service.binance.base_sdk import FutureBase
+from service.binance.websocket_base import FutureWebSocket
 
 
 class FutureMarket(FutureBase):
@@ -1088,12 +1089,19 @@ class FutureMarket(FutureBase):
         )
 
 
-class FutureWebSocket:
+class FutureWebSocketClient(FutureWebSocket):
     """
     WebSocket endpoints for Binance Futures API.
     """
 
     def __init__(
-        self: "FutureWebSocket",
+        self,
+        name: str = "Binance WebSocket",
+        market_url: str = "wss://fstream.binance.com/ws",
+        user_url: str = "wss://ws-fapi.binance.com/ws-fapi/v1",
+        api_key: str | None = None,
+        secret_key: str | None = None,
+        ping_interval: int = 20,
+        default_callback: Callable | None = None
     ) -> None:
         return
