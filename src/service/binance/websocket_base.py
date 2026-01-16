@@ -484,12 +484,20 @@ class UserWebSocketClient(BasicWebSocketClient):
 
 
 class MarketWebSocketClient(BasicWebSocketClient):
+    """
+    Binance Market WebSocket Client for public market data streams.
+    Unlike UserWebSocketClient (request-response with polling), this uses
+    the standard WebSocket push model:
+    - Subscribe once → receive continuous push updates
+    - Topic-based callbacks: callbacks[stream_name] (persistent)
+    Stream format: "symbol@streamType" e.g., "btcusdt@ticker", "ethusdt@depth"
+    """
     def __repr__(self):
         return f"Binance_MarketWebSocketClient: {self.name}"
 
     def __init__(
         self,
-        ping_interval: int | None,
+        ping_interval: int | None = None,
         url: str = "wss://fstream.binance.com/ws",  # Market Stream
         default_callback: Callable | None = None,
         name: str = None,
@@ -497,13 +505,458 @@ class MarketWebSocketClient(BasicWebSocketClient):
         super().__init__(
             name=name or f"Binance_Market_WebSocket_Client_{self.id}",
             url=url,
-            api_key=None,
+            api_key=None,  # No auth needed for public streams
             secret_key=None,
             ping_interval=ping_interval,
         )
 
-        self.default_callback = default_callback
+        # Topic-based callbacks: {stream_name: callback} - persistent, not one-shot
+        self.callbacks_lock: threading.Lock = threading.Lock()
+        # callbacks inherited from BasicWebSocketClient: dict[str, Callable]
+
+        # Track subscriptions for resubscribe on reconnect
+        self.subscriptions_lock: threading.Lock = threading.Lock()
+        self.subscriptions: set[str] = set()  # Set of stream names
+
+        self.default_callback: Callable | None = default_callback
+
+        # Threading events
+        self._thread_stop: threading.Event = threading.Event()
+        self._thread_pause: threading.Event = threading.Event()
+        self._connection_ready: threading.Event = threading.Event()
+        self._intentional_close: threading.Event = threading.Event()
+
+        # Lock for reconnection
+        self._reconnect_lock: threading.Lock = threading.Lock()
+
+        # Request ID counter for subscribe/unsubscribe commands
+        self._request_id: int = 0
+        self._request_id_lock: threading.Lock = threading.Lock()
+
+        # WebSocketApp
+        self.ws: websocket.WebSocketApp = self._construct_wsa()
         return
+
+    def _generate_request_id(self) -> int:
+        """Generate unique request ID for SUBSCRIBE/UNSUBSCRIBE commands."""
+        with self._request_id_lock:
+            self._request_id += 1
+            return self._request_id
+
+    def _is_connected(self) -> bool:
+        try:
+            if self.ws and self.ws.sock and self.ws.sock.connected:
+                return True
+        except Exception as e:
+            operation_logger.critical(
+                f"{__name__} - {self.__class__.__name__} - {self.name} - "
+                f"Unexpected problem while checking the connection state: {str(e)}"
+            )
+        return False
+
+    def start(self) -> None:
+        self.connect()
+
+    def send(self, data: dict) -> None:
+        """Send a payload to the WebSocket server."""
+        if isinstance(data, dict):
+            payload = json.dumps(data)
+            try:
+                if self._is_connected():
+                    self.ws.send(payload)
+            except Exception as e:
+                operation_logger.warning(
+                    f"{__name__} - {self.__class__.__name__} - {self.name} - "
+                    f"Unexpected error while sending: {str(e)}"
+                )
+        else:
+            operation_logger.critical(
+                f"{__name__} - {self.__class__.__name__} - {self.name} - "
+                f"Data must be a dictionary, got {type(data)}"
+            )
+            raise TypeError(f"Data must be a dictionary, got {type(data)}")
+        return
+
+    '''
+    ####################################################################################
+    #                                    Threads                                       #
+    ####################################################################################
+    '''
+    def _initialize_threads(self) -> None:
+        """Initialize connection thread. No polling needed for push-based streams."""
+        self.threads.append(
+            threading.Thread(
+                name=f"{self.name}_connection_thread",
+                target=self.ws.run_forever,
+                kwargs={'ping_interval': 0},  # Server sends pings, we respond
+                daemon=True,
+            )
+        )
+        return
+
+    def _start_threads(self) -> None:
+        for thread in self.threads:
+            try:
+                thread.start()
+                operation_logger.info(
+                    f"{__name__} - {self.__class__.__name__} - {self.name} - "
+                    f"{thread.name} has been started successfully."
+                )
+            except Exception as e:
+                operation_logger.critical(
+                    f"{__name__} - {self.__class__.__name__} - {self.name} - "
+                    f"{thread.name} has not been started successfully: {str(e)}"
+                )
+                raise
+        return
+
+    def _clean_up_connections(self) -> None:
+        operation_logger.info(
+            f"{__name__} - {self.__class__.__name__} - {self.name} - "
+            f"Cleaning up {len(self.threads)} threads."
+        )
+
+        self._thread_stop.set()
+
+        try:
+            if self._is_connected():
+                self.ws.close()
+            else:
+                operation_logger.info(
+                    f"{__name__} - {self.__class__.__name__} - {self.name} - "
+                    f"WebSocket already closed."
+                )
+        except Exception as e:
+            operation_logger.critical(
+                f"{__name__} - {self.__class__.__name__} - {self.name} - "
+                f"Unexpected error during close: {str(e)}"
+            )
+
+        self.threads.clear()
+        self._thread_stop.clear()
+        self.ws = None
+        return
+
+    '''
+    ####################################################################################
+    #                                    Overriden                                     #
+    ####################################################################################
+    '''
+    def connect(self) -> None:
+        self._initialize_threads()
+        self._start_threads()
+        return
+
+    def disconnect(self) -> None:
+        self._intentional_close.set()
+        if self._is_connected():
+            self.ws.close()
+        return
+
+    def subscribe(
+        self,
+        streams: str | list[str],
+        callback: Callable,
+    ) -> None:
+        """
+        Subscribe to one or more market data streams.
+
+        Args:
+            streams: Stream name(s) e.g., "btcusdt@ticker" or ["btcusdt@ticker", "ethusdt@depth"]
+            callback: Function to call when data arrives for these streams
+
+        Binance format: {"method": "SUBSCRIBE", "params": ["stream1", "stream2"], "id": 1}
+        """
+        # Normalize to list
+        if isinstance(streams, str):
+            streams = [streams]
+
+        # Register callbacks for each stream (persistent, not one-shot)
+        with self.callbacks_lock:
+            for stream in streams:
+                self.callbacks[stream] = callback
+
+        # Track for resubscribe on reconnect
+        with self.subscriptions_lock:
+            self.subscriptions.update(streams)
+
+        # Build and send subscribe request
+        payload = {
+            "method": "SUBSCRIBE",
+            "params": streams,
+            "id": self._generate_request_id(),
+        }
+
+        self.send(payload)
+        operation_logger.info(
+            f"{__name__} - {self.__class__.__name__} - {self.name} - "
+            f"Subscribed to streams: {streams}"
+        )
+        return
+
+    def unsubscribe(
+        self,
+        streams: str | list[str],
+    ) -> None:
+        """
+        Unsubscribe from one or more market data streams.
+        Args:
+            streams: Stream name(s) to unsubscribe from
+        """
+        # Normalize to list
+        if isinstance(streams, str):
+            streams = [streams]
+
+        # Remove callbacks
+        with self.callbacks_lock:
+            for stream in streams:
+                self.callbacks.pop(stream, None)
+
+        # Remove from subscription tracking
+        with self.subscriptions_lock:
+            self.subscriptions.difference_update(streams)
+
+        # Build and send unsubscribe request
+        payload = {
+            "method": "UNSUBSCRIBE",
+            "params": streams,
+            "id": self._generate_request_id(),
+        }
+
+        self.send(payload)
+        operation_logger.info(
+            f"{__name__} - {self.__class__.__name__} - {self.name} - "
+            f"Unsubscribed from streams: {streams}"
+        )
+        return
+
+    def _resubscribe(self) -> None:
+        """Resubscribe to all streams after reconnection."""
+        with self.subscriptions_lock:
+            if not self.subscriptions:
+                return
+            streams = list(self.subscriptions)
+
+        payload = {
+            "method": "SUBSCRIBE",
+            "params": streams,
+            "id": self._generate_request_id(),
+        }
+
+        self.send(payload)
+        operation_logger.info(
+            f"{__name__} - {self.__class__.__name__} - {self.name} - "
+            f"Resubscribed to {len(streams)} streams after reconnect."
+        )
+        return
+
+    def _reconnect(self) -> None:
+        """Handle reconnection with lock to prevent concurrent attempts."""
+        if not self._reconnect_lock.acquire(blocking=False):
+            operation_logger.info(
+                f"{__name__} - {self.__class__.__name__} - {self.name} - "
+                f"Reconnection already in progress, skipping."
+            )
+            return
+
+        try:
+            operation_logger.info(
+                f"{__name__} - {self.__class__.__name__} - {self.name} - "
+                f"Starting reconnection process..."
+            )
+
+            self._thread_stop.set()
+            self._connection_ready.clear()
+
+            self._clean_up_connections()
+
+            # Rebuild WebSocketApp and reconnect
+            self.ws = self._construct_wsa()
+            self.connect()
+        finally:
+            self._reconnect_lock.release()
+        return
+
+    def _handle_reconnect(self, retry_delay: float = 3.0) -> None:
+        """Handle reconnection in a separate thread with retry logic."""
+        time.sleep(0.5)
+
+        while True:
+            if self._intentional_close.is_set():
+                operation_logger.info(
+                    f"{__name__} - {self.__class__.__name__} - {self.name} - "
+                    f"Intentional close detected during reconnect, aborting."
+                )
+                return
+
+            try:
+                operation_logger.info(
+                    f"{__name__} - {self.__class__.__name__} - {self.name} - "
+                    f"Attempting reconnection..."
+                )
+
+                self._reconnect()
+
+                # Wait for connection to be ready
+                if self._connection_ready.wait(timeout=10.0):
+                    self._resubscribe()
+                    operation_logger.info(
+                        f"{__name__} - {self.__class__.__name__} - {self.name} - "
+                        f"Reconnection completed successfully."
+                    )
+                    return
+
+            except Exception as e:
+                operation_logger.warning(
+                    f"{__name__} - {self.__class__.__name__} - {self.name} - "
+                    f"Reconnection attempt failed: {str(e)}"
+                )
+
+            operation_logger.info(
+                f"{__name__} - {self.__class__.__name__} - {self.name} - "
+                f"Waiting {retry_delay}s before next reconnect attempt..."
+            )
+            time.sleep(retry_delay)
+        return
+
+    '''
+    ####################################################################################
+    #                           Overriden - WebSocketApp                               #
+    ####################################################################################
+    '''
+    def on_open(self, ws: websocket.WebSocketApp) -> None:
+        operation_logger.info(
+            f"{__name__} - {self.__class__.__name__} - {self.name} - "
+            f"WebSocket opened, connected to {ws.url} [v]"
+        )
+        return
+
+    def on_message(self, ws: websocket.WebSocketApp, msg: str | bytes) -> None:
+        """
+        Handle incoming messages from market stream.
+
+        Message formats:
+        - Push data: {"e": "24hrTicker", "s": "BTCUSDT", ...} (raw stream)
+        - Combined stream: {"stream": "btcusdt@ticker", "data": {...}}
+        - Subscribe response: {"result": null, "id": 1}
+        """
+        if self._thread_pause.is_set():
+            return
+
+        try:
+            data = json.loads(msg)
+        except json.JSONDecodeError as e:
+            operation_logger.warning(
+                f"{__name__} - {self.__class__.__name__} - {self.name} - "
+                f"Failed to parse message: {str(e)}"
+            )
+            return
+
+        # Check if it's a subscribe/unsubscribe response (has "id" and "result")
+        if "id" in data and "result" in data:
+            # This is a response to SUBSCRIBE/UNSUBSCRIBE command, ignore or log
+            operation_logger.debug(
+                f"{__name__} - {self.__class__.__name__} - {self.name} - "
+                f"Command response received: id={data.get('id')}"
+            )
+            return
+
+        # Combined stream format: {"stream": "...", "data": {...}}
+        if "stream" in data:
+            stream_name = data["stream"]
+            payload = data["data"]
+        # Raw stream format: infer stream from event type + symbol
+        elif "e" in data and "s" in data:
+            # e.g., {"e": "aggTrade", "s": "BTCUSDT"} -> "btcusdt@aggTrade"
+            event_type = data["e"]
+            symbol = data["s"].lower()
+            stream_name = f"{symbol}@{event_type}"
+            payload = data
+        else:
+            # Unknown format, use default callback if available
+            if self.default_callback:
+                self.default_callback(data)
+            return
+
+        # Dispatch to registered callback
+        with self.callbacks_lock:
+            callback = self.callbacks.get(stream_name)
+
+        if callback:
+            callback(payload)
+        elif self.default_callback:
+            self.default_callback(payload)
+        return
+
+    def on_close(
+        self,
+        ws: websocket.WebSocketApp,
+        status_code: int,
+        close_msg: str,
+    ) -> None:
+        operation_logger.warning(
+            f"{__name__} - {self.__class__.__name__} - {self.name} - "
+            f"WebSocket closed with {status_code}: {close_msg}"
+        )
+
+        if self._intentional_close.is_set():
+            self._intentional_close.clear()
+            return
+
+        operation_logger.info(
+            f"{__name__} - {self.__class__.__name__} - {self.name} - "
+            f"Accidental closure detected, spawning reconnection thread."
+        )
+
+        reconnection_thread = threading.Thread(
+            name=f"{self.name}_reconnection_thread",
+            target=self._handle_reconnect,
+            daemon=True,
+        )
+        reconnection_thread.start()
+        return
+
+    def on_error(self, ws: websocket.WebSocketApp, error: Exception) -> None:
+        operation_logger.error(
+            f"{__name__} - {self.__class__.__name__} - {self.name} - "
+            f"WebSocket error: {str(error)}"
+        )
+        return
+
+    def on_ping(self, ws: websocket.WebSocketApp, data: str | bytes) -> None:
+        """Respond to server ping with pong."""
+        ws.sock.pong(data)
+        operation_logger.debug(
+            f"{__name__} - {self.__class__.__name__} - {self.name} - "
+            f"Sent pong response to {ws.url}"
+        )
+        return
+
+    '''
+    ####################################################################################
+    #                                    WebSocketApp                                  #
+    ####################################################################################
+    '''
+    def _construct_wsa(
+        self,
+        on_open: Callable | None = None,
+        on_close: Callable | None = None,
+        on_message: Callable | None = None,
+        on_error: Callable | None = None,
+    ) -> websocket.WebSocketApp:
+        def on_open_wrapper(ws: websocket.WebSocketApp):
+            self._connection_ready.set()
+            (on_open or self.on_open)(ws)
+            return
+
+        return websocket.WebSocketApp(
+            url=self.url,
+            on_open=on_open_wrapper,
+            on_close=on_close or self.on_close,
+            on_message=on_message or self.on_message,
+            on_error=on_error or self.on_error,
+            on_ping=self.on_ping,
+        )
 
 
 class TradingWebSocketClient(BasicWebSocketClient):
