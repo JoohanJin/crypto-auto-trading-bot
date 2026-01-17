@@ -42,7 +42,12 @@ class FutureWebSocket(BasicWebSocketClient):
         # internal DataStructure
         self.default_callback: Callable = default_callback
         self.authenticated: bool = False
+
+        # subscriptions fetching for resubscription
         self.subscriptions: list[str] = list()
+
+        # callback function map based on the topics
+        self.callbacks: dict[str | int, Callable] = dict()
 
         # Thread Events
         self._thread_stop: threading.Event = threading.Event()
