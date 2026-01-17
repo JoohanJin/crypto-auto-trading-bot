@@ -1,6 +1,5 @@
 # Built-in Library
 from abc import ABC, abstractmethod
-from typing import Callable
 import time
 import threading
 import websocket
@@ -42,9 +41,6 @@ class BasicWebSocketClient(ABC):
 
         # threads list
         self.threads: list[threading.Thread] = list()
-
-        # callback function map based on the topics
-        self.callbacks: dict[str | int, Callable] = dict()
 
         return
 
