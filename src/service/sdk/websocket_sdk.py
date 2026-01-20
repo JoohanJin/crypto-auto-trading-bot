@@ -4,6 +4,8 @@ import time
 import threading
 import websocket
 
+from logger.set_logger import operation_logger
+
 
 class BasicWebSocketClient(ABC):
     _instance_counter: int = 1  # shared across all instance
@@ -12,6 +14,13 @@ class BasicWebSocketClient(ABC):
     def _generate_id(cls) -> int:
         cls._instance_counter += 1
         return (cls._instance_counter - 1)
+
+    def _operation_logging(
+        self,
+        log: str,
+    ) -> None:
+        log = str(log)
+        operation_logger.info(log)
 
     def generate_timestamp(self) -> int:
         return int(time.time() * 1_000)

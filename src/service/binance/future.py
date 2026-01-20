@@ -1,11 +1,16 @@
 # Standard Library
-from typing import Callable, Literal, Union
+from typing import Literal, Union
+from collections.abc import Callable
 
 from logger.set_logger import operation_logger
 
 # Custom Library
 from service.binance.base_sdk import FutureBase
-from service.binance.websocket_base import FutureWebSocket
+from service.binance.websocket_base import (
+    MarketWebSocketClient,
+    UserWebSocketClient,
+)
+from service.sdk.websocket_sdk import BasicWebSocketClient
 
 
 class FutureMarket(FutureBase):
@@ -1089,19 +1094,305 @@ class FutureMarket(FutureBase):
         )
 
 
-class FutureWebSocketClient(FutureWebSocket):
+class FutureWebSocketClient:
     """
     WebSocket endpoints for Binance Futures API.
     """
 
     def __init__(
         self,
-        name: str = "Binance WebSocket",
-        market_url: str = "wss://fstream.binance.com/ws",
-        user_url: str = "wss://ws-fapi.binance.com/ws-fapi/v1",
-        api_key: str | None = None,
-        secret_key: str | None = None,
+        api_key: str,  # Necessary
+        secret_key: str,  # Necessary
+        name: str = "BINANCE_WEBSOCKET_CLIENT",
         ping_interval: int = 20,
-        default_callback: Callable | None = None
+        default_callback: Callable | None = None,
     ) -> None:
+        '''
+        ;Handle one subscription at a time at the future level
+        ;Composition
+
+        ;MarketWebSocketClient
+            - public endpoint
+        ;UserWebSocketClient
+            - private endpoint
+        ;TradeWebSocketClient
+            - private endpoint
+        '''
+        self.name: str = name
+
+        # access point of each WebSCoektClient
+        self.wss: dict[str, BasicWebSocketClient] = dict()
+
+        # UserWebSocketClient - Connect to the private endpoint.
+        self.wss["user"] = UserWebSocketClient(
+            api_key=api_key,
+            secret_key=secret_key,
+            name=f"USER_{name}",
+            ping_interval=ping_interval,
+        )
+
+        # MarketWebSocketClient - Connect to the public endpoint.
+        self.wss["market"] = MarketWebSocketClient(
+            name=f"MARKET_{name}",
+            ping_interval=ping_interval,
+        )
+
+        # TradeWebSCoektClient - Connect to the private endpoint
+        # self.wss["trade"]
+
+        return
+
+    def start(self):
+        for key in self.wss:
+            ws = self.wss[key]
+            try:
+                ws.start()
+                operation_logger.info(
+                    f"{__name__} - {self.__class__.__name__} - {self.name} - Successfully started "
+                    f"{ws.name if hasattr(ws, 'name') else f'BINANCE_{key}_WEBSOCKET_CLIENT'}."
+                )
+            except Exception as e:
+                operation_logger.critical(
+                    f"{__name__} - {self.__class__.__name__} - {self.name} - Unexpected Error while starting "
+                    f"{ws.name if hasattr(ws, 'name') else f'BINANCE_{key}_WEBSOCKET_CLIENT'}: {str(e)}"
+                )
+
+        self._authenticate()
+        return
+
+    def account_position(
+        self,
+        callback: Callable,
+        symbol: str = "BTCUSDT",
+        topic: str = "account.position",
+    ) -> None:
+        symbol = symbol.upper()
+
+        self._user_subscribe(callback, symbol, topic)
+        return
+
+    def agg_trade(
+        self,
+        callback: Callable,
+        symbol: str = "btcusdt",
+        req_topic: str = "aggTrade",
+        push_topic: str = "aggTrade",
+    ) -> None:
+        '''
+        ;func aggTrade
+            - Aggregate Trade Streams
+
+        - Request Topic: aggTrade
+        - Push Topic: aggTrade
+        - Stream e.g.: btcusdt@aggTrade
+        '''
+        symbol = symbol.lower()
+        stream: str = f"{symbol}@{req_topic}"
+        self._market_subscribe(stream, push_topic, callback)
+        return
+
+    def mark_price(
+        self,
+        callback: Callable,
+        symbol: str = "btcusdt",
+        req_topic: str = "markPrice",
+        params: str = "1s",  # TODO: need to do the research.
+        push_topic: str = "markPriceUpdate",
+    ) -> None:
+        '''
+        ;func mark_price
+            - Mark Price Stream
+
+        - Request Topic: markPrice
+        - Push Topic: markPriceUpdate
+        - Stream e.g.: btcusdt@markPrice@1s or btcusdt@markPrice@3s (btcusdt@markPrice)
+        '''
+        symbol = symbol.lower()  # BTCUSDT -> btcusdt
+        stream: str = f"{symbol}@{req_topic}@{params}" if params is not None else f"{symbol}@{req_topic}"
+        self._market_subscribe(stream, push_topic, callback)
+        return
+
+    def miniTicker(
+        self,
+        callback: Callable,
+        symbol: str = "btcusdt",
+        req_topic: str = "miniTicker",
+        push_topic: str = "24hrMiniTicker"
+    ) -> None:
+        '''
+        ;func miniTicker
+            - individual symbol mini ticker stream
+
+        - Request Topic: miniTicker
+        - Push Topic: 24hrMiniTicker
+        - Stream e.g.: btcusdt@miniTicker
+        '''
+        symbol = symbol.lower()
+        stream: str = f"{symbol}@{req_topic}"
+        self._market_subscribe(stream, push_topic, callback)
+        return
+
+    def continuous_kline(
+        self,
+        callback: Callable,
+        symbol: str = "btcusdt",
+        req_topic: str = "continuousKline",
+        contract_type: Union[
+            Literal["perpetual"],
+            Literal["current_quarter"],
+            Literal["next_quarter"],
+            Literal["tradifi_perpetual"]
+        ] = "perpetual",
+        interval: Union[
+            Literal["1s"],
+            Literal["1m"],
+            Literal["3m"],
+            Literal["5m"],
+            Literal["15m"],
+            Literal["30m"],
+            Literal["1h"],
+            Literal["2h"],
+            Literal["4h"],
+            Literal["6h"],
+            Literal["8h"],
+            Literal["12h"],
+            Literal["1d"],
+            Literal["3d"],
+            Literal["1w"],
+            Literal["1M"],
+        ] = "1s",
+        push_topic: str = "continuous_kline",
+    ) -> None:
+        '''
+        ;func continuous_kline
+            - Continuous Contract Kline Candlestick
+
+        - Request Topic: continuousKline
+        - Push Topic: continuous_kline
+        - Stream Format: <symbol>_<contract_type>@continuousKline_<interval>
+        - Stream e.g.: btcusdt_perpetual@continuousKline_1s
+        '''
+        symbol = symbol.lower()
+        stream: str = f"{symbol}_{contract_type}@{req_topic}_{interval}"
+        self._market_subscribe(stream, push_topic, callback)
+        return
+
+    def ticker(
+        self,
+        callback: Callable,
+        symbol: str = "btcusdt",
+        req_topic: str = "ticker",
+        push_topic: str = "24hrTicker",
+    ) -> None:
+        '''
+        ;func ticker
+        - <symbol>@ticker
+        - Individual symbol ticker stream
+        - topic: ticker
+        - push_topic: 24hrTicker
+        '''
+        symbol = symbol.lower()
+        stream: str = f"{symbol}@{req_topic}"
+        self._market_subscribe(stream, push_topic, callback)
+        return
+
+    def book_ticker(
+        self,
+        callback: Callable,
+        symbol: str = "btcusdt",
+        req_topic: str = "bookTicker",
+        push_topic: str = "bookTicker",
+    ) -> None:
+        '''
+        ;func book_ticker
+        - <symbol>@bookTicker
+        '''
+        symbol = symbol.lower()
+        stream: str = f"{symbol}@{req_topic}"
+        self._market_subscribe(stream, push_topic, callback)
+        return
+
+    def partial_book_depth(self) -> None:
+        raise NotImplementedError
+
+    def diff_book_depth(self) -> None:
+        raise NotImplementedError
+
+    def rpi_diff_book_depth(self) -> None:
+        raise NotImplementedError
+
+    def _authenticate(self) -> None:
+        for ws in self.wss:
+            if hasattr(ws, "authenticate"):
+                ws.authenticate()
+
+    def _market_subscribe(
+        self,
+        stream: str,
+        push_topic: str,
+        callback: Callable,
+    ) -> None:
+        """
+        Helper method to handle market data subscriptions and reduce code duplication.
+        """
+        ws = self.wss.get("market")
+
+        if not isinstance(ws, MarketWebSocketClient):
+            operation_logger.error(
+                f"{__name__} - {self.__class__.__name__} - {self.name} - "
+                "MarketWebSocketClient is not initialized."
+            )
+            return
+
+        if not callable(callback):
+            operation_logger.error(
+                f"{__name__} - {self.__class__.__name__} - {self.name} - "
+                f"The provided callback for {stream} is not callable."
+            )
+            return
+
+        try:
+            ws.subscribe(streams=stream, push_topic=push_topic, callback=callback)
+        except Exception as e:
+            operation_logger.critical(
+                f"{__name__} - {self.__class__.__name__} - {self.name} - "
+                f"Failed to subscribe to {stream}: {str(e)}"
+            )
+        return
+
+    def _user_subscribe(
+        self,
+        callback: Callable,
+        symbol: str,
+        stream: str,
+    ) -> None:
+        ws = self.wss.get("user")
+
+        if not isinstance(ws, UserWebSocketClient):
+            operation_logger.error(
+                f"{__name__} - {self.__class__.__name__} - {self.name} - "
+                "UserWebSocketClient is not initialized."
+            )
+            return
+
+        if not callable(callback):
+            operation_logger.error(
+                f"{__name__} - {self.__class__.__name__} - {self.name} - "
+                f"The provided callback for {stream} is not callable."
+            )
+            return
+
+        try:
+            ws.subscribe(
+                callback_function=callback,
+                method=stream,
+                params=dict(
+                    symbol=symbol,
+                )
+            )
+        except Exception as e:
+            operation_logger.critical(
+                f"{__name__} - {self.__class__.__name__} - {self.name} - "
+                f"Failed to subscribe to {stream}: {str(e)}"
+            )
         return
