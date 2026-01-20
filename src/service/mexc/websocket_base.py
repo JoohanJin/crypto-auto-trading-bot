@@ -43,7 +43,7 @@ class FutureWebSocket(BasicWebSocketClient):
         self.default_callback: Callable = default_callback
         self.authenticated: bool = False
 
-        # subscriptions fetching for resubscription
+        # subscriptions fetching for resubscriptiong
         self.subscriptions: list[str] = list()
 
         # callback function map based on the topics
@@ -64,6 +64,14 @@ class FutureWebSocket(BasicWebSocketClient):
         self.connect()
         return
 
+    def pause(self,) -> None:
+        self._thread_pause.set()
+        return
+
+    def resume(self) -> None:
+        self._thread_pause.clear()
+        return
+
     # Override
     def connect(self) -> None:
         # WebSocketApp-related
@@ -81,6 +89,59 @@ class FutureWebSocket(BasicWebSocketClient):
         self._intentional_close.set()  # Mark as intentional before closing
         if self._is_connected():
             self.ws.close()
+        return
+
+    # Override
+    def subscribe(
+        self,
+        topic: str,
+        callback_function: Callable,
+        param: dict | None = None,
+    ) -> None:
+        if param is None:
+            param: dict = dict()
+
+        self._push_callback_func(topic, callback_function)
+
+        if not topic.startswith("sub."):
+            topic = "sub." + topic
+
+        while not self._is_connected():
+            time.sleep(0.1)
+
+        header = json.dumps(
+            dict(
+                method = topic,
+                param = param,
+            )
+        )
+
+        try:
+            self.send(header)
+            self.subscriptions.append(header)
+        except Exception as e:
+            operation_logger.warning(
+                f"{__name__} - {self.__class__.__name__} - Unexpected error during subscription: {str(e)}"
+            )
+            self._pop_callback_func(topic=topic)
+        return
+
+    # Override
+    def unsubscribe(self, topic: str) -> None:
+        if self.callbacks.get(topic, None):
+            del self.callbacks[topic]
+
+        if topic.startswith("unsub."):
+            topic = "unsub." + topic
+
+        self.send(
+            json.dumps(
+                dict(
+                    method = topic,
+                    param = dict(),
+                )
+            )
+        )
         return
 
     def _construct_websocket(
@@ -115,14 +176,6 @@ class FutureWebSocket(BasicWebSocketClient):
                 f"{__name__} - {self.__class__.__name__} - Failed to construct websocket object: {str(e)}"
             )
             raise
-
-    def pause(self,) -> None:
-        self._thread_pause.set()
-        return
-
-    def resume(self) -> None:
-        self._thread_pause.clear()
-        return
 
     def _initialize_threads(self) -> None:
         ws_connection: threading.Thread = threading.Thread(
@@ -222,41 +275,6 @@ class FutureWebSocket(BasicWebSocketClient):
         )
         return
 
-    # Override
-    def subscribe(
-        self,
-        topic: str,
-        callback_function: Callable,
-        param: dict | None = None,
-    ) -> None:
-        if param is None:
-            param: dict = dict()
-
-        self._push_callback_func(topic, callback_function)
-
-        if not topic.startswith("sub."):
-            topic = "sub." + topic
-
-        while not self._is_connected():
-            time.sleep(0.1)
-
-        header = json.dumps(
-            dict(
-                method = topic,
-                param = param,
-            )
-        )
-
-        try:
-            self.send(header)
-            self.subscriptions.append(header)
-        except Exception as e:
-            operation_logger.warning(
-                f"{__name__} - {self.__class__.__name__} - Unexpected error during subscription: {str(e)}"
-            )
-            self._pop_callback_func(topic=topic)
-        return
-
     def _push_callback_func(
         self,
         topic: str,
@@ -264,24 +282,6 @@ class FutureWebSocket(BasicWebSocketClient):
     ) -> None:
         # just overwrite no matter what
         self.callbacks[topic.replace("sub.", "").replace("push.", "")] = callback_func
-        return
-
-    # Override
-    def unsubscribe(self, topic: str) -> None:
-        if self.callbacks.get(topic, None):
-            del self.callbacks[topic]
-
-        if topic.startswith("unsub."):
-            topic = "unsub." + topic
-
-        self.send(
-            json.dumps(
-                dict(
-                    method = topic,
-                    param = dict(),
-                )
-            )
-        )
         return
 
     def _pop_callback_func(
@@ -318,15 +318,13 @@ class FutureWebSocket(BasicWebSocketClient):
                 f"{__name__} - {self.__class__.__name__} - Starting reconnection process..."
             )
 
-            # Signal threads to stop
-            self._thread_stop.set()
+            # Reset state - old threads will exit naturally when websocket closed
+            self._thread_stop.clear()  # Clear stop signal for new threads
             self._connection_ready.clear()
+            self.threads.clear()  # Clear old thread references (they've already exited)
+            self.ws = None  # Clear old websocket reference
 
-            # Don't try to close the socket here - it's already closed when on_close is called
-            # Just clean up threads (skipping the current one if called from on_close)
-            self._clean_up_connections()
-
-            # Now reconnect
+            # Reconnect with fresh websocket and threads
             self.connect()
         finally:
             self._reconnect_lock.release()
