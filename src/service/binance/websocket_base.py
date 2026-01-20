@@ -2,9 +2,9 @@
 import base64
 import json
 import time
-from typing import Callable
 import threading
 from urllib.parse import urlencode
+from collections.abc import Callable
 
 import websocket
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
@@ -30,7 +30,7 @@ class UserWebSocketClient(BasicWebSocketClient):
         name: str = None,
     ) -> None:
         super().__init__(
-            name=name or f"Binance_User_WebSocket_Client_{self.id}",
+            name=name or "Binance_User_WebSocket_Client",
             url=url,
             api_key=api_key,
             secret_key=secret_key,
@@ -45,7 +45,9 @@ class UserWebSocketClient(BasicWebSocketClient):
                 password=None
             )
 
+        # callback function map based on the topics
         self.callbacks_lock : threading.Lock = threading.Lock()
+        self.callbacks: dict[str | int, Callable] = dict()
 
         self.subscriptions_lock: threading.Lock = threading.Lock()
         self.subscriptions: dict[int, dict] = dict()  # {id: str | bytes} to be sent
@@ -182,6 +184,7 @@ class UserWebSocketClient(BasicWebSocketClient):
 
             with self.subscriptions_lock:
                 tmp_subs: dict[int, dict] = self.subscriptions.copy()
+
             for id in tmp_subs:
                 if self._thread_stop.is_set():
                     break
@@ -235,6 +238,7 @@ class UserWebSocketClient(BasicWebSocketClient):
                     f"{thread.name} has not been started successfully: {str(e)}"
                 )
                 raise
+            time.sleep(0.5)
         return
 
     def _clean_up_connections(self) -> None:
@@ -406,6 +410,10 @@ class UserWebSocketClient(BasicWebSocketClient):
 
             if isinstance(callback, Callable):
                 callback(data)
+            elif isinstance(self.default_callback, Callable):
+                self.default_callback(data)
+            else:
+                self._operation_logging(data)
         return
 
     def on_close(
@@ -450,8 +458,8 @@ class UserWebSocketClient(BasicWebSocketClient):
     ) -> None:
         # Send pong response via underlying socket
         ws.sock.pong(data)
-        operation_logger.debug(
-            f"{__name__} - {self.__class__.__name__} - Binance WebSocket API: Sent pong response to {ws.url}"
+        operation_logger.info(
+            f"{__name__} - {self.__class__.__name__} - {self.name}: Sent pong response to {ws.url}"
         )
         return
 
@@ -503,7 +511,7 @@ class MarketWebSocketClient(BasicWebSocketClient):
         name: str = None,
     ) -> None:
         super().__init__(
-            name=name or f"Binance_Market_WebSocket_Client_{self.id}",
+            name=name or "Binance_Market_WebSocket_Client",
             url=url,
             api_key=None,  # No auth needed for public streams
             secret_key=None,
@@ -512,7 +520,7 @@ class MarketWebSocketClient(BasicWebSocketClient):
 
         # Topic-based callbacks: {stream_name: callback} - persistent, not one-shot
         self.callbacks_lock: threading.Lock = threading.Lock()
-        # callbacks inherited from BasicWebSocketClient: dict[str, Callable]
+        self.callbacks: dict[str | int, Callable] = dict()
 
         # Track subscriptions for resubscribe on reconnect
         self.subscriptions_lock: threading.Lock = threading.Lock()
@@ -530,18 +538,11 @@ class MarketWebSocketClient(BasicWebSocketClient):
         self._reconnect_lock: threading.Lock = threading.Lock()
 
         # Request ID counter for subscribe/unsubscribe commands
-        self._request_id: int = 0
         self._request_id_lock: threading.Lock = threading.Lock()
 
         # WebSocketApp
         self.ws: websocket.WebSocketApp = self._construct_wsa()
         return
-
-    def _generate_request_id(self) -> int:
-        """Generate unique request ID for SUBSCRIBE/UNSUBSCRIBE commands."""
-        with self._request_id_lock:
-            self._request_id += 1
-            return self._request_id
 
     def _is_connected(self) -> bool:
         try:
@@ -608,6 +609,7 @@ class MarketWebSocketClient(BasicWebSocketClient):
                     f"{thread.name} has not been started successfully: {str(e)}"
                 )
                 raise
+            time.sleep(0.5)
         return
 
     def _clean_up_connections(self) -> None:
@@ -656,6 +658,7 @@ class MarketWebSocketClient(BasicWebSocketClient):
     def subscribe(
         self,
         streams: str | list[str],
+        push_topic: str | list[str],
         callback: Callable,
     ) -> None:
         """
@@ -667,14 +670,25 @@ class MarketWebSocketClient(BasicWebSocketClient):
 
         Binance format: {"method": "SUBSCRIBE", "params": ["stream1", "stream2"], "id": 1}
         """
+        if not (isinstance(streams, str) and isinstance(push_topic, str) and isinstance(callback, Callable)):
+            operation_logger.critical(
+                f"{__name__} - {self.__class__.__name__} - {self.name} - "
+                f"Parameter type error in subscribe(): 'streams' and 'push_topic' "
+                f"must be strings, and 'callback' must be a Callable."
+            )
+            raise TypeError(
+                f"{__name__} - {self.__class__.__name__} - {self.name} - "
+                f"Parameter type error in subscribe(): 'streams' and 'push_topic' "
+                f"must be strings, and 'callback' must be a Callable."
+            )
+
         # Normalize to list
         if isinstance(streams, str):
             streams = [streams]
 
         # Register callbacks for each stream (persistent, not one-shot)
         with self.callbacks_lock:
-            for stream in streams:
-                self.callbacks[stream] = callback
+            self.callbacks[push_topic] = callback
 
         # Track for resubscribe on reconnect
         with self.subscriptions_lock:
@@ -684,7 +698,7 @@ class MarketWebSocketClient(BasicWebSocketClient):
         payload = {
             "method": "SUBSCRIBE",
             "params": streams,
-            "id": self._generate_request_id(),
+            "id": self.generate_timestamp(),
         }
 
         self.send(payload)
@@ -720,7 +734,7 @@ class MarketWebSocketClient(BasicWebSocketClient):
         payload = {
             "method": "UNSUBSCRIBE",
             "params": streams,
-            "id": self._generate_request_id(),
+            "id": self.generate_timestamp(),
         }
 
         self.send(payload)
@@ -740,7 +754,7 @@ class MarketWebSocketClient(BasicWebSocketClient):
         payload = {
             "method": "SUBSCRIBE",
             "params": streams,
-            "id": self._generate_request_id(),
+            "id": self.generate_timestamp(),
         }
 
         self.send(payload)
@@ -831,7 +845,11 @@ class MarketWebSocketClient(BasicWebSocketClient):
         )
         return
 
-    def on_message(self, ws: websocket.WebSocketApp, msg: str | bytes) -> None:
+    def on_message(
+        self,
+        ws: websocket.WebSocketApp,
+        msg: str | bytes,
+    ) -> None:
         """
         Handle incoming messages from market stream.
 
@@ -843,6 +861,8 @@ class MarketWebSocketClient(BasicWebSocketClient):
         if self._thread_pause.is_set():
             return
 
+        # print(msg)
+
         try:
             data = json.loads(msg)
         except json.JSONDecodeError as e:
@@ -852,40 +872,18 @@ class MarketWebSocketClient(BasicWebSocketClient):
             )
             return
 
-        # Check if it's a subscribe/unsubscribe response (has "id" and "result")
-        if "id" in data and "result" in data:
-            # This is a response to SUBSCRIBE/UNSUBSCRIBE command, ignore or log
-            operation_logger.debug(
-                f"{__name__} - {self.__class__.__name__} - {self.name} - "
-                f"Command response received: id={data.get('id')}"
-            )
-            return
-
-        # Combined stream format: {"stream": "...", "data": {...}}
-        if "stream" in data:
-            stream_name = data["stream"]
-            payload = data["data"]
-        # Raw stream format: infer stream from event type + symbol
-        elif "e" in data and "s" in data:
-            # e.g., {"e": "aggTrade", "s": "BTCUSDT"} -> "btcusdt@aggTrade"
-            event_type = data["e"]
-            symbol = data["s"].lower()
-            stream_name = f"{symbol}@{event_type}"
-            payload = data
-        else:
-            # Unknown format, use default callback if available
-            if self.default_callback:
-                self.default_callback(data)
-            return
+        stream_topic: str = data.get("e")
 
         # Dispatch to registered callback
         with self.callbacks_lock:
-            callback = self.callbacks.get(stream_name)
+            callback = self.callbacks.get(stream_topic)
 
         if callback:
-            callback(payload)
+            callback(data)
         elif self.default_callback:
-            self.default_callback(payload)
+            self.default_callback(data)
+        else:
+            self._operation_logging(data)
         return
 
     def on_close(
@@ -926,7 +924,7 @@ class MarketWebSocketClient(BasicWebSocketClient):
     def on_ping(self, ws: websocket.WebSocketApp, data: str | bytes) -> None:
         """Respond to server ping with pong."""
         ws.sock.pong(data)
-        operation_logger.debug(
+        operation_logger.info(
             f"{__name__} - {self.__class__.__name__} - {self.name} - "
             f"Sent pong response to {ws.url}"
         )
@@ -960,5 +958,14 @@ class MarketWebSocketClient(BasicWebSocketClient):
 
 
 class TradingWebSocketClient(BasicWebSocketClient):
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        name: str,
+        api_key: str,
+        secret_key: str,
+        ping_interval: int | None,
+        url: str = "wss://ws-fapi.binance.com/ws-fapi/v1",  # Trade Stream
+        default_callback: Callable | None = None,
+    ) -> None:
+        raise NotImplementedError
         return
