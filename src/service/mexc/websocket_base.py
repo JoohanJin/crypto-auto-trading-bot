@@ -341,7 +341,7 @@ class FutureWebSocket(BasicWebSocketClient):
             # self._thread_pause.wait()
             if (self.generate_timestamp() - prev_timestamp > (self.ping_interval * 1_000)):
                 try:
-                    # ! websocket.send() requires str or bytes -> needs to dump it using json, i.e., json.dump(dict)
+                    # ! WebSocketApp.send() requires str or bytes -> needs to dump it using json, i.e., json.dump(dict)
                     self.send(hb_payload)
                     operation_logger.info(
                         f"{__name__} - {self.__class__.__name__} - Successfully sent a ping message to {self.ws.url}"
