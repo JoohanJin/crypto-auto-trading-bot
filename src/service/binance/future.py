@@ -25,7 +25,7 @@ class FutureMarket(FutureBase):
 
     # PUBLIC ENDPOINT
     def ping(
-        self: "FutureMarket",
+        self,
     ) -> dict:
         """
         Test connectivity to the Rest API.
@@ -42,7 +42,7 @@ class FutureMarket(FutureBase):
         )
 
     def server_time(
-        self: "FutureMarket",
+        self,
     ) -> dict:
         """
         Test connectivity to the Rest API and get the current server time.
@@ -59,7 +59,7 @@ class FutureMarket(FutureBase):
         )
 
     def exchange_info(
-        self: "FutureMarket",
+        self,
     ) -> dict:
         """
         Current exchange trading rules and symbol information.
@@ -76,7 +76,7 @@ class FutureMarket(FutureBase):
         )
 
     def order_book(
-        self: "FutureMarket",
+        self,
         symbol: str = "BTCUSDT",
         limit: int = 1_000,
     ) -> dict:
@@ -103,7 +103,7 @@ class FutureMarket(FutureBase):
         )
 
     def recent_trades(
-        self: "FutureMarket",
+        self,
         symbol: str = "BTCUSDT",
         limit: int = 1_000,
     ) -> dict:
@@ -130,7 +130,7 @@ class FutureMarket(FutureBase):
         )
 
     def historical_trades(
-        self: "FutureMarket",
+        self,
         symbol: str = "BTCUSDT",
         limit: int = 500,
         from_id: int | None = None,
@@ -167,7 +167,7 @@ class FutureMarket(FutureBase):
         )
 
     def compressed_aggregate_trades(
-        self: "FutureMarket",
+        self,
         symbol: str = "BTCUSDT",
         from_id: int | None = None,
         start_time: int | None = None,
@@ -206,7 +206,7 @@ class FutureMarket(FutureBase):
         )
 
     def klines(
-        self: "FutureMarket",
+        self,
         symbol: str = "BTCUSDT",
         interval: str = "1m",
         startTime: int | None = None,
@@ -243,7 +243,7 @@ class FutureMarket(FutureBase):
         )
 
     def continuous_klines(
-        self: "FutureMarket",
+        self,
         pair: str = "BTCUSDT",
         contract_type: str = "PERPETUAL",
         interval: str = "1m",
@@ -283,7 +283,7 @@ class FutureMarket(FutureBase):
         )
 
     def index_price_klines(
-        self: "FutureMarket",
+        self,
         pair: str = "BTCUSDT",
         interval: str = "1m",
         startTime: int | None = None,
@@ -320,7 +320,7 @@ class FutureMarket(FutureBase):
         )
 
     def mark_price_klines(
-        self: "FutureMarket",
+        self,
         symbol: str = "BTCUSDT",
         interval: str = "1m",
         startTime: int | None = None,
@@ -357,7 +357,7 @@ class FutureMarket(FutureBase):
         )
 
     def premium_klines(
-        self: "FutureMarket",
+        self,
         symbol: str = "BTCUSDT",
         interval: str = "1m",
         startTime: int | None = None,
@@ -394,7 +394,7 @@ class FutureMarket(FutureBase):
         )
 
     def mark_price(
-        self: "FutureMarket",
+        self,
         symbol: str = "BTCUSDT",
     ) -> dict:
         """
@@ -418,7 +418,7 @@ class FutureMarket(FutureBase):
         )
 
     def funding_rate_history(
-        self: "FutureMarket",
+        self,
         symbol: str = "BTCUSDT",
         startTime: int | None = None,
         endTime: int | None = None,
@@ -453,7 +453,7 @@ class FutureMarket(FutureBase):
         )
 
     def funding_rate_info(
-        self: "FutureMarket",
+        self,
     ) -> dict:
         """
         Get the current funding rate and funding rate history for all symbols.
@@ -470,7 +470,7 @@ class FutureMarket(FutureBase):
         )
 
     def ticker_24hr(
-        self: "FutureMarket",
+        self,
         symbol: str = "BTCUSDT",
     ) -> dict:
         """
@@ -494,7 +494,7 @@ class FutureMarket(FutureBase):
         )
 
     def top_trader_long_short_ratio(
-        self = "FutureMarket",
+        self,
         symbol: str = "BTCUSDT",
         period: str = "5m",
         limit: int = 30,  # maximum 500,
@@ -522,7 +522,7 @@ class FutureMarket(FutureBase):
         )
 
     def long_short_ratio(
-        self = "FutureMarket",
+        self,
         symbol: str = "BTCUSDT",
         period: str = "5m",
         limit: int = 30,  # maximum 500,
@@ -550,7 +550,7 @@ class FutureMarket(FutureBase):
         )
 
     def taker_busy_sell_volume(
-        self: "FutureMarket",
+        self,
         symbol: str = "BTCUSDT",
         period: str = "5m",  # 5m, 15m, 30m, 1h, 2h, 4h, 6h, 12h, 1d
         limit: int = 30,  # maximum 500,
@@ -578,7 +578,7 @@ class FutureMarket(FutureBase):
         )
 
     def basis(
-        self: "FutureMarket",
+        self,
         pair: str = "BTCUSDT",
         contract_type: str = "PERPETUAL",
         period: str = "5m",  # 5m, 15m, 30m, 1h, 2h, 4h, 6h, 12h, 1d
@@ -608,7 +608,7 @@ class FutureMarket(FutureBase):
         )
 
     def composite_index_symbol_info(
-        self: "FutureMarket",
+        self,
         symbol: str | None = "BTCUSDT",
     ) -> dict:
         """
@@ -626,7 +626,7 @@ class FutureMarket(FutureBase):
         )
 
     def asset_index(
-        self: "FutureMarket",
+        self,
         symbol: str = "BTCUSDT",
     ) -> dict:
         """
@@ -645,7 +645,7 @@ class FutureMarket(FutureBase):
         )
 
     def query_index_price_consituents(
-        self: "FutureMarket",
+        self,
         symbol: str = "BTCUSDT",
     ) -> dict:
         """
@@ -692,7 +692,7 @@ class FutureMarket(FutureBase):
     }
     """
     def order(
-        self: "FutureMarket",
+        self,
         sl_price: float,
         tp_price: float,
         leverage: int,
@@ -753,7 +753,7 @@ class FutureMarket(FutureBase):
         return
 
     def new_order(
-        self: "FutureMarket",
+        self,
         side: Union[Literal["BUY"], Literal["SELL"]],
         symbol: str = "BTCUSDT",
         position_side: str | None = None,  # "BOTH", "LONG", "SHORT", None
@@ -818,57 +818,57 @@ class FutureMarket(FutureBase):
         )
 
     def multiple_orders(
-        self: "FutureMarket",
+        self,
     ):
         raise NotImplementedError
         return
 
     def modify_order(
-        self: "FutureMarket",
+        self,
     ):
         raise NotImplementedError
         return
 
     def modify_multiple_orders(
-        self: "FutureMarket",
+        self,
     ):
         raise NotImplementedError
         return
 
     def get_order_modify_history(
-        self: "FutureMarket",
+        self,
     ):
         raise NotImplementedError
         return
 
     def cancel_order(
-        self: "FutureMarket",
+        self,
     ):
         raise NotImplementedError
         return
 
-    def cancel_multiple_orders(self: "FutureMarket",):
+    def cancel_multiple_orders(self,):
         raise NotImplementedError
         return
 
     def cancel_all_orders(
-        self: "FutureMarket",
+        self,
     ):
         raise NotImplementedError
         return
 
     def auto_cancel_all_open_orders(
-        self: "FutureMarket",
+        self,
     ):
         raise NotImplementedError
         return
 
-    def query_order(self: "FutureMarket",):
+    def query_order(self,):
         raise NotImplementedError
         return
 
     def query_all_orders(
-        self: "FutureMarket",
+        self,
         symbol: str = "BTCUSDT",
         order_id: int | None = None,
         start_time: int | None = None,
@@ -901,12 +901,12 @@ class FutureMarket(FutureBase):
             params = params,
         )
 
-    def query_open_order(self: "FutureMarket",):
+    def query_open_order(self,):
         raise NotImplementedError
         return
 
     def query_all_open_orders(
-        self: "FutureMarket",
+        self,
         url: str = "/fapi/v1/openOrders",
         symbol: str = "BTCUSDT",
         recv_window: int = 5_000,
@@ -923,24 +923,24 @@ class FutureMarket(FutureBase):
             params = params,
         )
 
-    def query_account_trades(self: "FutureMarket",):
+    def query_account_trades(self,):
         raise NotImplementedError
         return
 
-    def query_user_force_orders(self: "FutureMarket",):
+    def query_user_force_orders(self,):
         raise NotImplementedError
         return
 
-    def change_margin_type(self: "FutureMarket",):
+    def change_margin_type(self,):
         raise NotImplementedError
         return
 
-    def change_position_mode(self: "FutureMarket",):
+    def change_position_mode(self,):
         raise NotImplementedError
         return
 
     def change_initial_leverage(
-        self: "FutureMarket",
+        self,
         url: str = "/fapi/v1/leverage",
         symbol: str = "BTCUSDT",
         leverage: int = 10,  # originally 20, but let's keep it safe. 5 or 10.
@@ -950,7 +950,7 @@ class FutureMarket(FutureBase):
             "symbol": symbol,
             "leverage": leverage,
             "recvWindow": recvWindow,
-            "timestamp": FutureMarket.generate_timestmap(),
+            "timestamp": self.generate_timestamp(),
         }
 
         return self.call(
@@ -959,37 +959,37 @@ class FutureMarket(FutureBase):
             params = params,
         )
 
-    def change_multi_assets_mode(self: "FutureMarket",):
+    def change_multi_assets_mode(self,):
         raise NotImplementedError
         return
 
     def change_isolated_position_margin(
-        self: "FutureMarket",
+        self,
     ):
         raise NotImplementedError
         return
 
-    def postion_info_v2(self: "FutureMarket",):
+    def postion_info_v2(self,):
         raise NotImplementedError
         return
 
-    def position_info_v3(self: "FutureMarket",):
+    def position_info_v3(self,):
         raise NotImplementedError
         return
 
-    def position_adl_quantile_estimation(self: "FutureMarket",):
+    def position_adl_quantile_estimation(self,):
         raise NotImplementedError
         return
 
-    def get_position_margin_history(self: "FutureMarket",):
+    def get_position_margin_history(self,):
         return
 
-    def test_new_order(self: "FutureMarket",):
+    def test_new_order(self,):
         raise NotImplementedError
         return
 
     def future_account_balance_v3(
-        self: "FutureMarket",
+        self,
         url: str = "/fapi/v3/balance",
         recv_window: int = 5_000,
         asset: str = "USDT",
@@ -1007,7 +1007,7 @@ class FutureMarket(FutureBase):
         )
 
     def future_account_balance_v2(
-        self: "FutureMarket",
+        self,
         url: str = "/fapi/v2/balance",
         recv_window: int = 5_000,
     ) -> dict | None:
@@ -1023,7 +1023,7 @@ class FutureMarket(FutureBase):
         )
 
     def account_information_v2(
-        self: "FutureMarket",
+        self,
         url: str = "/fapi/v2/account",
         recv_window: int = 5_000,
     ) -> dict | None:
@@ -1039,7 +1039,7 @@ class FutureMarket(FutureBase):
         )
 
     def get_position_information_v2(
-        self: "FutureBase",
+        self,
         url: str = "/fapi/v2/positionRisk",
         symbol: str = "BTCUSDT",
         recv_window: int = 5_000,
@@ -1058,7 +1058,7 @@ class FutureMarket(FutureBase):
 
     # TODO: need to re-implement the function
     def get_current_open_order(
-        self: "FutureBase",
+        self,
         url: str = "/fapi/v1/openOrder",
         symbol: str = "BTCUSDT",
         recv_window: int = 5_000,
@@ -1076,7 +1076,7 @@ class FutureMarket(FutureBase):
         )
 
     def get_all_open_order(
-        self: "FutureBase",
+        self,
         url: str = "/fapi/v1/openOrders",
         symbol: str = "BTCUSDT",
         recv_window = 5_000,
