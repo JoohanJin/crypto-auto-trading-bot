@@ -47,7 +47,7 @@ class FutureBase(CommonBaseSDK):
         if not url.startswith("/"):
             url = f"/{url}"
 
-        timestamp: int = FutureBase.generate_timestmap()
+        timestamp: int = self.generate_timestamp()
 
         if params is not None:
             params = {key: value for key, value in params.items() if value is not None}
