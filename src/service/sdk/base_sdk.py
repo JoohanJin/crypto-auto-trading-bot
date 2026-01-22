@@ -23,8 +23,7 @@ class CommonBaseSDK(ABC):
         parts = s.split("_")
         return parts[0].lower() + ''.join(word.capitalize() for word in parts[1:])
 
-    @staticmethod
-    def generate_timestmap() -> int:
+    def generate_timestamp(self) -> int:
         return int(time.time() * 1_000)
 
     @staticmethod
