@@ -10,7 +10,8 @@ tmp/
 *foo*
 foo/
 
-test.py
+*test.py*
+*test.json*
 
 # ignore market data directory
 market_data/

@@ -4,10 +4,10 @@ from object.signal import TradeSignal
 class ScoreMapper:
     def __init__(self) -> None:
         self.score_map: dict[TradeSignal, int] = {
-            TradeSignal.SHORT_TERM_BUY: 1,
-            TradeSignal.LONG_TERM_BUY: 2,
-            TradeSignal.SHORT_TERM_SELL: -1,
-            TradeSignal.LONG_TERM_SELL: -2,
+            TradeSignal.SHORT_TERM_BUY: 2,
+            TradeSignal.LONG_TERM_BUY: 5,
+            TradeSignal.SHORT_TERM_SELL: -2,
+            TradeSignal.LONG_TERM_SELL: -5,
             TradeSignal.HOLD: 0,
         }
         return

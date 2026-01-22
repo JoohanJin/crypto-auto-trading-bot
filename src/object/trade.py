@@ -1,24 +1,17 @@
-from dataclasses import dataclass
+from __future__ import annotations
+from dataclasses import dataclass, replace
 from enum import IntFlag
 
 
-class TrendState(IntFlag):
-    FLAT = 1  # 1
-    STRONG_BULLISH = 2  # 10
-    BULLISH = 4  # 100
-    BEARISH = 8  # 1000
-    STRONG_BEARISH = 16   # 1_0000
-
-
-@dataclass
-class ScoreMetrics:
-    timestamp: int
-    current_score: float
-    trend: TrendState
-    velocity: float
-    acceleration: float
-    volatility: float
-    confidence: float
+class TradeState(IntFlag):
+    '''
+    - Data structure used in trade_manager (ENUM)
+    '''
+    HOLD = 1
+    NEW_BUY = 2
+    NEW_SELL = 4
+    REVERSE_BUY = 8
+    REVERSE_SELL = 16
 
 
 @dataclass
@@ -31,28 +24,5 @@ class TradePair:
     ticker: str  # = "BTC"
     quote: str  # = "USDT"
 
-
-class ScoreHistory:
-    '''
-    - Data structure to store the score history.
-    - Dequeue?
-    - Tree? B+ ? -> But BST is also fine I think...? hmmm
-    '''
-    def __init__(
-        self: "ScoreHistory",
-        max_size: int = 100,
-    ) -> None:
-        # heap or dequeue?
-        return
-
-    def add(self) -> None:
-        return
-
-    def get_recent(n: int):
-        return
-
-    def get_scores_since(timestamp: int):
-        return
-
-    def clear() -> None:
-        return
+    def copy(self) -> TradePair:
+        return replace(self)

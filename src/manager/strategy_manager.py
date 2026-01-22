@@ -6,9 +6,8 @@ import time
 
 # CUSTOM LIBRARY
 from logger.set_logger import operation_logger, trading_logger
-from object.constants import IndexType
+from object.index import IndexType, Index
 from object.signal import TradeSignal, Signal
-from object.index import Index
 from manager.strategy import (
     StrategyExecutor,
     StrategyFactory,

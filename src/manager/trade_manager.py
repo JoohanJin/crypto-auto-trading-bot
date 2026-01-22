@@ -5,115 +5,33 @@ import time
 from typing import List, Tuple
 
 # Custom Library
-from binance.future import FutureMarket as BinanceFutureMarket
+from service.binance.future import FutureMarket as BinanceFutureMarket
 from custom_telegram.telegram_bot_class import CustomTelegramBot
 from logger.set_logger import operation_logger, trading_logger
-from mexc.future import FutureMarket as MexCFutureMarket
+from service.mexc.future import FutureMarket as MexCFutureMarket
 from object.score_mapping import ScoreMapper
 from object.signal import Signal, TradeSignal
-from object.price import Price
 from interface.pipeline_interface import PipelineController
-from object.broker import BrokerRegistry
-from object.trade import TradePair
-from sdk.base_sdk import CommonBaseSDK
+from object.trade import TradePair, TradeState
+from object.order import Order, OrderType
+
+'''
+- Get the signal
+- modify the score
+    - assess the current market status
 
 
-class OrderManager:
-    '''
-    - Manage all the order
-    - Manage all the brokers provided
-    '''
-    @staticmethod
-    def __get_curr_timestamp() -> int:
-        # only for internal usage
-        return int(time.time() * 1_000)
-
-    def __init__(
-        self: "OrderManager",
-        telegram_bot: CustomTelegramBot,
-        brokers: BrokerRegistry,  # MexC and Binanace for now -> Factory? like class path and the configuration?
-    ) -> None:
-        self.brokers: list[CommonBaseSDK] = brokers
-        self.telegram_bot: CustomTelegramBot = telegram_bot
-        return
-
-    def __del__(self: "OrderManager") -> None:
-        return
-
-    def order(
-        self: "OrderManager",
-    ) -> None:
-        return
-
-    def get_ticker_current_price(
-        self: "OrderManager",
-        trading_pair: TradePair,
-    ) -> dict[str, float]:
-        '''
-        - Return the current price of the given ticker and quote currency.
-        dict = {
-            "timestamp": <timestamp_in_ms_int>,
-            "ticker": "BTC",
-            "quote": "USDT",
-            "price": <price_of_ticker_float>
-        }
-        '''
-        return Price(
-            timestamp=OrderManager.__get_curr_timestamp(),
-            ticker=trading_pair.ticker,
-            quote=trading_pair.quote,
-            # price = self.__get_average_ticker_price(
-            #   self.__get_ticker_current_prices(),
-            # ),
-        )
-
-    def __get_average_ticker_price(
-        self: "OrderManager",
-        prices: list[float],
-        rounding: int = 2,  # can be dynamic with the Factory method.
-    ) -> float:
-        '''
-        - can use numpy for faster and more accurate result
-        - func __get_average_ticker_price()
-            - calculate the average value of the floats in the list passed as a parameter
-            - return the average value in the float format.
-
-        - params:
-            - prices: list[float]
-                - list of floats
-            - rounding: int
-                - precision for the rounding of the given float in the decimals.
-
-        - return:
-            - float
-                - average value of the values in the param
-            - will get the list of ticker prices returned from multiple brokers.
-        '''
-        try:
-            return round((sum(prices) / len(prices)), rounding)
-        except Exception as e:
-            operation_logger.error(f"{__name__} - {self.__class__.__name__} - Error while getting the average ticker price: {str(e)}")
-
-    def __get_ticker_current_prices(self: "OrderManager") -> list[float]:
-        '''
-        - func __get_ticker_current_prices()
-            - get the list of ticker prices returned from multiple brokers in the OrderManager.
-
-        - Params: None
-
-        - Return:
-            - prices: list[float]
-        '''
-        res = list()
-
-        return res
+- TradeManager
+- SignalFetcher
+- DecisionMaker
+'''
 
 
 class TradeManager:
     """
-    ######################################################################################################################
-    #                                               Static Method                                                        #
-    ######################################################################################################################
+    ####################################################################################################################
+    #                                               Static Method                                                      #
+    ####################################################################################################################
     """
     @staticmethod
     def generate_timestamp() -> int:
@@ -138,18 +56,19 @@ class TradeManager:
             - signal data which is passed from the signal pipeline.
         param timestamp_window: int
             - limit for the signal generation timestamp.
-            - If the difference between the current timestamp and signal timestamp is greater than the timestamp_window, then it will be ignored.
+            - If the difference between the current timestamp and signal timestamp is greater than the timestamp_window,
+                - then it will be ignored.
             - the default value is 5000 ms == 5 seconds.
 
         return bool:
             - True if the signal is valid, otherwise False
         """
-        return (TradeManager.generate_timestamp() - signal_data.timestamp < timestamp_window)
+        return (TradeManager.generate_timestamp() - signal_data.timestamp) < timestamp_window
 
     """
-    ######################################################################################################################
-    #                                                Class Method                                                        #
-    ######################################################################################################################
+    ####################################################################################################################
+    #                                                Class Method                                                      #
+    ####################################################################################################################
     """
 
     def __init__(
@@ -163,25 +82,30 @@ class TradeManager:
         ccy_symbol: str = "USDT",
         leverage: int = 10,
         trade_amount: float = 0.1,  # 10% of the total asset
-        take_profit_rate: float = 0.1,  # 10%
-        stop_loss_rate: float = 0.05,  # 5%
-        score_threashold: int = 500,  # 1_000,
-        trend_managing_score: int = 200,  # 200
+        take_profit_rate: float = 0.2,  # 20% -> to prevent the error
+        stop_loss_rate: float = 0.2,  # 20% -> to preven the error
+        score_threashold: int = 2_000,  # 1_000,
+        score_trend_management: int = 200,  # 200
     ) -> None:
         """
         func __init__():
             - initialize the TradeManager with the given signal generator and REST API caller for MexC.
             - initialize the necessary member variables and start the TradeManager.
         """
-        self.base_symbol: str = base_symbol
-        self.ccy_symbol: str = ccy_symbol
+        # TODO: Need to keep the record of the previous order.
+        # TODO: Keep checking where that order is still alive or not.
+        '''
+        # TODO: Need to refactor the order layer to get the data from the DTO,
+        # order for unified and modular implementation.
+        '''
+        self.trade_pair: TradePair = TradePair(ticker = base_symbol, quote = ccy_symbol)
 
         # Set the signal piepline as a member variable
         self.signal_pipeline_controller: PipelineController[Signal] = signal_pipeline_controller
 
         # Set the MexC Future Market SDK as a member variable
         # to send the REST API to the MexC API Gateway.
-        # TODO: Need to change this to interface. -> FUTURE TODO
+        # TODO: Need to change this to interface.
         self.mexc_future_market_sdk = mexc_future
         self.binance_future_market = binanace_future
 
@@ -190,7 +114,7 @@ class TradeManager:
         self.telegram_bot: CustomTelegramBot = telegram_bot
 
         self.score_threshold: int = score_threashold
-        self.trend_manager_score: int = trend_managing_score  # keep the biased score to keep the current score.
+        self.trend_manager_score: int = score_trend_management  # keep the biased score to keep the current score.
 
         # Set the thread pool as a member function.
         self.threads: List[threading.Thread] = list()
@@ -204,7 +128,10 @@ class TradeManager:
         self.tp_rate: float = take_profit_rate
         self.sl_rate: float = stop_loss_rate
 
-        self.async_loop = asyncio.new_event_loop()  # only for Telegram Client
+        self.async_loop: asyncio.new_event_loop = asyncio.new_event_loop()  # only for Telegram Client
+
+        self.lock_previous_order = threading.Lock()
+        self.previous_order: Order | None = None
 
         # Start the TradeManager
         self.start()
@@ -215,7 +142,7 @@ class TradeManager:
         return None
 
     def __del__(
-        self: object,
+        self,
     ) -> None:
         """
         func __del__():
@@ -223,17 +150,17 @@ class TradeManager:
             - delete the TradeManager object.
             - need to remove all the threads and possibly dynamic objects as well.
         """
-        operation_logger.info(f"{__name__} - TradeManager has been deleted")
+        operation_logger.info(f"{__name__} - {self.__class__.__name__} - TradeManager has been deleted")
         return
 
     """
-    ######################################################################################################################
-    #                                             Multi-Thread Management                                                #
-    ######################################################################################################################
+    ####################################################################################################################
+    #                                             Multi-Thread Management                                              #
+    ####################################################################################################################
     """
 
     def start(
-        self: "TradeManager",
+        self,
     ) -> None:
         """
         func start():
@@ -256,7 +183,7 @@ class TradeManager:
         return None
 
     def stop(
-        self: "TradeManager",
+        self,
     ) -> None:
         # TODO: Implment the destructor.
         for thread in self.threads:
@@ -330,9 +257,9 @@ class TradeManager:
         return None
 
     """
-    ######################################################################################################################
-    #                                             Signal Management Method                                               #
-    ######################################################################################################################
+    ####################################################################################################################
+    #                                             Signal Management Method                                             #
+    ####################################################################################################################
     """
     def thread_handle_async_trade_execution(self, loop) -> None:
         """ """
@@ -363,7 +290,7 @@ class TradeManager:
                     score = score,
                 )
 
-                if decision != 0:  # can be further improved in the future.
+                if decision in (2, 4, 6, 8):  # can be further improved in the future.
                     # Trade
                     await self.__execute_trade(
                         buy_or_sell = decision,
@@ -372,7 +299,7 @@ class TradeManager:
                     # reset the score, but based on the trend
                     # TODO: need to implement more sophisticated one.
                     with self.trade_score_lock:
-                        self.trade_score = self.trend_manager_score if decision == 1 else -1 * (self.trend_manager_score)
+                        self.trade_score = self.trend_manager_score if decision in (2, 8) else -1 * (self.trend_manager_score)
 
                 await asyncio.sleep(0.25)
 
@@ -386,7 +313,7 @@ class TradeManager:
     def __decide_trade(
         self,
         score: int,
-    ) -> int:
+    ) -> TradeState:
         """
         func __decide_trade():
             - private method
@@ -398,28 +325,99 @@ class TradeManager:
         param score: int
             - score based on the signal data.
 
-        return int:
-            # TODO: Change the state to better FSM
-            - 1: buy -> 001: 1
-            - -1: sell -> 010: 2
-            - 0: hold -> 100: 4
-            -> else just nothing.
-
-         0: HOLD
-         1: OPEN_LONG / FLIP_LONG
-        -1: OPEN_SHORT / FLIP_SHORT
-         2: CLOSE_LONG (Go Flat)
-        -2: CLOST_SHORT (Go Flat)
+        return TradeState:
+            - HOLD = 1
+            - NEW_BUY = 2
+            - NEW_SELL = 4
+            - REVERSE_BUY = 8
+            - REVERSE_SELL = 16
         """
-        if (score > self.score_threshold):  # BUY
-            return 1
-        elif (score < (-1 * self.score_threshold)):  # SELL
-            return -1
-        return 0  # by default it is not doing anything.
+        with self.lock_previous_order:
+            previous_order = self.previous_order.copy()
+
+        if (previous_order is not None):  # there is a current order
+            # Reverse
+            if (
+                (score > (self.score_threshold // 2)) and (previous_order.type == OrderType.SELL)
+            ):
+                return TradeState.REVERSE_BUY
+            if (
+                (score < (-1 * (self.score_threshold // 2))) and (previous_order.type == OrderType.BUY)
+            ):
+                return TradeState.REVERSE_SELL
+        else:  # there is no current order
+            if (score > self.score_threshold):
+                return TradeState.NEW_BUY
+            if (score < (-1 * self.score_threshold)):
+                return TradeState.NEW_SELL
+        return TradeState.HOLD  # by default it is not doing anything.
+
+    def __construct_new_order(
+        self,
+        buy_or_sell: TradeState,
+    ) -> Order:
+        try:
+            with self.lock_previous_order:
+                previous_order = self.previous_order.copy()
+
+            order_type: OrderType
+            order_type_str: str
+            entry_price: float = self.__get_current_price()
+            tp_price: float
+            sl_price: float
+            ticker_size: float
+            quote_size: float
+            meta_data: dict[str, bool | str] = None
+
+            tp_price, sl_price = self.__get_target_prices(
+                buy_or_sell = buy_or_sell,
+                current_price = entry_price,
+            )
+
+            if buy_or_sell in (2, 4):  # NEW
+                order_type = OrderType.BUY if buy_or_sell == 2 else OrderType.SELL
+                order_type_str = "BUY" if buy_or_sell == 2 else "SELL"
+
+                quote_size = self.get_available_quote()
+                ticker_size = self.get_ticker_qty(entry_price, quote_size)
+            elif buy_or_sell in (8, 16):  # REVERSE
+                order_type = OrderType.BUY if buy_or_sell == 8 else OrderType.SELL
+                order_type_str = "BUY" if buy_or_sell == 8 else "SELL"
+
+                ticker_size = previous_order.ticker_size * 2
+                quote_size = previous_order.quote_size * 2
+
+                meta_data = dict(
+                    reverse = True
+                )
+            else:  # HOLD or other flipped-bit signal
+                raise ValueError(f"Invalid TradeState: {buy_or_sell}")
+
+            return Order(
+                type=order_type,
+                type_str=order_type_str,
+                entry_price=entry_price,
+                leverage=self.leverage,  # TODO: Need to dynamically decide the leverage
+                tp_price=tp_price,
+                sl_price=sl_price,
+                ticker=self.trade_pair.ticker,  # TODO: Need to dynamically decide the leverage
+                ticker_size=ticker_size,
+                quote=self.trade_pair.quote,  # TODO: Need to dynamically decide the leverage
+                quote_size=quote_size,
+                meta_data=meta_data,
+            )
+        except Exception as e:
+            error_msg: str = f"{__name__} - {self.__class__.__name__} - Error while building the order object: {str(e)}"
+            operation_logger.critical(
+                error_msg
+            )
+            raise Exception(
+                error_msg
+            ) from e
 
     async def __execute_trade(
         self,
-        buy_or_sell: int,
+        buy_or_sell: TradeState,
     ) -> None:
         """
         func __execute_trade():
@@ -429,62 +427,76 @@ class TradeManager:
 
         param self:
             - TradeManager object
+
+        return None:
         """
         try:
-            if buy_or_sell == 1 or buy_or_sell == -1:
-                current_price: float = self.__get_current_price()
+            if buy_or_sell == TradeState.HOLD:
+                return None
 
-                tp_price, sl_price = self.__get_target_prices(
-                    buy_or_sell = buy_or_sell,
-                    current_price = current_price,
+            order: Order = self.__construct_new_order(buy_or_sell)
+
+            if buy_or_sell in (2, 4):  # make the trade
+                message = (
+                    f"Trade Signal: {order.type_str}\n"
+                    f"Entry Price: {order.entry_price}\n"
+                    f"Amount: {order.quote_size} {order.quote}\n"
+                    f"Take Profit: {order.tp_price}\n"
+                    f"Stop Loss: {order.sl_price}\n"
+                    f"It is the new order."
                 )
+            elif buy_or_sell in (8, 16):
+                message = (
+                    f"Trade Signal: {order.type_str}\n"
+                    f"Entry Price: {order.entry_price}\n"
+                    f"Amount: {order.quote_size} {order.quote}\n"
+                    f"Take Profit: {order.tp_price}\n"
+                    f"Stop Loss: {order.sl_price}\n"
+                    f"It is the reverse order."
+                )
+            else:  # bitflip error (never know)
+                return None
 
-                # TODO: interface implement rather than using the instance by itself.
-                # for mexc, it is USDT.
-                # for binance, it is BTC.
-                trade_amount: float = self.get_base_qty(base_asset_price = current_price,)
-                order_type: int = 0
-
-                if buy_or_sell == 1:
-                    order_type = 1  # Long
-                elif buy_or_sell == -1:
-                    order_type = 3  # Short
-
-                # order trigger to the telgram bot
-                if self.__decide_to_make_trade():  # make the trade
-                    self.binance_future_market.order(
-                        sl_price=sl_price,
-                        tp_price=tp_price,
-                        leverage=self.leverage,
-                        symbol_curr_quantity=max(trade_amount, 0.002),
-                        side="BUY" if order_type == 1 else "SELL",
-                    )
-                    message = (
-                        f"Trade Signal: {'Buy' if order_type == 1 else 'Sell'}\n"
-                        f"Entry Price: {current_price}\n"
-                        f"Amount: {trade_amount}\n"
-                        f"Take Profit: {tp_price}\n"
-                        f"Stop Loss: {sl_price}"
-                    )
-                    await self.telegram_bot.send_text(message)
-                    trading_logger.info(message)
-                else:
-                    trading_logger.info(
-                        f"Trade Signal: {'Buy' if order_type == 1 else 'Sell'}\n"
-                        f"Entry Price: {current_price}\n"
-                        f"Amount: {trade_amount}\n"
-                        f"Take Profit: {tp_price}\n"
-                        f"Stop Loss: {sl_price}\n"
-                        "However, the trade has not been occured."
-                    )
-
+            # order trigger to the telgram bot
+            self.__make_order(order)
+            await self.telegram_bot.send_text(message)
+            trading_logger.info(message)
         except Exception as e:
-            operation_logger.error(f"{__name__} - Error while executing the trade: {str(e)}")
+            operation_logger.error(
+                f"{__name__} - {self.__class__.__name__} - Error while executing the trade: {str(e)}"
+            )
+            raise Exception
+        return None
+
+    def __make_order(
+        self,
+        order: Order,
+    ) -> None:
+        try:
+            # TODO: change this to the broker registry so that just passing
+            # order, i.e., DTO, is enough
+            self.binance_future_market.order(
+                sl_price=order.sl_price,
+                tp_price=order.tp_price,
+                leverage=order.leverage,
+                symbol_curr_quantity=order.ticker_size,
+                side=order.type_str,
+            )
+
+            with self.lock_previous_order:
+                self.previous_order = order
+        except Exception as e:
+            operation_logger.critical(
+                f"{__name__} - {self.__class__.__name__} - Unexpected Error while ordering: {str(e)}"
+            )
+            raise Exception(
+                f"{__name__} - {self.__class__.__name__} - Unexpected Error while ordering: {str(e)}"
+            ) from e
         return None
 
     def __thread_get_signal(
         self,
-        timestamp_window: int = 5000,
+        timestamp_window: int = 5_000,  # for validation purpose
     ) -> None:
         """
         func __thread_get_signal():
@@ -492,11 +504,12 @@ class TradeManager:
             - It gets the signal from the signal pipeline
             - This function should be run by other thread which is monitoring the system.
 
-        param self:
-            - TradeManager object
         param timestamp_window: int
             - limit for the signal generation timestamp for the signal.
-            - If the difference between the current timestamp and signal timestamp is greater than the timestamp_window, then it will be ignored.
+            - If the difference between the current timestamp and signal timestamp is greater
+                than the timestamp_window, then it will be ignored.
+
+        return None:
         """
         curr_timestamp = 0
         while True:
@@ -508,18 +521,20 @@ class TradeManager:
                             signal_data = signal,
                         )
                         if (TradeManager.generate_timestamp() - curr_timestamp > 300_000):
-                            operation_logger.info(f"{__name__} - The current score is {self.trade_score}")
+                            operation_logger.info(
+                                f"{__name__} - The current score is {self.trade_score}"
+                            )
                             curr_timestamp = TradeManager.generate_timestamp()
                         # print(f"now the score is {self.trade_score}")
             except Exception as e:
                 operation_logger.error(
-                    f"{__name__} - Error while getting the signal: {e}"
+                    f"{__name__} - Error while getting the signal: {str(e)}"
                 )
         return None
 
     def __get_signal(
         self,
-        timestamp_window: int = 5000,
+        timestamp_window: int = 5_000,
     ) -> TradeSignal | None:
         """
         func __get_signal(): private method
@@ -535,7 +550,10 @@ class TradeManager:
             - if the signal is not valid, then it will return None.
         """
         signal_data: Signal = self.signal_pipeline_controller.pop()
-        return signal_data.signal if TradeManager.verify_signal(signal_data = signal_data, timestamp_window = timestamp_window) else None
+        return signal_data.signal if TradeManager.verify_signal(
+            signal_data = signal_data,
+            timestamp_window = timestamp_window
+        ) else None
 
     def __calculate_signal_score_delta(
         self,
@@ -563,7 +581,7 @@ class TradeManager:
     - Execute Trade Utility Function
     '''
     def __get_current_price(
-        self: "TradeManager",
+        self,
     ) -> float | None:
         """
         func __get_current_price():
@@ -577,16 +595,26 @@ class TradeManager:
             - current price of the asset
         """
         try:
-            return float(self.binance_future_market.mark_price(symbol = f"{self.base_symbol}{self.ccy_symbol}").get("indexPrice", 0))
+            return round(
+                float(
+                    # TODO: need to decouple the TradeManager from the self.binance_future_market
+                    self.binance_future_market.mark_price(
+                        symbol = f"{self.trade_pair.ticker}{self.trade_pair.quote}"
+                    ).get("indexPrice", 0)
+                ),
+                2,
+            )
         except Exception as e:
-            operation_logger.critical(f"{__name__} - Unknown Exception Invoked during fetching the current price: {str(e)}")
-            return None
+            operation_logger.critical(
+                f"{__name__} - Unknown Exception Invoked during fetching the current price: {str(e)}"
+            )
+            raise Exception
 
     def __get_target_prices(
         self,
-        buy_or_sell: int,
+        buy_or_sell: TradeState,
         current_price: float,
-    ) -> Tuple[float, float] | None:
+    ) -> Tuple[float, float]:
         """
         func __get_target_prices():
             - private method
@@ -595,26 +623,39 @@ class TradeManager:
 
         param self:
             - TradeManager object
-        param buy_or_sell: int
-            - 1: buy
-            - -1: sell
-            - 0: hold, nothing to do with the function.
+        param buy_or_sell: TradeState
+            - NEW_BUY (2), REVERSE_BUY (8): Long position
+            - NEW_SELL (4), REVERSE_SELL (16): Short position
         param current_price: float
             - current price of the BTC_USDT, i.e., Index Price is used.
 
-        return Tuple[float]:
-            - take profit price, stop loss price
-        return None:
-            - if the signal is not valid, then it will return None.
+        return Tuple[float, float]:
+            - (take_profit_price, stop_loss_price)
         """
-        if buy_or_sell == 1:  # Long
-            return round(current_price * (1 + (self.tp_rate / self.leverage)), 2), round(current_price * (1 - (self.sl_rate / self.leverage)), 2)
+        if buy_or_sell in (2, 8):  # Long
+            return round(
+                current_price * (1 + (self.tp_rate / self.leverage)),
+                2,
+            ), round(
+                current_price * (1 - (self.sl_rate / self.leverage)),
+                2,
+            )
         else:  # Short
-            return round(current_price * (1 - (self.tp_rate / self.leverage)), 2), round(current_price * (1 + (self.sl_rate / self.leverage)), 2)
+            return round(
+                current_price * (1 - (self.tp_rate / self.leverage)),
+                2,
+            ), round(
+                current_price * (1 + (self.sl_rate / self.leverage)),
+                2,
+            )
 
     def __get_trade_amount(
         self,
     ) -> float:
+        '''
+        obsolete function but wil be use din the future.
+        '''
+
         open_amount_response: dict = self.mexc_future_market_sdk.asset(
             currency = "USDT",
         )
@@ -655,23 +696,40 @@ class TradeManager:
             # It will check if there is a currently opened order.
             if not len(currently_holding_order):  # if it is 0 then it will make a new order.
                 # No position is currently held, so it's okay to make a trade.
-                # By default, there is one position in Binance to indicate current isolation mode and leverage with 0 margin in it.
+                # By default, there is one position in Binance to indicate current isolation mode
+                # and leverage with 0 margin in it.
                 return True
             else:
                 # A position is already open, so do not make another trade.
                 return False
         except Exception as e:
-            operation_logger.error(f"{__name__} - {self}.__decide_to_make_trade() - Error while deciding to make trade: {str(e)}")
+            operation_logger.error(
+                f"{__name__} - {self}.__decide_to_make_trade() - Error while deciding to make trade: {str(e)}"
+            )
             return False
 
-    def get_base_qty(
-        self: "TradeManager",
-        base_asset_price: float,
+    def get_ticker_qty(
+        self,
+        ticker_price: float,
+        available_quote: float,
     ) -> float | None:
+        # ! need to be moved to the broker logic.
         '''
-        - func calculate_btc_qty()
-            - calculate the quantity of base crypto:
-                - e.g., for BTC_USDT pair, the function is getting the BTC quantity, not the USDT quantity.
+        ;func calculate_btc_qty()
+            - calculate the quantity of ticker quantity: default is BTC
+                - e.g., for BTC_USDT pair, the function is getting the BTC quantity.
+
+        ;params self: class object
+            - TradeManager class instance
+
+        ;params ticker_price: float
+            - current price of the ticker.
+
+        ;params: avaialble_quote: float
+            - currently available quote.
+
+        ;return flaot | None:
+            - the amount of the ticker based on the available quote.
 
         - need two data:
             - the current BTC price in USDT.
@@ -689,25 +747,38 @@ class TradeManager:
                 - from the broker
         '''
         try:
-            margin_amt: float = self.leverage * self.trade_amount * self.get_available_usdt_amt()  # we need the current
-            return round((margin_amt) / (base_asset_price), 3)  # upto three significant digits for the BTC quantity
+            margin_amt: float = self.leverage * self.trade_amount * available_quote  # we need the current
+            return max(round((margin_amt) / (ticker_price), 3), 0.002)  # upto three significant digits for the BTC quantity
         except Exception as e:
-            operation_logger.critical(f"{__name__} - Unknown Exception for Calculating the BTC Amount: {str(e)}")
+            operation_logger.critical(
+                f"{__name__} - {self.__class__.__name__} - Unknown Exception for Calculating the BTC Amount: {str(e)}"
+            )
             return None
 
-    def get_available_usdt_amt(self: "TradeManager", ) -> float | None:
+    def get_available_quote(self) -> float | None:
+        # ! generalization: need to be moved to the broker logic.
+        '''
+        ;func get_available_quote():
+            - Calculate the quantity of the quote quantity: default is USDT.
+                - e.g., for BTC_USDT pair, the function is getting the USDT quantity.
+
+        ;params self: class object
+
+        ;params float | None:
+            - the amount of the quote
+        '''
         try:
             account_balances = self.binance_future_market.future_account_balance_v2()
 
             for balance in account_balances:
-                if (balance.get("asset") == "USDT"):
+                if (balance.get("asset") == self.trade_pair.quote):
                     return float(balance.get("availableBalance"))
             account_balances = self.binance_future_market.future_account_balance()
 
             for balance in account_balances:
-                if (balance.get("asset") == "USDT"):
+                if (balance.get("asset") == self.trade_pair.quote):
                     return balance.get("availableBalance")
 
         except Exception as e:
-            operation_logger.critical(f"{__name__} - {self.binance_future_market} invokes a problem during the user account balance fetch: {str(e)}")
+            operation_logger.critical(f"{__name__} - {self.__class__.__name__} - Unexpected Error: {str(e)}")
             return None

@@ -16,7 +16,7 @@ if str(SRC_PATH) not in sys.path:
     sys.path.insert(0, str(SRC_PATH))
 
 from logger.set_logger import operation_logger
-from mexc.future import FutureWebSocket
+from service.mexc.future import FutureWebSocket
 
 
 class TestWebSocket(FutureWebSocket):

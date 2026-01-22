@@ -24,6 +24,12 @@ SOFTWARE.
 
 import sys
 from pathlib import Path
+
+# Fix import paths - add src/ to Python path
+_src_dir = Path(__file__).resolve().parent
+sys.path.insert(0, str(_src_dir))
+
+import time
 from dotenv import load_dotenv
 
 from manager.system_manager import SystemManager
@@ -36,10 +42,11 @@ def main():
         project_root = Path(__file__).resolve().parents[1]
         load_dotenv(project_root / ".env")
 
-        main_system_manager: SystemManager = SystemManager()
-        operation_logger.info(
-            f"{main_system_manager} has been started."
-        )
+        main_system_manager: SystemManager = SystemManager()  # noqa: F841
+
+        # Start working
+        while True:
+            time.sleep(0.5)  # Sleep to reduce the cpu usage.
     except RuntimeError as e:
         operation_logger.critical(
             f"{__name__}: function main() has raised an RuntimeError: {str(e)}"

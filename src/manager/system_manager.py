@@ -18,10 +18,10 @@ from object.index import Index
 from object.signal import Signal
 
 # MEXC
-from mexc.future import FutureMarket as MexcFutureMarket, FutureWebSocket as MexcFutureWebSocket
+from service.mexc.future import FutureMarket as MexcFutureMarket, FutureWebSocket as MexcFutureWebSocket
 
 # BINANCE
-from binance.future import FutureMarket as BinanceFutureMarket
+from service.binance.future import FutureMarket as BinanceFutureMarket
 
 
 class SystemManager:
@@ -85,9 +85,13 @@ class SystemManager:
                 telegram_bot = self.telegram_bot,
             )
 
-            # Start working
-            while True:
-                time.sleep(0.5)  # Sleep to reduce the cpu usage.
+            operation_logger.info(
+                (
+                    f"{__name__} - {self.__class__.__name__} - SystemManager has been started "
+                    f"and completed all the required setup!"
+                )
+            )
+
         except KeyboardInterrupt:
             operation_logger.info("Program interrupted by user. Exiting...")
             sys.exit(0)
@@ -119,9 +123,9 @@ class SystemManager:
         self._stop.set()
         # add the stop for other compponents as well.
     """
-    ######################################################################################################################
-    #                                                Static Method                                                       #
-    ######################################################################################################################
+    ####################################################################################
+    #                                      Static Method                               #
+    ####################################################################################
     """
     def __set_up_telegram_bot(
         self: "SystemManager",
@@ -159,8 +163,8 @@ class SystemManager:
 
     @staticmethod
     def __get_mexc_future_credentials():
-        api_key = os.getenv("MEXC_API_KEY")
-        secret_key = os.getenv("MEXC_SECRET_KEY")
+        api_key = os.getenv("MEXC_HMAC_API_KEY")
+        secret_key = os.getenv("MEXC_HMAC_SECRET_KEY")
         if not api_key or not secret_key:
             raise ValueError("MEXC_API_KEY and MEXC_SECRET_KEY must be set in environment variables.")
         return api_key, secret_key
@@ -168,8 +172,8 @@ class SystemManager:
     @staticmethod
     def __get_binance_future_credentials():
         try:
-            api_key: str = os.getenv("BINANCE_API_KEY")
-            secret_key: str = os.getenv("BINANCE_SECRET_KEY")
+            api_key: str = os.getenv("BINANCE_HMAC_API_KEY")
+            secret_key: str = os.getenv("BINANCE_HMAC_SECRET_KEY")
             if not api_key or not secret_key:
                 operation_logger.critica(f"{__name__} - API_KEY and/or SECRET_KEY is None.")
                 raise ValueError
