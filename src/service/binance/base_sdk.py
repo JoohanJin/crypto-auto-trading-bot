@@ -50,7 +50,7 @@ class FutureBase(CommonBaseSDK):
         url = url if url.startswith("/") else f"/{url}"
 
         filtered_params: dict[str, str | int] = {
-            FutureBase.snake_to_camel(key): value
+            self.__class__.snake_to_camel(key): value
             for key, value in (params.items() if params else dict())
             if value is not None
         }
@@ -78,7 +78,7 @@ class FutureBase(CommonBaseSDK):
                 data = request_data,
             )
 
-            payload = FutureBase.parse_response(response)
+            payload = self.__class__.parse_response(response)
 
             if response.status_code >= 400:
                 status: int = response.status_code  # Status Code of the response.
