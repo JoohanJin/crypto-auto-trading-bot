@@ -806,7 +806,7 @@ class FutureMarket(FutureBase):
         )
 
 
-class FutureWebSocketClient(FutureWebSocket):
+class FutureWebSocketClient:
     def __init__(
         self,
         name: str,
@@ -816,8 +816,7 @@ class FutureWebSocketClient(FutureWebSocket):
         ping_interval: int | None = 20,  # as it is recommended
         default_callback: Callable | None = None,
     ) -> None:
-
-        super().__init__(
+        self.ws: FutureWebSocket = FutureWebSocket(
             url=url,
             name=name,
             api_key=api_key,
@@ -849,7 +848,7 @@ class FutureWebSocketClient(FutureWebSocket):
         - Send once a second after subscribing
         """
         topic = "tickers"
-        self.subscribe(topic = topic, callback_function = callback_function, param = {})
+        self.ws.subscribe(topic = topic, callback_function = callback_function, param = {})
         return
 
     def sub_ticker(
@@ -866,7 +865,7 @@ class FutureWebSocketClient(FutureWebSocket):
             param = dict(symbol = "BTC_USDT")
 
         topic: str = "ticker"
-        self.subscribe(topic = topic, callback_function = callback_function, param = param)
+        self.ws.subscribe(topic = topic, callback_function = callback_function, param = param)
         return
 
     def sub_transaction(
@@ -881,7 +880,7 @@ class FutureWebSocketClient(FutureWebSocket):
             param: dict[str, str] = dict(symbol = "BTC_USDT")
 
         topic = "deal"
-        self.subscribe(topic=topic, callback_function=callback_function, param=param)
+        self.ws.subscribe(topic=topic, callback_function=callback_function, param=param)
         return
 
     def sub_depth(
@@ -893,7 +892,7 @@ class FutureWebSocketClient(FutureWebSocket):
             param: dict[str, str] = dict(symbol = "BTC_USDT")
 
         topic = "depth"
-        self.subscribe(topic=topic, callback_function=callback_function, param=param)
+        self.ws.subscribe(topic=topic, callback_function=callback_function, param=param)
         return
 
     def sub_kline(
@@ -930,7 +929,7 @@ class FutureWebSocketClient(FutureWebSocket):
         """
         param = dict(symbol = symbol, interval = interval)
         topic = "kline"
-        self.subscribe(topic = topic, callback_function = callback_function, param = param)
+        self.ws.subscribe(topic = topic, callback_function = callback_function, param = param)
         return
 
     def sub_funding_rate(
@@ -945,7 +944,7 @@ class FutureWebSocketClient(FutureWebSocket):
             param: dict[str, str] = dict(symbol = "BTC_USDT")
 
         topic: str = "funding.rate"
-        self.subscribe(topic = topic, callback_function = callback_function, param = param)
+        self.ws.subscribe(topic = topic, callback_function = callback_function, param = param)
         return
 
     def sub_index_price(
@@ -960,7 +959,7 @@ class FutureWebSocketClient(FutureWebSocket):
             param: dict[str, str] = dict(symbol = "BTC_USDT")
 
         topic = "index.price"
-        self.subscribe(
+        self.ws.subscribe(
             topic = topic,
             callback_function = callback_function,
             param = param,
@@ -979,7 +978,7 @@ class FutureWebSocketClient(FutureWebSocket):
             param: dict[str, str] = dict(symbol = "BTC_USDT")
 
         topic = "fair_price"
-        self.subscribe(
+        self.ws.subscribe(
             topic = topic,
             callback_function = callback_function,
             param = param,
@@ -1013,7 +1012,7 @@ class FutureWebSocketClient(FutureWebSocket):
             param: dict[str, str] = dict(symbol = "BTC_USDT")
 
         topic = "personal.order"
-        self.subscribe(
+        self.ws.subscribe(
             topic=topic,
             callback_function=callback_function,
             param=param,
@@ -1041,7 +1040,7 @@ class FutureWebSocketClient(FutureWebSocket):
             param: dict[str, str] = dict()
 
         topic = "personal.asset"
-        self.subscribe(
+        self.ws.subscribe(
             topic = topic,
             callback_function = callback_function,
             param = param,
