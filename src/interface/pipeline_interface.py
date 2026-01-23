@@ -12,8 +12,7 @@ class PipelineController(Generic[T]):
     - based on the principle of Depeency Inversion Principle.
     - Therefore, even when there are some changes on the data pipeline, we do not need to change the code for each class.
     '''
-    @staticmethod
-    def generate_timestamp() -> int:
+    def generate_timestamp(self) -> int:
         return int(time.time() * 1000)
 
     def __init__(
@@ -77,7 +76,7 @@ class PipelineController(Generic[T]):
         timestamp: int,
         time_window: int = 5_000,
     ) -> bool:
-        return ((PipelineController.generate_timestamp() - timestamp) < time_window)
+        return ((self.generate_timestamp() - timestamp) < time_window)
 
 
 # Testing Code
