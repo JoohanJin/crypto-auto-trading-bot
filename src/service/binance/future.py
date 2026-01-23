@@ -808,7 +808,7 @@ class FutureMarket(FutureBase):
             self_trade_prevention_mode = self_trade_prevention_mode,
             good_till_date = good_till_date,
             recv_window = recv_window,
-            timestamp = FutureMarket.generate_timestmap(),
+            timestamp = self.generate_timestamp(),
         )
 
         return self.call(
@@ -881,7 +881,7 @@ class FutureMarket(FutureBase):
 
         params: dict[str, int | str] = {
             "symbol": symbol,
-            "timestamp": timestamp if timestamp is not None else FutureMarket.generate_timestmap(),
+            "timestamp": timestamp if timestamp is not None else self.generate_timestamp(),
         }
 
         if order_id is not None:
@@ -914,7 +914,7 @@ class FutureMarket(FutureBase):
         params: dict[str, int] = dict(
             symbol = symbol,
             recv_window = recv_window,
-            timestamp = FutureMarket.generate_timestmap(),
+            timestamp = self.generate_timestamp(),
         )
 
         return self.call(
@@ -996,7 +996,7 @@ class FutureMarket(FutureBase):
     ) -> dict | None:
         params: dict[str, int] = dict(
             recvWindow = recv_window,
-            timestamp = FutureMarket.generate_timestmap(),
+            timestamp = self.generate_timestamp(),
             asset = asset,
         )
 
@@ -1013,7 +1013,7 @@ class FutureMarket(FutureBase):
     ) -> dict | None:
         params: dict[str, int] = dict(
             recvWindow = recv_window,
-            timestamp = FutureMarket.generate_timestmap(),
+            timestamp = self.generate_timestamp(),
         )
 
         return self.call(
@@ -1029,7 +1029,7 @@ class FutureMarket(FutureBase):
     ) -> dict | None:
         params: dict[str, int] = dict(
             recvWindow = recv_window,
-            timestamp = FutureMarket.generate_timestmap(),
+            timestamp = self.generate_timestamp(),
         )
 
         return self.call(
@@ -1047,7 +1047,7 @@ class FutureMarket(FutureBase):
         params: dict[str, int | float] = dict(
             symbol = symbol,
             recv_window = recv_window,
-            timestamp = FutureMarket.generate_timestmap(),
+            timestamp = self.generate_timestamp(),
         )
 
         return self.call(
@@ -1066,7 +1066,7 @@ class FutureMarket(FutureBase):
         params: dict[str, int | float] = dict(
             symbol = symbol,
             recv_window = recv_window,
-            timestamp = FutureMarket.generate_timestmap()
+            timestamp = self.generate_timestamp()
         )
 
         return self.call(
@@ -1084,7 +1084,7 @@ class FutureMarket(FutureBase):
         params: dict[str, int | float] = dict(
             symbol = symbol,
             recv_window = recv_window,
-            timestamp = FutureBase.generate_timestmap(),
+            timestamp = self.generate_timestamp(),
         )
 
         return self.call(
