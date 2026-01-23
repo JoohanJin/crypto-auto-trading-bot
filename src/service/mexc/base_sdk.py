@@ -83,7 +83,7 @@ class FutureBase(CommonBaseSDK):
                 data = data if data is None else json.dumps(data),
             )
 
-            payload = FutureBase.parse_response(response)
+            payload = self.__class__.parse_response(response)
 
             if response.status_code >= 400:
                 status: int = response.status_code
