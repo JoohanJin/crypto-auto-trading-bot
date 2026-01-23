@@ -1095,10 +1095,6 @@ class FutureMarket(FutureBase):
 
 
 class FutureWebSocketClient:
-    """
-    WebSocket endpoints for Binance Futures API.
-    """
-
     def __init__(
         self,
         api_key: str,  # Necessary
