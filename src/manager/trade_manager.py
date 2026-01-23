@@ -33,22 +33,20 @@ class TradeManager:
     #                                               Static Method                                                      #
     ####################################################################################################################
     """
-    @staticmethod
-    def generate_timestamp() -> int:
+    def generate_timestamp(self) -> int:
         """
-        func generate_timestamp(): staticmethod
+        func generate_timestamp():
             - return the timestamp based on the current time in ms
         """
         return int(time.time() * 1_000)
 
-    @staticmethod
     def verify_signal(
+        self,
         signal_data: Signal,
         timestamp_window: int = 5_000,
     ) -> bool:
         """
-        func __verify_signal():
-            - private method
+        func verify_signal():
             - verify the signal based on the timestamp.
 
         param self: TradeManager object
@@ -63,7 +61,7 @@ class TradeManager:
         return bool:
             - True if the signal is valid, otherwise False
         """
-        return (TradeManager.generate_timestamp() - signal_data.timestamp) < timestamp_window
+        return (self.generate_timestamp() - signal_data.timestamp) < timestamp_window
 
     """
     ####################################################################################################################
@@ -520,11 +518,11 @@ class TradeManager:
                         self.trade_score += self.__calculate_signal_score_delta(
                             signal_data = signal,
                         )
-                        if (TradeManager.generate_timestamp() - curr_timestamp > 300_000):
+                        if (self.generate_timestamp() - curr_timestamp > 300_000):
                             operation_logger.info(
                                 f"{__name__} - The current score is {self.trade_score}"
                             )
-                            curr_timestamp = TradeManager.generate_timestamp()
+                            curr_timestamp = self.generate_timestamp()
                         # print(f"now the score is {self.trade_score}")
             except Exception as e:
                 operation_logger.error(
@@ -550,7 +548,7 @@ class TradeManager:
             - if the signal is not valid, then it will return None.
         """
         signal_data: Signal = self.signal_pipeline_controller.pop()
-        return signal_data.signal if TradeManager.verify_signal(
+        return signal_data.signal if self.verify_signal(
             signal_data = signal_data,
             timestamp_window = timestamp_window
         ) else None
