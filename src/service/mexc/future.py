@@ -5,6 +5,8 @@ Documentation: https://mexcdevelop.github.io/apidocs/contract_v1_en
 
 from typing import Literal, Union, Callable
 
+from logger.set_logger import operation_logger
+
 from service.mexc.base_sdk import FutureBase
 from service.mexc.websocket_base import FutureWebSocket
 
@@ -824,6 +826,20 @@ class FutureWebSocketClient:
             ping_interval=ping_interval,
             default_callback=default_callback,
         )
+        return
+
+    def start(self) -> None:
+        try:
+            self.ws.start()
+            operation_logger.info(
+                f"{__name__} - {self.__class__.__name__} - Successfully started"
+                f"{self.name if hasattr(self, 'name') else 'MEXC_FUTURE_WEBSOCKET_CLIENT'} "
+            )
+        except Exception as e:
+            operation_logger.info(
+                f"{__name__} - {self.__class__.__name__} - Unexpected Error while starting "
+                f"{self.name if hasattr(self, 'name') else 'MEXC_FUTURE_WEBSOCKET_CLIENT'}: {str(e)}"
+            )
         return
 
     """
