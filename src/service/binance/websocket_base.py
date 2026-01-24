@@ -232,13 +232,13 @@ class UserWebSocketClient(BasicWebSocketClient):
                     f"{__name__} - {self.__class__.__name__} - {self.name} - "
                     f"{thread.name} has been started successfully."
                 )
+                time.sleep(1.0)
             except Exception as e:
                 operation_logger.critical(
                     f"{__name__} - {self.__class__.__name__} - {self.name}- "
                     f"{thread.name} has not been started successfully: {str(e)}"
                 )
                 raise
-            time.sleep(0.5)
         return
 
     def _clean_up_connections(self) -> None:
@@ -254,7 +254,7 @@ class UserWebSocketClient(BasicWebSocketClient):
             else:
                 operation_logger.critical(
                     f"{__name__} - {self.__class__.__name__} - {self.name} - "
-                    f"WebSocket already closed."
+                    f"No need to close the WebSocket since the WebSocket already closed."
                 )
         except Exception as e:
             operation_logger.critical(
@@ -264,7 +264,6 @@ class UserWebSocketClient(BasicWebSocketClient):
 
         self.threads.clear()
         self._thread_stop.clear()
-        self.ws = None
         return
 
     def _handle_reconnect(
@@ -274,29 +273,38 @@ class UserWebSocketClient(BasicWebSocketClient):
         # Give the old websocket_connection thread time to fully exit
         time.sleep(0.5)
 
-        while True:
+        while not self._is_connected():
             if self._intentional_close.is_set():
                 operation_logger.info(
-                    f"{__name__} - {self.__class__.__name__} - Binance User WebSocket - "
+                    f"{__name__} - {self.__class__.__name__} - {self.name} - "
                     f"Intentional close detected during reconnect, aborting."
                 )
                 return
 
             try:
                 operation_logger.info(
-                    f"{__name__} - {self.__class__.__name__} - Binance User WebSocket - Attempting reconnection..."
+                    f"{__name__} - {self.__class__.__name__} - {self.name} - Attempting reconnection..."
                 )
 
                 self._reconnect()
 
+                # Wait for connection to be ready
+                if self._connection_ready.wait(timeout=10.0):
+                    self._resubscribe()
+                    operation_logger.info(
+                        f"{__name__} - {self.__class__.__name__} - {self.name} - "
+                        f"Reconnection completed successfully."
+                    )
+                    return
+
             except Exception as e:
                 operation_logger.warning(
-                    f"{__name__} - {self.__class__.__name__} - Binance WebSocket - Reconnection attempt failed: {str(e)}"
+                    f"{__name__} - {self.__class__.__name__} - {self.name} - Reconnection attempt failed: {str(e)}"
                 )
 
             # Wait before next attempt
             operation_logger.info(
-                f"{__name__} - {self.__class__.__name__} - Binance WebSocket - "
+                f"{__name__} - {self.__class__.__name__} - {self.name} - "
                 f"Waiting {retry_delay}s before next reconnect attempt..."
             )
             time.sleep(retry_delay)
@@ -423,7 +431,7 @@ class UserWebSocketClient(BasicWebSocketClient):
         close_msg: str,
     ) -> None:
         operation_logger.warning(
-            f"{__name__} - {self.__class__.__name__} - Binance WebSocket has been closed with {status_code}: {close_msg}"
+            f"{__name__} - {self.__class__.__name__} - {self.name} has been closed with {status_code}: {close_msg}"
         )
 
         if self._intentional_close.is_set():
@@ -501,7 +509,7 @@ class MarketWebSocketClient(BasicWebSocketClient):
     Stream format: "symbol@streamType" e.g., "btcusdt@ticker", "ethusdt@depth"
     """
     def __repr__(self):
-        return f"Binance_MarketWebSocketClient: {self.name}"
+        return f"BINANCE_{self.__class__.__name__}: {self.name}"
 
     def __init__(
         self,
@@ -603,13 +611,13 @@ class MarketWebSocketClient(BasicWebSocketClient):
                     f"{__name__} - {self.__class__.__name__} - {self.name} - "
                     f"{thread.name} has been started successfully."
                 )
+                time.sleep(1.0)
             except Exception as e:
                 operation_logger.critical(
                     f"{__name__} - {self.__class__.__name__} - {self.name} - "
                     f"{thread.name} has not been started successfully: {str(e)}"
                 )
                 raise
-            time.sleep(0.5)
         return
 
     def _clean_up_connections(self) -> None:
@@ -626,7 +634,7 @@ class MarketWebSocketClient(BasicWebSocketClient):
             else:
                 operation_logger.info(
                     f"{__name__} - {self.__class__.__name__} - {self.name} - "
-                    f"WebSocket already closed."
+                    f"No need to close the WebSocket since the WebSocket already closed."
                 )
         except Exception as e:
             operation_logger.critical(
@@ -636,7 +644,6 @@ class MarketWebSocketClient(BasicWebSocketClient):
 
         self.threads.clear()
         self._thread_stop.clear()
-        self.ws = None
         return
 
     '''
