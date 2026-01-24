@@ -10,7 +10,7 @@ from service.binance.websocket_base import (
     MarketWebSocketClient,
     UserWebSocketClient,
 )
-from service.sdk.websocket_sdk import BasicWebSocketClient
+from service.sdk.websocket_sdk import BasicWebSocketClient, WebSocketClient
 
 
 class FutureMarket(FutureBase):
@@ -1094,7 +1094,7 @@ class FutureMarket(FutureBase):
         )
 
 
-class FutureWebSocketClient:
+class FutureWebSocketClient(WebSocketClient):
     def __init__(
         self,
         api_key: str,  # Necessary
@@ -1156,6 +1156,11 @@ class FutureWebSocketClient:
         self._authenticate()
         return
 
+    '''
+    ####################################################################################
+    #                              Stream Subscription                                 #
+    ####################################################################################
+    '''
     def account_position(
         self,
         callback: Callable,
@@ -1187,48 +1192,48 @@ class FutureWebSocketClient:
         self._market_subscribe(stream, push_topic, callback)
         return
 
-    def mark_price(
-        self,
-        callback: Callable,
-        symbol: str = "btcusdt",
-        req_topic: str = "markPrice",
-        params: str = "1s",  # TODO: need to do the research.
-        push_topic: str = "markPriceUpdate",
-    ) -> None:
-        '''
-        ;func mark_price
-            - Mark Price Stream
+    # def mark_price(
+    #     self,
+    #     callback: Callable,
+    #     symbol: str = "btcusdt",
+    #     req_topic: str = "markPrice",
+    #     params: str = "1s",  # TODO: need to do the research.
+    #     push_topic: str = "markPriceUpdate",
+    # ) -> None:
+    #     '''
+    #     ;func mark_price
+    #         - Mark Price Stream
 
-        - Request Topic: markPrice
-        - Push Topic: markPriceUpdate
-        - Stream e.g.: btcusdt@markPrice@1s or btcusdt@markPrice@3s (btcusdt@markPrice)
-        '''
-        symbol = symbol.lower()  # BTCUSDT -> btcusdt
-        stream: str = f"{symbol}@{req_topic}@{params}" if params is not None else f"{symbol}@{req_topic}"
-        self._market_subscribe(stream, push_topic, callback)
-        return
+    #     - Request Topic: markPrice
+    #     - Push Topic: markPriceUpdate
+    #     - Stream e.g.: btcusdt@markPrice@1s or btcusdt@markPrice@3s (btcusdt@markPrice)
+    #     '''
+    #     symbol = symbol.lower()  # BTCUSDT -> btcusdt
+    #     stream: str = f"{symbol}@{req_topic}@{params}" if params is not None else f"{symbol}@{req_topic}"
+    #     self._market_subscribe(stream, push_topic, callback)
+    #     return
 
-    def miniTicker(
-        self,
-        callback: Callable,
-        symbol: str = "btcusdt",
-        req_topic: str = "miniTicker",
-        push_topic: str = "24hrMiniTicker"
-    ) -> None:
-        '''
-        ;func miniTicker
-            - individual symbol mini ticker stream
+    # def mini_ticker(
+    #     self,
+    #     callback: Callable,
+    #     symbol: str = "btcusdt",
+    #     req_topic: str = "miniTicker",
+    #     push_topic: str = "24hrMiniTicker"
+    # ) -> None:
+    #     '''
+    #     ;func miniTicker
+    #         - individual symbol mini ticker stream
 
-        - Request Topic: miniTicker
-        - Push Topic: 24hrMiniTicker
-        - Stream e.g.: btcusdt@miniTicker
-        '''
-        symbol = symbol.lower()
-        stream: str = f"{symbol}@{req_topic}"
-        self._market_subscribe(stream, push_topic, callback)
-        return
+    #     - Request Topic: miniTicker
+    #     - Push Topic: 24hrMiniTicker
+    #     - Stream e.g.: btcusdt@miniTicker
+    #     '''
+    #     symbol = symbol.lower()
+    #     stream: str = f"{symbol}@{req_topic}"
+    #     self._market_subscribe(stream, push_topic, callback)
+    #     return
 
-    def continuous_kline(
+    def kline(
         self,
         callback: Callable,
         symbol: str = "btcusdt",
@@ -1260,7 +1265,7 @@ class FutureWebSocketClient:
         push_topic: str = "continuous_kline",
     ) -> None:
         '''
-        ;func continuous_kline
+        ;func kline
             - Continuous Contract Kline Candlestick
 
         - Request Topic: continuousKline
@@ -1292,7 +1297,7 @@ class FutureWebSocketClient:
         self._market_subscribe(stream, push_topic, callback)
         return
 
-    def book_ticker(
+    def depth(
         self,
         callback: Callable,
         symbol: str = "btcusdt",
@@ -1300,7 +1305,7 @@ class FutureWebSocketClient:
         push_topic: str = "bookTicker",
     ) -> None:
         '''
-        ;func book_ticker
+        ;func depth()
         - <symbol>@bookTicker
         '''
         symbol = symbol.lower()
