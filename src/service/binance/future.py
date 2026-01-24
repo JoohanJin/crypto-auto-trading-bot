@@ -1145,12 +1145,12 @@ class FutureWebSocketClient:
                 ws.start()
                 operation_logger.info(
                     f"{__name__} - {self.__class__.__name__} - {self.name} - Successfully started "
-                    f"{ws.name if hasattr(ws, 'name') else f'BINANCE_{key}_WEBSOCKET_CLIENT'}."
+                    f"{ws.name if hasattr(ws, 'name') else f'BINANCE_{key.upper()}_WEBSOCKET_CLIENT'}."
                 )
             except Exception as e:
                 operation_logger.critical(
                     f"{__name__} - {self.__class__.__name__} - {self.name} - Unexpected Error while starting "
-                    f"{ws.name if hasattr(ws, 'name') else f'BINANCE_{key}_WEBSOCKET_CLIENT'}: {str(e)}"
+                    f"{ws.name if hasattr(ws, 'name') else f'BINANCE_{key.upper()}_WEBSOCKET_CLIENT'}: {str(e)}"
                 )
 
         self._authenticate()
