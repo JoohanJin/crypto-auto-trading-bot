@@ -832,7 +832,7 @@ class FutureWebSocketClient:
         try:
             self.ws.start()
             operation_logger.info(
-                f"{__name__} - {self.__class__.__name__} - Successfully started"
+                f"{__name__} - {self.__class__.__name__} - Successfully started "
                 f"{self.name if hasattr(self, 'name') else 'MEXC_FUTURE_WEBSOCKET_CLIENT'} "
             )
         except Exception as e:
@@ -884,7 +884,7 @@ class FutureWebSocketClient:
         self.ws.subscribe(topic = topic, callback_function = callback_function, param = param)
         return
 
-    def sub_transaction(
+    def sub_deal(
         self,
         callback_function: Callable,
         param: dict | None = None,
@@ -993,7 +993,7 @@ class FutureWebSocketClient:
         if param is None:
             param: dict[str, str] = dict(symbol = "BTC_USDT")
 
-        topic = "fair_price"
+        topic = "fair.price"
         self.ws.subscribe(
             topic = topic,
             callback_function = callback_function,
