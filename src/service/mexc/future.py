@@ -9,13 +9,14 @@ from logger.set_logger import operation_logger
 
 from service.mexc.base_sdk import FutureBase
 from service.mexc.websocket_base import FutureWebSocket
+from service.sdk.websocket_sdk import WebSocketClient
 
 
 class FutureMarket(FutureBase):
     """
-    ######################################################################################################################
-    #                                                    Public Endpoint                                                 #
-    ######################################################################################################################
+    ####################################################################################
+    Public Endpoint
+    ####################################################################################
     """
 
     def ping(
@@ -808,7 +809,7 @@ class FutureMarket(FutureBase):
         )
 
 
-class FutureWebSocketClient:
+class FutureWebSocketClient(WebSocketClient):
     def __init__(
         self,
         name: str,
@@ -854,7 +855,7 @@ class FutureWebSocketClient:
         - Fair Price
     """
 
-    def sub_tickers(
+    def tickers(
         self,
         callback_function: Callable,
     ) -> None:
@@ -867,7 +868,7 @@ class FutureWebSocketClient:
         self.ws.subscribe(topic = topic, callback_function = callback_function, param = {})
         return
 
-    def sub_ticker(
+    def ticker(
         self,
         callback_function: Callable,
         param: dict | None = None,
@@ -884,7 +885,7 @@ class FutureWebSocketClient:
         self.ws.subscribe(topic = topic, callback_function = callback_function, param = param)
         return
 
-    def sub_deal(
+    def deal(
         self,
         callback_function: Callable,
         param: dict | None = None,
@@ -899,7 +900,7 @@ class FutureWebSocketClient:
         self.ws.subscribe(topic=topic, callback_function=callback_function, param=param)
         return
 
-    def sub_depth(
+    def depth(
         self,
         callback_function: Callable,
         param: dict | None = None,
@@ -911,7 +912,7 @@ class FutureWebSocketClient:
         self.ws.subscribe(topic=topic, callback_function=callback_function, param=param)
         return
 
-    def sub_kline(
+    def kline(
         self,
         callback_function: Callable,
         symbol: str | None = "BTC_USDT",
@@ -948,7 +949,7 @@ class FutureWebSocketClient:
         self.ws.subscribe(topic = topic, callback_function = callback_function, param = param)
         return
 
-    def sub_funding_rate(
+    def funding_rate(
         self,
         callback_function: Callable,
         param: dict | None = None,
@@ -963,7 +964,7 @@ class FutureWebSocketClient:
         self.ws.subscribe(topic = topic, callback_function = callback_function, param = param)
         return
 
-    def sub_index_price(
+    def index_price(
         self,
         callback_function: Callable,
         param: dict | None = None,
@@ -982,7 +983,7 @@ class FutureWebSocketClient:
         )
         return
 
-    def sub_fair_price(
+    def fair_price(
         self,
         callback_function: Callable,
         param: dict | None = None,
@@ -1002,7 +1003,7 @@ class FutureWebSocketClient:
         return
 
     """
-    #########################################################################################################################################################
+    ####################################################################################
     - Private Endpoint
         - Order
         - Asset
@@ -1010,10 +1011,10 @@ class FutureWebSocketClient:
         - Risk Limitation
         - Adl automatic reduction of position level
         - Position Mode
-    #########################################################################################################################################################
+    ####################################################################################
     """
 
-    def sub_order(
+    def order(
         self,
         callback_function: Callable,
         param: dict | None = None,
@@ -1035,7 +1036,7 @@ class FutureWebSocketClient:
         )
         return
 
-    def sub_asset(
+    def asset(
         self,
         callback_function: Callable,
         param: dict | None = dict()
@@ -1063,7 +1064,7 @@ class FutureWebSocketClient:
         )
         return None
 
-    def sub_position(
+    def position(
         self,
         callback_function: Callable,
         param: dict | None = None,
@@ -1072,7 +1073,7 @@ class FutureWebSocketClient:
         raise NotImplementedError
         return
 
-    def sub_risk_limitation(
+    def risk_limitation(
         self,
         callback_function: Callable,
         param: dict | None = dict()
@@ -1081,7 +1082,7 @@ class FutureWebSocketClient:
         raise NotImplementedError
         return
 
-    def sub_adl(
+    def adl(
         self,
         callback_function: Callable,
         param: dict | None = dict()
@@ -1090,7 +1091,7 @@ class FutureWebSocketClient:
         raise NotImplementedError
         return
 
-    def sub_position_mode(
+    def position_mode(
         self,
         callback_function: Callable,
         param: dict | None = dict()
