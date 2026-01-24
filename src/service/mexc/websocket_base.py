@@ -344,12 +344,12 @@ class FutureWebSocket(BasicWebSocketClient):
                     # ! WebSocketApp.send() requires str or bytes -> needs to dump it using json, i.e., json.dump(dict)
                     self.send(hb_payload)
                     operation_logger.info(
-                        f"{__name__} - {self.__class__.__name__} - Successfully sent a ping message to {self.ws.url}"
+                        f"{__name__} - {self.__class__.__name__} - {self.name} - Successfully sent a ping message to {self.ws.url}"
                     )
                     prev_timestamp = self.generate_timestamp()
                 except Exception as e:
                     operation_logger.warning(
-                        f"{__name__} - {self.__class__.__name__} - Failed to send ping message: {str(e)}"
+                        f"{__name__} - {self.__class__.__name__} - {self.name} - Failed to send ping message: {str(e)}"
                     )
             else:
                 continue
