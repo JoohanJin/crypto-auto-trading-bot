@@ -177,6 +177,8 @@ class WebSocketClient(ABC):
     def ticker(self) -> None:
         '''
         ;func ticker
+            - getting the latest price, best bids and asks for the given contract
+            - real time baseis
         '''
         return
 
