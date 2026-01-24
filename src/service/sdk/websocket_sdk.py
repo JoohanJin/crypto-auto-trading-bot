@@ -156,3 +156,54 @@ class BasicWebSocketClient(ABC):
         error: Exception,
     ) -> None:
         return
+
+
+class WebSocketClient(ABC):
+    '''
+    ;class WebSocketClient
+        - Base Class for WebSocket Client for each broker
+        - It defines the contract "each WebSocket for Crypto Broker should have"
+    '''
+    def __init__(self) -> None:
+        self.ws: BasicWebSocketClient
+        return
+
+    '''
+    ####################################################################################
+    #                                 Market Stream                                      #
+    ####################################################################################
+    '''
+    @abstractmethod
+    def ticker(self) -> None:
+        '''
+        ;func ticker
+        '''
+        return
+
+    @abstractmethod
+    def kline(self) -> None:
+        return
+
+    @abstractmethod
+    def depth(self) -> None:
+        '''
+        ;func depth()
+            - return the depth of the market, i.e., Order Book Depth
+            - The entire collection of Bids and Asks for the given contract, organized by price.
+
+        ;The market's ability to sustain relatively large market orders without impacting the price of the security.
+        ;The list of all pending limit orders waiting to be executed.
+        '''
+        return
+
+    '''
+    ####################################################################################
+    #                                 User Stream                                      #
+    ####################################################################################
+    '''
+
+    '''
+    ####################################################################################
+    #                                    Trade                                         #
+    ####################################################################################
+    '''
