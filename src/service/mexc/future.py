@@ -10,6 +10,7 @@ from logger.set_logger import operation_logger
 from service.mexc.base_sdk import FutureBase
 from service.mexc.websocket_base import FutureWebSocket
 from service.sdk.websocket_sdk import WebSocketClient
+from object.trade import TradePair
 
 
 class FutureMarket(FutureBase):
@@ -843,6 +844,28 @@ class FutureWebSocketClient(WebSocketClient):
             )
         return
 
+    def _parse_trade_pair(
+        self,
+        trade_pair: TradePair,
+    ) -> str:
+        if isinstance(trade_pair, TradePair):
+            return f"{trade_pair.ticker.upper()}_{trade_pair.quote.upper()}"
+        raise TypeError(
+            f"{__name__} - {self.__class__.__name__} - {self.name}._parse_trade_pair() - TradePair should be passed"
+        )
+        return
+
+    def _generate_param(
+        self,
+        trade_pair: TradePair | None = None,
+        param: dict = None,
+    ) -> dict:
+        symbol: str = "BTC_USDT" if trade_pair is None else self._parse_trade_pair(trade_pair)
+        if (param is None):
+            res = dict()
+        res[symbol] = symbol
+        return res
+
     """
     - Public Endpoint
         - Tickers
@@ -854,7 +877,6 @@ class FutureWebSocketClient(WebSocketClient):
         - Index Price
         - Fair Price
     """
-
     def tickers(
         self,
         callback_function: Callable,
@@ -868,9 +890,11 @@ class FutureWebSocketClient(WebSocketClient):
         self.ws.subscribe(topic = topic, callback_function = callback_function, param = {})
         return
 
+    # Essential Function
     def ticker(
         self,
         callback_function: Callable,
+        trade_pair: TradePair | None = None,
         param: dict | None = None,
     ) -> None:
         """
@@ -878,44 +902,59 @@ class FutureWebSocketClient(WebSocketClient):
         - of a contract, send the transaction data without users' login.
         - Send once a second after subscription.
         """
-        if (param is None):
-            param = dict(symbol = "BTC_USDT")
 
         topic: str = "ticker"
-        self.ws.subscribe(topic = topic, callback_function = callback_function, param = param)
+        self.ws.subscribe(
+            topic = topic,
+            callback_function = callback_function,
+            param = self._generate_param(
+                trade_pair=trade_pair,
+                param=param,
+            ),
+        )
         return
 
     def deal(
         self,
         callback_function: Callable,
+        trade_pair: TradePair | None = None,
         param: dict | None = None,
     ) -> None:
         """
         - Access to the latest data without login, and keep updating
         """
-        if (param is None):
-            param: dict[str, str] = dict(symbol = "BTC_USDT")
-
         topic = "deal"
-        self.ws.subscribe(topic=topic, callback_function=callback_function, param=param)
+        self.ws.subscribe(
+            topic=topic,
+            callback_function=callback_function,
+            param=self._generate_param(
+                trade_pair=trade_pair,
+                param=param,
+            ),
+        )
         return
 
     def depth(
         self,
         callback_function: Callable,
+        trade_pair: TradePair | None = None,
         param: dict | None = None,
     ):
-        if param is None:
-            param: dict[str, str] = dict(symbol = "BTC_USDT")
-
         topic = "depth"
-        self.ws.subscribe(topic=topic, callback_function=callback_function, param=param)
+        self.ws.subscribe(
+            topic=topic,
+            callback_function=callback_function,
+            param=self._generate_param(
+                trade_pair=trade_pair,
+                param=param,
+            ),
+        )
         return
 
     def kline(
         self,
         callback_function: Callable,
-        symbol: str | None = "BTC_USDT",
+        trade_pair: TradePair | None = None,
         interval: Union[
             Literal["Min1"],
             Literal["Min5"],
@@ -927,7 +966,7 @@ class FutureWebSocketClient(WebSocketClient):
             Literal["Day1"],
             Literal["Week1"],
             Literal["Month1"],
-        ] | None = "Min15",
+        ] | None = "Min1",
     ):
         """
         - Get the k-line data of the contract and keep updating.
@@ -944,61 +983,69 @@ class FutureWebSocketClient(WebSocketClient):
             - Week1
             - Month1
         """
-        param = dict(symbol = symbol, interval = interval)
+        symbol: str = "BTC_USDT" if trade_pair is None else self._parse_trade_pair(trade_pair)
+        param = dict(symbol=symbol, interval=interval)
         topic = "kline"
-        self.ws.subscribe(topic = topic, callback_function = callback_function, param = param)
+        self.ws.subscribe(topic=topic, callback_function=callback_function, param=param)
         return
 
     def funding_rate(
         self,
         callback_function: Callable,
+        trade_pair: TradePair | None = None,
         param: dict | None = None,
     ) -> None:
         """
         - Get the contract funding rate and keep updating
         """
-        if param is None:
-            param: dict[str, str] = dict(symbol = "BTC_USDT")
-
         topic: str = "funding.rate"
-        self.ws.subscribe(topic = topic, callback_function = callback_function, param = param)
+        self.ws.subscribe(
+            topic=topic,
+            callback_function=callback_function,
+            param=self._generate_param(
+                trade_pair=trade_pair,
+                param=param,
+            ),
+        )
         return
 
     def index_price(
         self,
         callback_function: Callable,
+        trade_pair: TradePair | None = None,
         param: dict | None = None,
     ) -> None:
         """
         - Get the index price and will keep updating if there is any changes
         """
-        if param is None:
-            param: dict[str, str] = dict(symbol = "BTC_USDT")
-
         topic = "index.price"
         self.ws.subscribe(
-            topic = topic,
-            callback_function = callback_function,
-            param = param,
+            topic=topic,
+            callback_function=callback_function,
+            param=self._generate_param(
+                trade_pair=trade_pair,
+                param=param,
+            ),
         )
         return
 
     def fair_price(
         self,
         callback_function: Callable,
+        trade_pair: TradePair | None = None,
         param: dict | None = None,
     ) -> None:
         """
         - Get the fair price and will keep updating if there is any changes
         """
-        if param is None:
-            param: dict[str, str] = dict(symbol = "BTC_USDT")
-
         topic = "fair.price"
         self.ws.subscribe(
-            topic = topic,
-            callback_function = callback_function,
-            param = param,
+            topic=topic,
+            callback_function=callback_function,
+            param = self._generate_param(
+                trade_pair=trade_pair,
+                param=param,
+            ),
         )
         return
 
@@ -1017,6 +1064,7 @@ class FutureWebSocketClient(WebSocketClient):
     def order(
         self,
         callback_function: Callable,
+        trade_pair: TradePair | None = None,
         param: dict | None = None,
     ) -> None:
         """
@@ -1025,21 +1073,21 @@ class FutureWebSocketClient(WebSocketClient):
             - tmeporarily closed
             # TODO: keep checking the upload log of MEXC API and testing
         """
-        if param is None:
-            param: dict[str, str] = dict(symbol = "BTC_USDT")
-
         topic = "personal.order"
         self.ws.subscribe(
             topic=topic,
             callback_function=callback_function,
-            param=param,
+            param=self._generate_param(
+                trade_pair=trade_pair,
+                param=param,
+            ),
         )
         return
 
     def asset(
         self,
         callback_function: Callable,
-        param: dict | None = dict()
+        param: dict | None = None,
     ) -> None:
         """
         func asset:
@@ -1058,9 +1106,9 @@ class FutureWebSocketClient(WebSocketClient):
 
         topic = "personal.asset"
         self.ws.subscribe(
-            topic = topic,
-            callback_function = callback_function,
-            param = param,
+            topic=topic,
+            callback_function=callback_function,
+            param=param,
         )
         return None
 
