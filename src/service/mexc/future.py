@@ -850,17 +850,14 @@ class FutureWebSocketClient(WebSocketClient):
     ) -> str:
         if isinstance(trade_pair, TradePair):
             return f"{trade_pair.ticker.upper()}_{trade_pair.quote.upper()}"
-        raise TypeError(
-            f"{__name__} - {self.__class__.__name__} - {self.name}._parse_trade_pair() - TradePair should be passed"
-        )
-        return
+        return "BTC_USDT"
 
     def _generate_param(
         self,
         trade_pair: TradePair | None = None,
         param: dict = None,
     ) -> dict:
-        symbol: str = "BTC_USDT" if trade_pair is None else self._parse_trade_pair(trade_pair)
+        symbol: str = self._parse_trade_pair(trade_pair)
         if (param is None):
             res = dict()
         res[symbol] = symbol
@@ -983,7 +980,7 @@ class FutureWebSocketClient(WebSocketClient):
             - Week1
             - Month1
         """
-        symbol: str = "BTC_USDT" if trade_pair is None else self._parse_trade_pair(trade_pair)
+        symbol: str = self._parse_trade_pair(trade_pair)
         param = dict(symbol=symbol, interval=interval)
         topic = "kline"
         self.ws.subscribe(topic=topic, callback_function=callback_function, param=param)
