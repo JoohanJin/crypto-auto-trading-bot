@@ -5,6 +5,7 @@ import threading
 import websocket
 
 from logger.set_logger import operation_logger
+from src.object.trade import TradePair
 
 
 class BasicWebSocketClient(ABC):
@@ -164,14 +165,23 @@ class WebSocketClient(ABC):
         - Base Class for WebSocket Client for each broker
         - It defines the contract "each WebSocket for Crypto Broker should have"
     '''
-    def __init__(self) -> None:
-        self.ws: BasicWebSocketClient
+    @abstractmethod
+    def _parse_trade_pair(self, trade_pair: TradePair) -> str:
+        '''
+        ;func _parse_trade_pair()
+            - parse the Trade Pair and return the str data type appropriate for each broker
+            - e.g., for MEXC: BTCUSDT, for Binance: BTC_USDT
+        '''
         return
 
     '''
     ####################################################################################
-    #                                 Market Stream                                      #
+    #                                 Market Stream                                    #
     ####################################################################################
+
+    - ticker for the given symbol
+    - kline for the given symbol
+    - depth for the given symbol
     '''
     @abstractmethod
     def ticker(self) -> None:
@@ -202,10 +212,17 @@ class WebSocketClient(ABC):
     ####################################################################################
     #                                 User Stream                                      #
     ####################################################################################
+
+    - Asset
+    - Order History
     '''
 
     '''
     ####################################################################################
     #                                    Trade                                         #
     ####################################################################################
+
+    - Current order
+    - Make Order
+    - Cancel Order
     '''
