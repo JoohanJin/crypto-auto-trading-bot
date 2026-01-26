@@ -11,6 +11,7 @@ from service.binance.websocket_base import (
     UserWebSocketClient,
 )
 from service.sdk.websocket_sdk import BasicWebSocketClient, WebSocketClient
+from src.object.trade import TradePair
 
 
 class FutureMarket(FutureBase):
@@ -1156,26 +1157,40 @@ class FutureWebSocketClient(WebSocketClient):
         self._authenticate()
         return
 
+    def _parse_trade_pair(
+        self,
+        trade_pair: TradePair,
+        capitalize: bool = False,
+    ) -> str | None:
+        if isinstance(trade_pair, TradePair):
+            ticker: str = trade_pair.ticker.upper() if capitalize else trade_pair.ticker.lower()
+            quote: str = trade_pair.quote.upper() if capitalize else trade_pair.quote.lower()
+            return f"{ticker}{quote}"
+        return "BTCUSDT" if capitalize else "btcusdt"
+
     '''
     ####################################################################################
-    #                              Stream Subscription                                 #
+    User Stream
     ####################################################################################
     '''
     def account_position(
         self,
         callback: Callable,
-        symbol: str = "BTCUSDT",
+        trade_pair: TradePair | None = None,
         topic: str = "account.position",
     ) -> None:
-        symbol = symbol.upper()
-
-        self._user_subscribe(callback, symbol, topic)
+        self._user_subscribe(callback, topic, trade_pair)
         return
 
+    '''
+    ####################################################################################
+    Market Stream
+    ####################################################################################
+    '''
     def agg_trade(
         self,
         callback: Callable,
-        symbol: str = "btcusdt",
+        trade_pair: TradePair | None = None,
         req_topic: str = "aggTrade",
         push_topic: str = "aggTrade",
     ) -> None:
@@ -1187,56 +1202,24 @@ class FutureWebSocketClient(WebSocketClient):
         - Push Topic: aggTrade
         - Stream e.g.: btcusdt@aggTrade
         '''
-        symbol = symbol.lower()
-        stream: str = f"{symbol}@{req_topic}"
-        self._market_subscribe(stream, push_topic, callback)
+        stream: str = f"@{req_topic}"
+        self._market_subscribe(stream, push_topic, callback, trade_pair)
         return
 
-    # def mark_price(
-    #     self,
-    #     callback: Callable,
-    #     symbol: str = "btcusdt",
-    #     req_topic: str = "markPrice",
-    #     params: str = "1s",  # TODO: need to do the research.
-    #     push_topic: str = "markPriceUpdate",
-    # ) -> None:
-    #     '''
-    #     ;func mark_price
-    #         - Mark Price Stream
+    def mark_price(
+        self,
+    ) -> None:
+        raise NotImplementedError
 
-    #     - Request Topic: markPrice
-    #     - Push Topic: markPriceUpdate
-    #     - Stream e.g.: btcusdt@markPrice@1s or btcusdt@markPrice@3s (btcusdt@markPrice)
-    #     '''
-    #     symbol = symbol.lower()  # BTCUSDT -> btcusdt
-    #     stream: str = f"{symbol}@{req_topic}@{params}" if params is not None else f"{symbol}@{req_topic}"
-    #     self._market_subscribe(stream, push_topic, callback)
-    #     return
-
-    # def mini_ticker(
-    #     self,
-    #     callback: Callable,
-    #     symbol: str = "btcusdt",
-    #     req_topic: str = "miniTicker",
-    #     push_topic: str = "24hrMiniTicker"
-    # ) -> None:
-    #     '''
-    #     ;func miniTicker
-    #         - individual symbol mini ticker stream
-
-    #     - Request Topic: miniTicker
-    #     - Push Topic: 24hrMiniTicker
-    #     - Stream e.g.: btcusdt@miniTicker
-    #     '''
-    #     symbol = symbol.lower()
-    #     stream: str = f"{symbol}@{req_topic}"
-    #     self._market_subscribe(stream, push_topic, callback)
-    #     return
+    def mini_ticker(
+        self,
+    ) -> None:
+        raise NotImplementedError
 
     def kline(
         self,
         callback: Callable,
-        symbol: str = "btcusdt",
+        trade_pair: TradePair | None = None,
         req_topic: str = "continuousKline",
         contract_type: Union[
             Literal["perpetual"],
@@ -1273,15 +1256,14 @@ class FutureWebSocketClient(WebSocketClient):
         - Stream Format: <symbol>_<contract_type>@continuousKline_<interval>
         - Stream e.g.: btcusdt_perpetual@continuousKline_1s
         '''
-        symbol = symbol.lower()
-        stream: str = f"{symbol}_{contract_type}@{req_topic}_{interval}"
-        self._market_subscribe(stream, push_topic, callback)
+        stream: str = f"_{contract_type}@{req_topic}_{interval}"
+        self._market_subscribe(stream, push_topic, callback, trade_pair)
         return
 
     def ticker(
         self,
         callback: Callable,
-        symbol: str = "btcusdt",
+        trade_pair: TradePair | None = None,
         req_topic: str = "ticker",
         push_topic: str = "24hrTicker",
     ) -> None:
@@ -1292,15 +1274,14 @@ class FutureWebSocketClient(WebSocketClient):
         - topic: ticker
         - push_topic: 24hrTicker
         '''
-        symbol = symbol.lower()
-        stream: str = f"{symbol}@{req_topic}"
-        self._market_subscribe(stream, push_topic, callback)
+        stream: str = f"@{req_topic}"
+        self._market_subscribe(stream, push_topic, callback, trade_pair)
         return
 
     def depth(
         self,
         callback: Callable,
-        symbol: str = "btcusdt",
+        trade_pair: TradePair | None = None,
         req_topic: str = "bookTicker",
         push_topic: str = "bookTicker",
     ) -> None:
@@ -1308,8 +1289,7 @@ class FutureWebSocketClient(WebSocketClient):
         ;func depth()
         - <symbol>@bookTicker
         '''
-        symbol = symbol.lower()
-        stream: str = f"{symbol}@{req_topic}"
+        stream: str = f"@{req_topic}"
         self._market_subscribe(stream, push_topic, callback)
         return
 
@@ -1332,11 +1312,13 @@ class FutureWebSocketClient(WebSocketClient):
         stream: str,
         push_topic: str,
         callback: Callable,
+        trade_pair: TradePair | None = None,
     ) -> None:
         """
         Helper method to handle market data subscriptions and reduce code duplication.
         """
         ws = self.wss.get("market")
+        stream = f"{self._parse_trade_pair(trade_pair)}{stream}"
 
         if not isinstance(ws, MarketWebSocketClient):
             operation_logger.error(
@@ -1364,10 +1346,11 @@ class FutureWebSocketClient(WebSocketClient):
     def _user_subscribe(
         self,
         callback: Callable,
-        symbol: str,
         stream: str,
+        trade_pair: TradePair | None = None,
     ) -> None:
         ws = self.wss.get("user")
+        symbol = self._parse_trade_pair(trade_pair, capitalize=True)
 
         if not isinstance(ws, UserWebSocketClient):
             operation_logger.error(
