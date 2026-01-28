@@ -1,4 +1,5 @@
 from service.sdk.websocket_sdk import WebSocketClient
+from src.object.trade import TradePair
 
 
 class WebSocketClientRegistry:
@@ -36,5 +37,39 @@ class WebSocketClientRegistry:
 
 
 class WebSocketInterface:
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        client_registry: WebSocketClientRegistry,
+        trade_pair: TradePair | None = None,
+    ) -> None:
+        if trade_pair is None:
+            trade_pair = TradePair("BTC", "USDT")
+        self.client_registry = client_registry
+        return
+
+    def push_client(
+        self,
+        key: str,
+        client: WebSocketClient,
+    ) -> None:
+        if isinstance(client, WebSocketClient):
+            self.client_registry.push(key, client)
+        else:
+            # TODO: logging
+            raise TypeError
+        return
+
+    def get_client(
+        self,
+        key: str,
+    ) -> WebSocketClient | None:
+        return self.client_registry.get(key, None)
+
+    def pop_client(
+        self,
+        key: str,
+    ) -> None:
+        if self.client_registry.get(key, None):
+            self.client_registry.pop(key)
+            return
         return
