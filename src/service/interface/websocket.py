@@ -42,8 +42,8 @@ class WebSocketInterface:
         client_registry: WebSocketClientRegistry,
         trade_pair: TradePair | None = None,
     ) -> None:
-        if trade_pair is None:
-            trade_pair = TradePair("BTC", "USDT")
+        self.trade_pair = TradePair("BTC", "USDT") if trade_pair is None else trade_pair
+
         self.client_registry = client_registry
         return
 
