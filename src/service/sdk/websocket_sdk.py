@@ -159,11 +159,13 @@ class BasicWebSocketClient(ABC):
         return
 
 
-class WebSocketClient(ABC):
+class FutureWebSocketClient(ABC):
     '''
     ;class WebSocketClient
         - Base Class for WebSocket Client for each broker
         - It defines the contract "each WebSocket for Crypto Broker should have"
+
+    ;TradePair List to check the availabilty? -> how to keep updating the TradePair?
     '''
     @abstractmethod
     def _parse_trade_pair(self, trade_pair: TradePair) -> str:

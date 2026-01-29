@@ -10,7 +10,7 @@ from service.binance.websocket_base import (
     MarketWebSocketClient,
     UserWebSocketClient,
 )
-from service.sdk.websocket_sdk import BasicWebSocketClient, WebSocketClient
+from service.sdk.websocket_sdk import FutureWebSocketClient, BasicWebSocketClient
 from src.object.trade import TradePair
 
 
@@ -1095,7 +1095,7 @@ class FutureMarket(FutureBase):
         )
 
 
-class FutureWebSocketClient(WebSocketClient):
+class FutureWebSocketClient(FutureWebSocketClient):
     def __init__(
         self,
         api_key: str,  # Necessary

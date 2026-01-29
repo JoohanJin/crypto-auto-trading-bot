@@ -9,7 +9,7 @@ from logger.set_logger import operation_logger
 
 from service.mexc.base_sdk import FutureBase
 from service.mexc.websocket_base import FutureWebSocket
-from service.sdk.websocket_sdk import WebSocketClient
+from service.sdk.websocket_sdk import FutureWebSocketClient
 from object.trade import TradePair
 
 
@@ -810,7 +810,7 @@ class FutureMarket(FutureBase):
         )
 
 
-class FutureWebSocketClient(WebSocketClient):
+class FutureWebSocketClient(FutureWebSocketClient):
     def __init__(
         self,
         name: str,
