@@ -5,12 +5,12 @@ Documentation: https://mexcdevelop.github.io/apidocs/contract_v1_en
 
 from typing import Literal, Union, Callable
 
-from infrastructure.logging.set_logger import operation_logger
+from src.infrastructure.logging.set_logger import operation_logger
 
-from brokers.mexc.base_sdk import FutureBase
-from brokers.mexc.websocket_base import FutureWebSocket
-from brokers.base.websocket_sdk import FutureWebSocketClient
-from core.models.trade import TradePair
+from src.brokers.mexc.base_sdk import FutureBase
+from src.brokers.mexc.websocket_base import FutureWebSocket
+from src.brokers.base.websocket_sdk import FutureWebSocketClient
+from src.core.models.trade import TradePair
 
 
 class FutureMarket(FutureBase):

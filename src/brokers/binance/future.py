@@ -2,16 +2,16 @@
 from typing import Literal, Union
 from collections.abc import Callable
 
-from infrastructure.logging.set_logger import operation_logger
 
 # Custom Library
-from brokers.binance.base_sdk import FutureBase
-from brokers.binance.websocket_base import (
+from src.infrastructure.logging.set_logger import operation_logger
+from src.brokers.binance.base_sdk import FutureBase
+from src.brokers.binance.websocket_base import (
     MarketWebSocketClient,
     UserWebSocketClient,
 )
-from brokers.base.websocket_sdk import FutureWebSocketClient, BasicWebSocketClient
-from core.models.trade import TradePair
+from src.brokers.base.websocket_sdk import FutureWebSocketClient, BasicWebSocketClient
+from src.core.models.trade import TradePair
 
 
 class FutureMarket(FutureBase):

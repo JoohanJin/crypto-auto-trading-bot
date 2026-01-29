@@ -5,12 +5,12 @@ import time
 import threading
 from urllib.parse import urlencode
 from collections.abc import Callable
-
 import websocket
+
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 
-from brokers.base.websocket_sdk import BasicWebSocketClient
-from infrastructure.logging.set_logger import operation_logger
+from src.brokers.base.websocket_sdk import BasicWebSocketClient
+from src.infrastructure.logging.set_logger import operation_logger
 
 
 class UserWebSocketClient(BasicWebSocketClient):

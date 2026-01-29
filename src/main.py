@@ -32,8 +32,8 @@ sys.path.insert(0, str(_src_dir))
 import time
 from dotenv import load_dotenv
 
-from infrastructure.system_manager import SystemManager
-from infrastructure.logging.set_logger import operation_logger
+from src.infrastructure.system_manager import SystemManager
+from src.infrastructure.logging.set_logger import operation_logger
 
 
 def main():

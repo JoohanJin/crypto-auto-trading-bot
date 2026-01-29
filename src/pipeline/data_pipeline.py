@@ -3,9 +3,9 @@ import queue
 from typing import Dict
 
 # CUSTOM LIBRARY
-from infrastructure.logging.set_logger import operation_logger
-from core.models.index import Index
-from .base_pipeline import BasePipeline
+from src.infrastructure.logging.set_logger import operation_logger
+from src.core.models.index import Index
+from src.pipeline.base_pipeline import BasePipeline
 
 
 class DataPipeline(BasePipeline[Index]):  # TODO: Make the object for th Data object.

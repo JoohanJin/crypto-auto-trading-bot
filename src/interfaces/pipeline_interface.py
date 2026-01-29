@@ -1,7 +1,8 @@
 from typing import Generic, TypeVar
 from pipeline.base_pipeline import BasePipeline
-from infrastructure.logging.set_logger import operation_logger
 import time
+
+from src.infrastructure.logging.set_logger import operation_logger
 
 T = TypeVar('T')  # User Defined template
 

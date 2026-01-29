@@ -7,13 +7,13 @@ import threading
 from queue import Queue
 
 # Custom Module
-from brokers.mexc.future import FutureWebSocket
-from infrastructure.logging.set_logger import operation_logger
-from data.data_saver import DataSaver
-from core.models.index import IndexType
-from data.data_collector import DataCollector
-from data.data_processor import DataProcessor
-from interfaces.pipeline_interface import PipelineController
+from src.brokers.mexc.future import FutureWebSocket
+from src.infrastructure.logging.set_logger import operation_logger
+from src.data.data_saver import DataSaver
+from src.core.models.index import IndexType
+from src.data.data_collector import DataCollector
+from src.data.data_processor import DataProcessor
+from src.interfaces.pipeline_interface import PipelineController
 
 
 class DataManager:
