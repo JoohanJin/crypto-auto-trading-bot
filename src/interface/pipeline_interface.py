@@ -10,14 +10,16 @@ class PipelineController(Generic[T]):
     '''
     - this class provides the interface for data pipeline push and pull method.
     - based on the principle of Depeency Inversion Principle.
-    - Therefore, even when there are some changes on the data pipeline, we do not need to change the code for each class.
+    - Therefore, even when there are some changes on the data pipeline,
+        we do not need to change the code for each class.
     '''
     def generate_timestamp(self) -> int:
         return int(time.time() * 1000)
 
     def __init__(
-        self: 'PipelineController',
+        self,
         pipeline: BasePipeline,  # Upcasting!
+        time_window: int = 5_000,  # 5_000ms = 5s
     ) -> None:
         '''
         func __init__():
@@ -25,15 +27,16 @@ class PipelineController(Generic[T]):
             - Get the push_only variable so that we can add control of the side. (uni-directional)
         '''
         # Let the programmer decides which operation to be used.
-        self.pipeline: BasePipeline = pipeline
+        self.pipeline: BasePipeline = pipeline  # ! DataPipeline or SignalPipeline -> Unified Registry?
+        self.time_window: int = time_window
 
         operation_logger.info(
-            f"{__name__} - pipelineController has been generated."
+            f"{__name__} - {self.__class__.__name__} - pipelineController has been generated."
         )
         return
 
     def push(
-        self: 'PipelineController',
+        self,
         object: T,  # object
     ) -> bool:
         '''
@@ -41,14 +44,15 @@ class PipelineController(Generic[T]):
         try:
             self.pipeline.push(object)
             return True
-        except Exception:
+        except Exception as e:
             operation_logger.warning(
-                f"{__name__} - Unknown Error has been occured. Unsuccessful Push from the pipeline interface."
+                f"{__name__} - {self.__class__.__name__} - Unknown Error has "
+                f"been occured. Unsuccessful Push from the pipeline interface: {str(e)}"
             )
             return False
 
     def pop(
-        self: 'PipelineController',
+        self,
         block: bool = True,
     ) -> T | None:
         '''
@@ -64,21 +68,16 @@ class PipelineController(Generic[T]):
                     return data
 
             return None
-        except Exception:
+        except Exception as e:
             # ! raise CustomException
             operation_logger.warning(
-                f"{__name__} - Unknown Error has been occured. Unsuccessful Pop."
+                f"{__name__} - {self.__class__.__name__} - Unknown Error has been occured. "
+                f"Unsuccessful Pop: {str(e)}"
             )
             raise  # ! raise the custom exception
 
     def check_data_validity(
-        self: "PipelineController",
+        self,
         timestamp: int,
-        time_window: int = 5_000,
     ) -> bool:
-        return ((self.generate_timestamp() - timestamp) < time_window)
-
-
-# Testing Code
-if __name__ == "__main__":
-    print("Done!")
+        return ((self.generate_timestamp() - timestamp) < self.time_window)
