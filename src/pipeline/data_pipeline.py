@@ -79,10 +79,14 @@ class DataPipeline(BasePipeline[Index]):  # TODO: Make the object for th Data ob
             )
             return True
         except queue.Full:
-            operation_logger.warning(f"{__name__} - Queue is full. Data cannot be added.")
+            operation_logger.warning(
+                f"{__name__} - {self.__class__.__name__} - Queue is full. Data cannot be added."
+            )
             return False
         except Exception as e:
-            operation_logger.warning(f"{__name__} - self.queue: Unknown exception has occurred: {str(e)}")
+            operation_logger.warning(
+                f"{__name__} - {self.__class__.__name__} - self.queue: Unknown exception has occurred: {str(e)}"
+            )
             return False
 
     def pop(
@@ -110,8 +114,12 @@ class DataPipeline(BasePipeline[Index]):  # TODO: Make the object for th Data ob
         try:
             return self.queue.get(block=block, timeout=timeout)
         except queue.Empty:
-            operation_logger.warning(f"{__name__} - self.queue is empty: Data cannot be retrieved.")
+            operation_logger.warning(
+                f"{__name__} - {self.__class__.__name__} - self.queue is empty: Data cannot be retrieved."
+            )
             return None
         except Exception as e:
-            operation_logger.warning(f"{__name__} - self.queue: Unknown exception has occurred: {str(e)}.")
+            operation_logger.warning(
+                f"{__name__} - {self.__class__.__name__} - self.queue: Unknown exception has occurred: {str(e)}."
+            )
             return None
