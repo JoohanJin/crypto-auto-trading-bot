@@ -12,7 +12,7 @@ SRC_DIR = PROJECT_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from object.signal import Signal, TradeSignal  # type: ignore
+from core.models.signal import Signal, TradeSignal  # type: ignore
 from pipeline.signal_pipeline import SignalPipeline  # type: ignore
 
 

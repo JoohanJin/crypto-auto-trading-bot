@@ -3,8 +3,8 @@ import queue
 from typing import Dict
 
 # CUSTOM LIBRARY
-from logger.set_logger import operation_logger
-from object.index import Index
+from infrastructure.logging.set_logger import operation_logger
+from core.models.index import Index
 from .base_pipeline import BasePipeline
 
 

@@ -15,8 +15,8 @@ SRC_PATH = PROJECT_ROOT / "src"
 if str(SRC_PATH) not in sys.path:
     sys.path.insert(0, str(SRC_PATH))
 
-from logger.set_logger import operation_logger
-from service.mexc.future import FutureWebSocket
+from infrastructure.logging.set_logger import operation_logger
+from brokers.mexc.future import FutureWebSocket
 
 
 class TestWebSocket(FutureWebSocket):
