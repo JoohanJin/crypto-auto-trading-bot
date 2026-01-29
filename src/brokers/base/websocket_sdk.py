@@ -4,8 +4,8 @@ import time
 import threading
 import websocket
 
-from infrastructure.logging.set_logger import operation_logger
-from core.models.trade import TradePair
+from src.infrastructure.logging.set_logger import operation_logger
+from src.core.models.trade import TradePair
 
 
 class BasicWebSocketClient(ABC):

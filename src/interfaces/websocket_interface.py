@@ -1,5 +1,5 @@
-from brokers.base.websocket_sdk import WebSocketClient
-from core.models.trade import TradePair
+from src.brokers.base.websocket_sdk import WebSocketClient
+from src.core.models.trade import TradePair
 
 
 class WebSocketClientRegistry:

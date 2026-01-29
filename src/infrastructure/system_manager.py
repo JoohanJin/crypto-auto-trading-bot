@@ -5,23 +5,23 @@ import sys
 import threading
 
 # CUSTOM LIBRARY
-from integrations.telegram.telegram_bot_class import CustomTelegramBot
-from data.data_manager import DataManager
-from trading.signal_generator import SignalGenerator
-from trading.trade_manager import TradeManager
-from pipeline.data_pipeline import DataPipeline
-from infrastructure.logging.set_logger import operation_logger
-from pipeline.signal_pipeline import SignalPipeline
-from interfaces.pipeline_interface import PipelineController
-from core.models.score_mapping import ScoreMapper
-from core.models.index import Index
-from core.models.signal import Signal
+from src.integrations.telegram.telegram_bot_class import CustomTelegramBot
+from src.data.data_manager import DataManager
+from src.trading.signal_generator import SignalGenerator
+from src.trading.trade_manager import TradeManager
+from src.pipeline.data_pipeline import DataPipeline
+from src.infrastructure.logging.set_logger import operation_logger
+from src.pipeline.signal_pipeline import SignalPipeline
+from src.interfaces.pipeline_interface import PipelineController
+from src.core.models.score_mapping import ScoreMapper
+from src.core.models.index import Index
+from src.core.models.signal import Signal
 
 # MEXC
-from brokers.mexc.future import FutureMarket as MexcFutureMarket, FutureWebSocket as MexcFutureWebSocket
+from src.brokers.mexc.future import FutureMarket as MexcFutureMarket, FutureWebSocket as MexcFutureWebSocket
 
 # BINANCE
-from brokers.binance.future import FutureMarket as BinanceFutureMarket
+from src.brokers.binance.future import FutureMarket as BinanceFutureMarket
 
 
 class SystemManager:

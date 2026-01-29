@@ -8,10 +8,10 @@ import threading
 import websocket
 
 # Custom Library
-from brokers.base.websocket_sdk import BasicWebSocketClient
+from src.brokers.base.websocket_sdk import BasicWebSocketClient
 
 # Getting Logger access
-from infrastructure.logging.set_logger import operation_logger
+from src.infrastructure.logging.set_logger import operation_logger
 
 
 class FutureWebSocket(BasicWebSocketClient):

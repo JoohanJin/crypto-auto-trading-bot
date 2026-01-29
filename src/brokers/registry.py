@@ -1,7 +1,7 @@
 import threading
 
-from infrastructure.logging.set_logger import operation_logger
-from core.models.broker import Broker
+from src.infrastructure.logging.set_logger import operation_logger
+from src.core.models.broker import Broker
 
 
 class BrokerRegistry:

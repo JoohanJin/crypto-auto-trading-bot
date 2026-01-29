@@ -2,9 +2,9 @@
 from queue import Queue, Full, Empty
 
 # Custom Library
-from infrastructure.logging.set_logger import operation_logger
-from core.models.signal import Signal
-from .base_pipeline import BasePipeline  # TODO: Need to define this class in another class
+from src.infrastructure.logging.set_logger import operation_logger
+from src.core.models.signal import Signal
+from src.pipeline.base_pipeline import BasePipeline  # TODO: Need to define this class in another class
 
 
 class SignalPipeline(BasePipeline[Signal]):

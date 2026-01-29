@@ -1,8 +1,8 @@
 import os
 from dotenv import load_dotenv
 
-from brokers.mexc.future import FutureWebSocketClient as MexcFutureWebSocketClient
-from brokers.binance.future import FutureWebSocketClient as BinanceFutureWebScoektClient
+from src.brokers.mexc.future import FutureWebSocketClient as MexcFutureWebSocketClient
+from src.brokers.binance.future import FutureWebSocketClient as BinanceFutureWebSocketClient
 
 
 def print_msg(msg):
@@ -25,7 +25,7 @@ def binance_test():
     binance_api_key: str = os.getenv("BINANCE_ED25519_API_KEY")
     binance_secret_key: str = os.getenv("BINANCE_ED25519_SECRET_KEY")
 
-    bwc = BinanceFutureWebScoektClient(
+    bwc = BinanceFutureWebSocketClient(
         api_key=binance_api_key,
         secret_key=binance_secret_key,
         name="TEST_BINANCE_WEBSOCKET_CLIENT",

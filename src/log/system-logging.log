@@ -1,0 +1,18 @@
+OperationLogger - 2026-01-30 03:46:36,700 - INFO - src.infrastructure.logging.set_logger - OperationLogger - Operation Logger generation completed.
+OperationLogger - 2026-01-30 03:46:50,228 - INFO - src.infrastructure.logging.set_logger - OperationLogger - Operation Logger generation completed.
+OperationLogger - 2026-01-30 03:47:01,281 - INFO - src.infrastructure.logging.set_logger - OperationLogger - Operation Logger generation completed.
+OperationLogger - 2026-01-30 03:47:35,739 - INFO - src.infrastructure.logging.set_logger - OperationLogger - Operation Logger generation completed.
+OperationLogger - 2026-01-30 03:47:46,025 - INFO - src.infrastructure.logging.set_logger - OperationLogger - Operation Logger generation completed.
+OperationLogger - 2026-01-30 03:48:10,589 - INFO - src.infrastructure.logging.set_logger - OperationLogger - Operation Logger generation completed.
+OperationLogger - 2026-01-30 03:48:21,041 - INFO - src.infrastructure.logging.set_logger - OperationLogger - Operation Logger generation completed.
+OperationLogger - 2026-01-30 03:48:34,308 - INFO - src.infrastructure.logging.set_logger - OperationLogger - Operation Logger generation completed.
+OperationLogger - 2026-01-30 03:48:34,421 - INFO - src.brokers.binance.websocket_base - UserWebSocketClient - USER_TEST_BINANCE_WEBSOCKET_CLIENT - USER_TEST_BINANCE_WEBSOCKET_CLIENT_connection_thread has been started successfully.
+OperationLogger - 2026-01-30 03:48:35,288 - INFO - src.brokers.binance.websocket_base - UserWebSocketClient - USER_TEST_BINANCE_WEBSOCKET_CLIENTWebSocket has been opened and made a connection to wss://ws-fapi.binance.com/ws-fapi/v1 [v]
+OperationLogger - 2026-01-30 03:48:35,289 - INFO - src.brokers.binance.websocket_base - UserWebSocketClient - USER_TEST_BINANCE_WEBSOCKET_CLIENT: Sent pong response to wss://ws-fapi.binance.com/ws-fapi/v1
+OperationLogger - 2026-01-30 03:48:35,424 - INFO - src.brokers.binance.websocket_base - UserWebSocketClient - USER_TEST_BINANCE_WEBSOCKET_CLIENT - USER_TEST_BINANCE_WEBSOCKET_CLIENT_custom_stream_thread has been started successfully.
+OperationLogger - 2026-01-30 03:48:36,425 - INFO - src.brokers.binance.future - FutureWebSocketClient - TEST_BINANCE_WEBSOCKET_CLIENT - Successfully started USER_TEST_BINANCE_WEBSOCKET_CLIENT.
+OperationLogger - 2026-01-30 03:48:36,426 - INFO - src.brokers.binance.websocket_base - MarketWebSocketClient - MARKET_TEST_BINANCE_WEBSOCKET_CLIENT - MARKET_TEST_BINANCE_WEBSOCKET_CLIENT_connection_thread has been started successfully.
+OperationLogger - 2026-01-30 03:48:37,395 - INFO - src.brokers.binance.websocket_base - MarketWebSocketClient - MARKET_TEST_BINANCE_WEBSOCKET_CLIENT - WebSocket opened, connected to wss://fstream.binance.com/ws [v]
+OperationLogger - 2026-01-30 03:48:37,430 - INFO - src.brokers.binance.future - FutureWebSocketClient - TEST_BINANCE_WEBSOCKET_CLIENT - Successfully started MARKET_TEST_BINANCE_WEBSOCKET_CLIENT.
+OperationLogger - 2026-01-30 03:48:37,430 - INFO - src.brokers.binance.websocket_base - MarketWebSocketClient - MARKET_TEST_BINANCE_WEBSOCKET_CLIENT - Subscribed to streams: ['btcusdt@ticker']
+OperationLogger - 2026-01-30 03:48:37,711 - INFO - {'result': None, 'id': 1769716117430}
