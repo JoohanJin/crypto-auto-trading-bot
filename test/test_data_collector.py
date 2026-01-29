@@ -10,7 +10,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 try:
-    from manager.data_collector import DataCollector  # type: ignore
+    from data_collector import DataCollector  # type: ignore
 except ModuleNotFoundError:
     DataCollector = None
 

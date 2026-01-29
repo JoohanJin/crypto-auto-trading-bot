@@ -12,19 +12,19 @@ SRC_DIR = PROJECT_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from object.constants import IndexType  # type: ignore
-from object.indexes import Index  # type: ignore
-from object.signal import TradeSignal  # type: ignore
+from core.models.constants import IndexType  # type: ignore
+from core.models.indexes import Index  # type: ignore
+from core.models.signal import TradeSignal  # type: ignore
 
 try:
-    from manager.strategy import (  # type: ignore
+    from strategy import (  # type: ignore
         StrategyCondition,
         StrategyConfig,
         StrategyExecutor,
         StrategyFactory,
         StrategyFetcher,
     )
-    from manager.strategy_manager import StrategyManager  # type: ignore
+    from strategy_manager import StrategyManager  # type: ignore
 except ModuleNotFoundError:  # pragma: no cover - optional dependency
     StrategyCondition = StrategyConfig = StrategyExecutor = StrategyFactory = StrategyFetcher = StrategyManager = None  # type: ignore[misc]
 

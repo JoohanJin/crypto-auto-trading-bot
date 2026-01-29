@@ -2,8 +2,8 @@
 from queue import Queue, Full, Empty
 
 # Custom Library
-from logger.set_logger import operation_logger
-from object.signal import Signal
+from infrastructure.logging.set_logger import operation_logger
+from core.models.signal import Signal
 from .base_pipeline import BasePipeline  # TODO: Need to define this class in another class
 
 

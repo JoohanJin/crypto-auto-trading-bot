@@ -12,7 +12,7 @@ SRC_DIR = PROJECT_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from object.constants import IndexType  # type: ignore
+from core.models.constants import IndexType  # type: ignore
 from pipeline.data_pipeline import DataPipeline  # type: ignore
 
 
