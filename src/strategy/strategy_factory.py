@@ -3,8 +3,8 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 # CUSTOM LIBRARY
-from core.models.index import IndexType
-from core.models.signal import TradeSignal
+from src.core.models.index import IndexType
+from src.core.models.signal import TradeSignal
 
 
 @dataclass

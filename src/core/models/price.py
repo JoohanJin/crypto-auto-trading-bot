@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from core.models.trade import TradePair
+from src.core.models.trade import TradePair
 
 
 @dataclass

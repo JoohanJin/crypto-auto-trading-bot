@@ -1,5 +1,5 @@
 from typing import Generic, TypeVar
-from pipeline.base_pipeline import BasePipeline
+from src.pipeline.base_pipeline import BasePipeline
 import time
 
 from src.infrastructure.logging.set_logger import operation_logger

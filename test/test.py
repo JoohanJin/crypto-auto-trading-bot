@@ -48,4 +48,7 @@ def main():
 
 
 if __name__ == "__main__":
+    from pathlib import Path
+    print(Path(__file__).resolve())
+    print(Path(__file__).resolve().parents[1])
     main()

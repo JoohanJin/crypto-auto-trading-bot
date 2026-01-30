@@ -1,8 +1,8 @@
 from __future__ import annotations
 import time
 
-from brokers.binance.base_sdk import FutureBase
-from core.models.trade import TradePair
+from src.brokers.binance.base_sdk import FutureBase
+from src.core.models.trade import TradePair
 
 
 class Broker:

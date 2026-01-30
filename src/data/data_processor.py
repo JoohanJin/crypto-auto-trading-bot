@@ -5,8 +5,8 @@ import pandas as pd
 
 from src.infrastructure.logging.set_logger import operation_logger
 from src.interfaces.pipeline_interface import PipelineController
-from src.core.models.constants import MA_WRITE_PERIODS, IndexType
-from src.core.models.index import Index
+from src.core.models.constants import MA_WRITE_PERIODS
+from src.core.models.index import Index, IndexType
 
 
 class IndexFactory:

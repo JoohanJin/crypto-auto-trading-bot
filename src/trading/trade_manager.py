@@ -5,15 +5,15 @@ import time
 from typing import List, Tuple
 
 # Custom Library
-from brokers.binance.future import FutureMarket as BinanceFutureMarket
-from integrations.telegram.telegram_bot_class import CustomTelegramBot
-from infrastructure.logging.set_logger import operation_logger, trading_logger
-from brokers.mexc.future import FutureMarket as MexCFutureMarket
-from core.models.score_mapping import ScoreMapper
-from core.models.signal import Signal, TradeSignal
-from interfaces.pipeline_interface import PipelineController
-from core.models.trade import TradePair, TradeState
-from core.models.order import Order, OrderType
+from src.brokers.binance.future import FutureMarket as BinanceFutureMarket
+from src.integrations.telegram.telegram_bot_class import CustomTelegramBot
+from src.infrastructure.logging.set_logger import operation_logger, trading_logger
+from src.brokers.mexc.future import FutureMarket as MexCFutureMarket
+from src.core.models.score_mapping import ScoreMapper
+from src.core.models.signal import Signal, TradeSignal
+from src.interfaces.pipeline_interface import PipelineController
+from src.core.models.trade import TradePair, TradeState
+from src.core.models.order import Order, OrderType
 
 '''
 - Get the signal

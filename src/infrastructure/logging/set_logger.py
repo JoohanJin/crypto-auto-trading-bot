@@ -5,15 +5,15 @@ from pathlib import Path
 
 
 # Resolve log directory at project root regardless of CWD
-_PROJECT_ROOT: Path = Path(__file__).resolve().parents[2]
+_PROJECT_ROOT: Path = Path(__file__).resolve().parents[3]
 _LOG_DIR: Path = _PROJECT_ROOT / "log"
 _LOG_DIR.mkdir(parents = True, exist_ok = True)
 """
-############################################################################################################################################
-# Operator Logger
-# This logger is used to log the operations of the system
-# It logs the operations of the system, such as starting and stopping the system, and any errors that occur.
-############################################################################################################################################
+########################################################################################################################
+; Operator Logger
+; This logger is used to log the operations of the system
+; It logs the operations of the system, such as starting and stopping the system, and any errors that occur.
+########################################################################################################################
 """
 # Operation logger
 operation_logger: logging.Logger = logging.getLogger("OperationLogger")  # operation logger
@@ -53,10 +53,10 @@ operation_logger.addHandler(
 )  # Add the console handler to the logger
 
 """
-############################################################################################################################################
-# Trading Logger
-# This logger is used for signal generator
-############################################################################################################################################
+########################################################################################################################
+; Trading Logger
+; This logger is used for signal generator
+########################################################################################################################
 """
 # Trading Logger
 trading_logger: logging.Logger = logging.getLogger("TradingLogger")
@@ -85,6 +85,10 @@ trading_logger.addHandler(
 )  # Add the file handler to the logger
 
 # Logger Generation has been completed.
+
+operation_logger.info(
+    f"{_PROJECT_ROOT}"
+)
 operation_logger.info(
     f"{__name__} - {operation_logger.name} - Operation Logger generation completed."
 )
