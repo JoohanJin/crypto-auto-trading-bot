@@ -3,11 +3,11 @@ import time
 from typing import Callable, Dict
 
 # CUSTOM LIBRARY
-from infrastructure.logging.set_logger import trading_logger
-from core.models.index import IndexType, Index
-from core.models.signal import Signal
-from core.models.signal import TradeSignal
-from strategy.strategy_factory import StrategyConfig
+from src.infrastructure.logging.set_logger import trading_logger
+from src.core.models.index import IndexType, Index
+from src.core.models.signal import Signal
+from src.core.models.signal import TradeSignal
+from src.strategy.strategy_factory import StrategyConfig
 
 
 class StrategyExecutor:

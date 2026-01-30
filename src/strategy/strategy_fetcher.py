@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 # CUSTOM LIBRARY
-from infrastructure.logging.set_logger import operation_logger
+from src.infrastructure.logging.set_logger import operation_logger
 
 
 class StrategyFetcher:

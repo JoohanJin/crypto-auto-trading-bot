@@ -1,4 +1,4 @@
-from core.models.signal import TradeSignal
+from src.core.models.signal import TradeSignal
 
 
 class ScoreMapper:

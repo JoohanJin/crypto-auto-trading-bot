@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from core.models.trend import TrendState
+from src.core.models.trend import TrendState
 
 
 @dataclass

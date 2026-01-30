@@ -1,10 +1,10 @@
 import time
-from core.models.broker import BrokerRegistry
-from core.models.price import Price
-from integrations.telegram.telegram_bot_class import CustomTelegramBot
-from core.models.order import Order
-from infrastructure.logging.set_logger import operation_logger
-from core.models.trade import TradePair
+from src.core.models.broker import BrokerRegistry
+from src.core.models.price import Price
+from src.integrations.telegram.telegram_bot_class import CustomTelegramBot
+from src.core.models.order import Order
+from src.infrastructure.logging.set_logger import operation_logger
+from src.core.models.trade import TradePair
 
 
 class OrderManager:

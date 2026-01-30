@@ -5,10 +5,10 @@ from typing import Any, Callable, Dict
 import time
 
 # CUSTOM LIBRARY
-from infrastructure.logging.set_logger import operation_logger, trading_logger
-from core.models.index import IndexType, Index
-from core.models.signal import TradeSignal, Signal
-from strategy import (
+from src.infrastructure.logging.set_logger import operation_logger, trading_logger
+from src.core.models.index import IndexType, Index
+from src.core.models.signal import TradeSignal, Signal
+from src.strategy import (
     StrategyExecutor,
     StrategyFactory,
     StrategyFetcher,

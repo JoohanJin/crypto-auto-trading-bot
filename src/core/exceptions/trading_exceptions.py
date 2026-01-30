@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from core.exceptions.basic_exceptions import BasicException
+from src.core.exceptions.basic_exceptions import BasicException
 
 # TODO: can implement some custom error code as well.
 __all__ = [

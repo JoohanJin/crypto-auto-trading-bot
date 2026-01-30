@@ -5,13 +5,12 @@ from typing import List
 import time
 
 # CUSTOM LIBRARY
-from core.models.index import Index
-from integrations.telegram.telegram_bot_class import CustomTelegramBot
-from infrastructure.logging.set_logger import operation_logger
-from core.models.signal import Signal, TradeSignal
-from interfaces.pipeline_interface import PipelineController
-from core.models.constants import IndexType
-from strategy.strategy_manager import StrategyManager
+from src.core.models.index import Index, IndexType
+from src.integrations.telegram.telegram_bot_class import CustomTelegramBot
+from src.infrastructure.logging.set_logger import operation_logger
+from src.core.models.signal import Signal, TradeSignal
+from src.interfaces.pipeline_interface import PipelineController
+from src.strategy.strategy_manager import StrategyManager
 
 
 class SignalGenerator:
