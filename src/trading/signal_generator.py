@@ -168,7 +168,6 @@ class SignalGenerator:
         while True:
             try:
                 data: Index = self.data_pipeline_controller.pop(block = True,)
-                # print(f"{data.index_type}: {data.data}")
                 if (data):
                     with self.indicators_lock:
                         self.indicators[data.index_type] = data

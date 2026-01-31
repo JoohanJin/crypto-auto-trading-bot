@@ -523,7 +523,6 @@ class TradeManager:
                                 f"{__name__} - The current score is {self.trade_score}"
                             )
                             curr_timestamp = self.generate_timestamp()
-                        # print(f"now the score is {self.trade_score}")
             except Exception as e:
                 operation_logger.error(
                     f"{__name__} - Error while getting the signal: {str(e)}"
