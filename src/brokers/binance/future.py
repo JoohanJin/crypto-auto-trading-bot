@@ -1115,7 +1115,7 @@ class BinanceWebSocketClient(WebSocketClient):
         ;TradeWebSocketClient
             - private endpoint
         '''
-        self.name: str = name if name else "BINANCE_FUTURE_WEBSOCKET_CLIENT"
+        super().__init__(name = name if name else "BINANCE_FUTURE_WEBSOCKET_CLIENT")
 
         # access point of each WebSCoektClient
         self.wss: dict[str, WebSocket] = dict()
@@ -1124,13 +1124,13 @@ class BinanceWebSocketClient(WebSocketClient):
         self.wss["user"] = BinanceUserWebSocket(
             api_key=api_key,
             secret_key=secret_key,
-            name=f"USER_{name}",
+            name=f"{self.name}_USER_WEBSOCKET",
             ping_interval=ping_interval,
         )
 
         # MarketWebSocketClient - Connect to the public endpoint.
         self.wss["market"] = BinanceMarketWebSocket(
-            name=f"MARKET_{name}",
+            name=f"{self.name}_MARKET_WEBSOCKET",
             ping_interval=ping_interval,
         )
 
@@ -1146,12 +1146,12 @@ class BinanceWebSocketClient(WebSocketClient):
                 ws.start()
                 operation_logger.info(
                     f"{__name__} - {self.__class__.__name__} - {self.name} - Successfully started "
-                    f"{ws.name if hasattr(ws, 'name') else f'BINANCE_{key.upper()}_WEBSOCKET_CLIENT'}."
+                    f"{ws.name if hasattr(ws, 'name') else f'{self.name}_{key.upper()}_WEBSOCKET'}."
                 )
             except Exception as e:
                 operation_logger.critical(
                     f"{__name__} - {self.__class__.__name__} - {self.name} - Unexpected Error while starting "
-                    f"{ws.name if hasattr(ws, 'name') else f'BINANCE_{key.upper()}_WEBSOCKET_CLIENT'}: {str(e)}"
+                    f"{ws.name if hasattr(ws, 'name') else f'{self.name}_{key.upper()}_WEBSOCKET'}: {str(e)}"
                 )
 
         self._authenticate()
@@ -1290,7 +1290,7 @@ class BinanceWebSocketClient(WebSocketClient):
         - <symbol>@bookTicker
         '''
         stream: str = f"@{req_topic}"
-        self._market_subscribe(stream, push_topic, callback)
+        self._market_subscribe(stream, push_topic, callback, trade_pair)
         return
 
     def partial_book_depth(self) -> None:

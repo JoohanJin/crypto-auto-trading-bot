@@ -825,10 +825,12 @@ class MexcWebSocketClient(WebSocketClient):
         ping_interval: int | None = 20,  # as it is recommended
         default_callback: Callable | None = None,
     ) -> None:
-        self.name: str = name if name else "MEXC_FUTURE_WEBSOCKET_CLIENT"
+        super().__init__(
+            name = name if name else "MEXC_FUTURE_WEBSOCKET_CLIENT"
+        )
         self.ws: MexcWebSocket = MexcWebSocket(
             url=url,
-            name=name,
+            name=f"{self.name}_WEBSOCKET",
             api_key=api_key,
             secret_key=secret_key,
             ping_interval=ping_interval,
