@@ -167,6 +167,13 @@ class WebSocketClient(ABC):
 
     ;TradePair List to check the availabilty? -> how to keep updating the TradePair?
     '''
+    def __init__(
+        self,
+        name: str,
+    ) -> None:
+        self.name: str = name
+        return
+
     @abstractmethod
     def _parse_trade_pair(self, trade_pair: TradePair) -> str:
         '''
