@@ -8,7 +8,7 @@ from src.infrastructure.logging.set_logger import operation_logger
 from src.core.models.trade import TradePair
 
 
-class BasicWebSocketClient(ABC):
+class WebSocket(ABC):
     _instance_counter: int = 1  # shared across all instance
 
     @classmethod
@@ -159,7 +159,7 @@ class BasicWebSocketClient(ABC):
         return
 
 
-class FutureWebSocketClient(ABC):
+class WebSocketClient(ABC):
     '''
     ;class WebSocketClient
         - Base Class for WebSocket Client for each broker
