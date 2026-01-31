@@ -7,10 +7,15 @@ from typing import Literal, Union, Callable
 
 from src.infrastructure.logging.set_logger import operation_logger
 
-from src.brokers.mexc.base_sdk import FutureBase
-from src.brokers.mexc.websocket_base import FutureWebSocket
-from src.brokers.base.websocket_sdk import FutureWebSocketClient
+# Custom Library
 from src.core.models.trade import TradePair
+
+# RESTful Client
+from src.brokers.mexc.base_sdk import FutureBase
+
+# WebSocket and WebSocketClient
+from src.brokers.base.websocket_sdk import WebSocketClient
+from src.brokers.mexc.websocket_base import MexcWebSocket
 
 
 class FutureMarket(FutureBase):
@@ -810,7 +815,7 @@ class FutureMarket(FutureBase):
         )
 
 
-class FutureWebSocketClient(FutureWebSocketClient):
+class MexcWebSocketClient(WebSocketClient):
     def __init__(
         self,
         name: str,
@@ -820,7 +825,8 @@ class FutureWebSocketClient(FutureWebSocketClient):
         ping_interval: int | None = 20,  # as it is recommended
         default_callback: Callable | None = None,
     ) -> None:
-        self.ws: FutureWebSocket = FutureWebSocket(
+        self.name: str = name if name else "MEXC_FUTURE_WEBSOCKET_CLIENT"
+        self.ws: MexcWebSocket = MexcWebSocket(
             url=url,
             name=name,
             api_key=api_key,
@@ -860,7 +866,7 @@ class FutureWebSocketClient(FutureWebSocketClient):
         symbol: str = self._parse_trade_pair(trade_pair)
         if (param is None):
             res = dict()
-        res[symbol] = symbol
+        res['symbol'] = symbol
         return res
 
     """
@@ -876,7 +882,7 @@ class FutureWebSocketClient(FutureWebSocketClient):
     """
     def tickers(
         self,
-        callback_function: Callable,
+        callback: Callable,
     ) -> None:
         """
         - Get the latest transaction price, buy-price, sell-price and 24 transaction volume
@@ -884,13 +890,13 @@ class FutureWebSocketClient(FutureWebSocketClient):
         - Send once a second after subscribing
         """
         topic = "tickers"
-        self.ws.subscribe(topic = topic, callback_function = callback_function, param = {})
+        self.ws.subscribe(topic = topic, callback = callback, param = {})
         return
 
     # Essential Function
     def ticker(
         self,
-        callback_function: Callable,
+        callback: Callable,
         trade_pair: TradePair | None = None,
         param: dict | None = None,
     ) -> None:
@@ -903,7 +909,7 @@ class FutureWebSocketClient(FutureWebSocketClient):
         topic: str = "ticker"
         self.ws.subscribe(
             topic = topic,
-            callback_function = callback_function,
+            callback = callback,
             param = self._generate_param(
                 trade_pair=trade_pair,
                 param=param,
@@ -913,7 +919,7 @@ class FutureWebSocketClient(FutureWebSocketClient):
 
     def deal(
         self,
-        callback_function: Callable,
+        callback: Callable,
         trade_pair: TradePair | None = None,
         param: dict | None = None,
     ) -> None:
@@ -923,7 +929,7 @@ class FutureWebSocketClient(FutureWebSocketClient):
         topic = "deal"
         self.ws.subscribe(
             topic=topic,
-            callback_function=callback_function,
+            callback=callback,
             param=self._generate_param(
                 trade_pair=trade_pair,
                 param=param,
@@ -933,14 +939,14 @@ class FutureWebSocketClient(FutureWebSocketClient):
 
     def depth(
         self,
-        callback_function: Callable,
+        callback: Callable,
         trade_pair: TradePair | None = None,
         param: dict | None = None,
     ):
         topic = "depth"
         self.ws.subscribe(
             topic=topic,
-            callback_function=callback_function,
+            callback=callback,
             param=self._generate_param(
                 trade_pair=trade_pair,
                 param=param,
@@ -950,7 +956,7 @@ class FutureWebSocketClient(FutureWebSocketClient):
 
     def kline(
         self,
-        callback_function: Callable,
+        callback: Callable,
         trade_pair: TradePair | None = None,
         interval: Union[
             Literal["Min1"],
@@ -983,12 +989,12 @@ class FutureWebSocketClient(FutureWebSocketClient):
         symbol: str = self._parse_trade_pair(trade_pair)
         param = dict(symbol=symbol, interval=interval)
         topic = "kline"
-        self.ws.subscribe(topic=topic, callback_function=callback_function, param=param)
+        self.ws.subscribe(topic=topic, callback=callback, param=param)
         return
 
     def funding_rate(
         self,
-        callback_function: Callable,
+        callback: Callable,
         trade_pair: TradePair | None = None,
         param: dict | None = None,
     ) -> None:
@@ -998,7 +1004,7 @@ class FutureWebSocketClient(FutureWebSocketClient):
         topic: str = "funding.rate"
         self.ws.subscribe(
             topic=topic,
-            callback_function=callback_function,
+            callback=callback,
             param=self._generate_param(
                 trade_pair=trade_pair,
                 param=param,
@@ -1008,7 +1014,7 @@ class FutureWebSocketClient(FutureWebSocketClient):
 
     def index_price(
         self,
-        callback_function: Callable,
+        callback: Callable,
         trade_pair: TradePair | None = None,
         param: dict | None = None,
     ) -> None:
@@ -1018,7 +1024,7 @@ class FutureWebSocketClient(FutureWebSocketClient):
         topic = "index.price"
         self.ws.subscribe(
             topic=topic,
-            callback_function=callback_function,
+            callback=callback,
             param=self._generate_param(
                 trade_pair=trade_pair,
                 param=param,
@@ -1028,7 +1034,7 @@ class FutureWebSocketClient(FutureWebSocketClient):
 
     def fair_price(
         self,
-        callback_function: Callable,
+        callback: Callable,
         trade_pair: TradePair | None = None,
         param: dict | None = None,
     ) -> None:
@@ -1038,7 +1044,7 @@ class FutureWebSocketClient(FutureWebSocketClient):
         topic = "fair.price"
         self.ws.subscribe(
             topic=topic,
-            callback_function=callback_function,
+            callback=callback,
             param = self._generate_param(
                 trade_pair=trade_pair,
                 param=param,
@@ -1060,7 +1066,7 @@ class FutureWebSocketClient(FutureWebSocketClient):
 
     def order(
         self,
-        callback_function: Callable,
+        callback: Callable,
         trade_pair: TradePair | None = None,
         param: dict | None = None,
     ) -> None:
@@ -1073,7 +1079,7 @@ class FutureWebSocketClient(FutureWebSocketClient):
         topic = "personal.order"
         self.ws.subscribe(
             topic=topic,
-            callback_function=callback_function,
+            callback=callback,
             param=self._generate_param(
                 trade_pair=trade_pair,
                 param=param,
@@ -1083,15 +1089,15 @@ class FutureWebSocketClient(FutureWebSocketClient):
 
     def asset(
         self,
-        callback_function: Callable,
+        callback: Callable,
         param: dict | None = None,
     ) -> None:
         """
         func asset:
             - A function to subscribe to the asset information of the user.
 
-        param callback_function:
-            - The callback_function function to handle the asset information.
+        param callback:
+            - The callback function to handle the asset information.
         param param:
             - Optional[dict], optional parameters for the subscription.
             - default is empty dictionary
@@ -1104,14 +1110,14 @@ class FutureWebSocketClient(FutureWebSocketClient):
         topic = "personal.asset"
         self.ws.subscribe(
             topic=topic,
-            callback_function=callback_function,
+            callback=callback,
             param=param,
         )
         return None
 
     def position(
         self,
-        callback_function: Callable,
+        callback: Callable,
         param: dict | None = None,
     ) -> None:
         # TODO: Need to implement the position function
@@ -1120,7 +1126,7 @@ class FutureWebSocketClient(FutureWebSocketClient):
 
     def risk_limitation(
         self,
-        callback_function: Callable,
+        callback: Callable,
         param: dict | None = dict()
     ) -> None:
         # TODO: Need to implement the risk_limitation function
@@ -1129,7 +1135,7 @@ class FutureWebSocketClient(FutureWebSocketClient):
 
     def adl(
         self,
-        callback_function: Callable,
+        callback: Callable,
         param: dict | None = dict()
     ) -> None:
         # TODO: Need to implement the adl function
@@ -1138,7 +1144,7 @@ class FutureWebSocketClient(FutureWebSocketClient):
 
     def position_mode(
         self,
-        callback_function: Callable,
+        callback: Callable,
         param: dict | None = dict()
     ) -> None:
         # TODO: Need to implement the position_mode function

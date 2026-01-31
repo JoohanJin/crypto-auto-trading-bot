@@ -9,16 +9,16 @@ import websocket
 
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 
-from src.brokers.base.websocket_sdk import BasicWebSocketClient
+from src.brokers.base.websocket_sdk import WebSocket
 from src.infrastructure.logging.set_logger import operation_logger
 
 
-class UserWebSocketClient(BasicWebSocketClient):
+class BinanceUserWebSocket(WebSocket):
     def generate_method_id(self) -> int:
         return self.generate_timestamp()
 
     def __repr__(self):
-        return f"Binance_UserWebSocketClient:{self.name}"
+        return f"BINANCE_USER_WEBSOCKET:{self.name}"
 
     def __init__(
         self,
@@ -499,10 +499,10 @@ class UserWebSocketClient(BasicWebSocketClient):
         )
 
 
-class MarketWebSocketClient(BasicWebSocketClient):
+class BinanceMarketWebSocket(WebSocket):
     """
     Binance Market WebSocket Client for public market data streams.
-    Unlike UserWebSocketClient (request-response with polling), this uses
+    Unlike UserWebSocket (request-response with polling), this uses
     the standard WebSocket push model:
     - Subscribe once → receive continuous push updates
     - Topic-based callbacks: callbacks[stream_name] (persistent)
@@ -964,7 +964,7 @@ class MarketWebSocketClient(BasicWebSocketClient):
         )
 
 
-class TradingWebSocketClient(BasicWebSocketClient):
+class BinanceTradingWebSocket(WebSocket):
     def __init__(
         self,
         name: str,

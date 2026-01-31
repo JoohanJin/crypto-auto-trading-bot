@@ -7,10 +7,10 @@ from collections.abc import Callable
 from src.infrastructure.logging.set_logger import operation_logger
 from src.brokers.binance.base_sdk import FutureBase
 from src.brokers.binance.websocket_base import (
-    MarketWebSocketClient,
-    UserWebSocketClient,
+    BinanceMarketWebSocket,
+    BinanceUserWebSocket
 )
-from src.brokers.base.websocket_sdk import FutureWebSocketClient, BasicWebSocketClient
+from src.brokers.base.websocket_sdk import WebSocketClient, WebSocket
 from src.core.models.trade import TradePair
 
 
@@ -1095,7 +1095,7 @@ class FutureMarket(FutureBase):
         )
 
 
-class FutureWebSocketClient(FutureWebSocketClient):
+class BinanceWebSocketClient(WebSocketClient):
     def __init__(
         self,
         api_key: str,  # Necessary
@@ -1115,13 +1115,13 @@ class FutureWebSocketClient(FutureWebSocketClient):
         ;TradeWebSocketClient
             - private endpoint
         '''
-        self.name: str = name
+        self.name: str = name if name else "BINANCE_FUTURE_WEBSOCKET_CLIENT"
 
         # access point of each WebSCoektClient
-        self.wss: dict[str, BasicWebSocketClient] = dict()
+        self.wss: dict[str, WebSocket] = dict()
 
         # UserWebSocketClient - Connect to the private endpoint.
-        self.wss["user"] = UserWebSocketClient(
+        self.wss["user"] = BinanceUserWebSocket(
             api_key=api_key,
             secret_key=secret_key,
             name=f"USER_{name}",
@@ -1129,7 +1129,7 @@ class FutureWebSocketClient(FutureWebSocketClient):
         )
 
         # MarketWebSocketClient - Connect to the public endpoint.
-        self.wss["market"] = MarketWebSocketClient(
+        self.wss["market"] = BinanceMarketWebSocket(
             name=f"MARKET_{name}",
             ping_interval=ping_interval,
         )
@@ -1320,7 +1320,7 @@ class FutureWebSocketClient(FutureWebSocketClient):
         ws = self.wss.get("market")
         stream = f"{self._parse_trade_pair(trade_pair)}{stream}"
 
-        if not isinstance(ws, MarketWebSocketClient):
+        if not isinstance(ws, BinanceMarketWebSocket):
             operation_logger.error(
                 f"{__name__} - {self.__class__.__name__} - {self.name} - "
                 "MarketWebSocketClient is not initialized."
@@ -1352,7 +1352,7 @@ class FutureWebSocketClient(FutureWebSocketClient):
         ws = self.wss.get("user")
         symbol = self._parse_trade_pair(trade_pair, capitalize=True)
 
-        if not isinstance(ws, UserWebSocketClient):
+        if not isinstance(ws, BinanceUserWebSocket):
             operation_logger.error(
                 f"{__name__} - {self.__class__.__name__} - {self.name} - "
                 "UserWebSocketClient is not initialized."

@@ -8,13 +8,13 @@ import threading
 import websocket
 
 # Custom Library
-from src.brokers.base.websocket_sdk import BasicWebSocketClient
+from src.brokers.base.websocket_sdk import WebSocket
 
 # Getting Logger access
 from src.infrastructure.logging.set_logger import operation_logger
 
 
-class FutureWebSocket(BasicWebSocketClient):
+class MexcWebSocket(WebSocket):
     '''
     mexc websocket
     payload = {
@@ -95,13 +95,13 @@ class FutureWebSocket(BasicWebSocketClient):
     def subscribe(
         self,
         topic: str,
-        callback_function: Callable,
+        callback: Callable,
         param: dict | None = None,
     ) -> None:
         if param is None:
             param: dict = dict()
 
-        self._push_callback_func(topic, callback_function)
+        self._push_callback_func(topic, callback)
 
         if not topic.startswith("sub."):
             topic = "sub." + topic
