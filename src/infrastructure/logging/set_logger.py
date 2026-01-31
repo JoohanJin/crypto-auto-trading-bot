@@ -87,9 +87,6 @@ trading_logger.addHandler(
 # Logger Generation has been completed.
 
 operation_logger.info(
-    f"{_PROJECT_ROOT}"
-)
-operation_logger.info(
     f"{__name__} - {operation_logger.name} - Operation Logger generation completed."
 )
 trading_logger.info(
