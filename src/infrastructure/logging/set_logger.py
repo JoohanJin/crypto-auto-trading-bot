@@ -1,13 +1,23 @@
+# Standard library imports
 import logging
 from logging.handlers import TimedRotatingFileHandler
 from functools import wraps
 from pathlib import Path
 
+# Third-party imports
+from dotenv import load_dotenv
+import os  # For reading environment variables
 
-# Resolve log directory at project root regardless of CWD
-_PROJECT_ROOT: Path = Path(__file__).resolve().parents[3]
-_LOG_DIR: Path = _PROJECT_ROOT / "log"
+# Load environment variables from .env file
+load_dotenv()
+
+
+# Get log directory from environment variable, default to ./log
+_LOG_DIR: Path = Path(os.getenv("LOG_DIR", "./log"))
 _LOG_DIR.mkdir(parents = True, exist_ok = True)
+
+# Get log level from environment variable, default to INFO
+_LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO").upper()
 """
 ########################################################################################################################
 ; Operator Logger
@@ -17,7 +27,7 @@ _LOG_DIR.mkdir(parents = True, exist_ok = True)
 """
 # Operation logger
 operation_logger: logging.Logger = logging.getLogger("OperationLogger")  # operation logger
-operation_logger.setLevel(logging.INFO)  # Set the logging level to INFO
+operation_logger.setLevel(getattr(logging, _LOG_LEVEL))  # Set the logging level from environment variable
 
 # Operation logger - Formatter for log messages
 operation_logger_formatter: logging.Formatter = logging.Formatter(
@@ -60,7 +70,7 @@ operation_logger.addHandler(
 """
 # Trading Logger
 trading_logger: logging.Logger = logging.getLogger("TradingLogger")
-trading_logger.setLevel(logging.INFO)  # Set the logging level to INFO
+trading_logger.setLevel(getattr(logging, _LOG_LEVEL))  # Set the logging level from environment variable
 
 # Trading Logger - Formatter for log messages
 trading_logger_formatter: logging.Formatter = logging.Formatter(
