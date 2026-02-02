@@ -4,11 +4,13 @@ Documentation: https://mexcdevelop.github.io/apidocs/contract_v1_en
 """
 
 from typing import Literal, Union, Callable
+import time
 
 from src.infrastructure.logging.set_logger import operation_logger
 
 # Custom Library
 from src.core.models.trade import TradePair
+from src.core.models.websocket_dto import Depth, Ticker
 
 # RESTful Client
 from src.brokers.mexc.base_sdk import FutureBase
@@ -816,6 +818,9 @@ class FutureMarket(FutureBase):
 
 
 class MexcWebSocketClient(WebSocketClient):
+    def generate_timestamp(self) -> int:
+        return int(time.time() * 1_000)
+
     def __init__(
         self,
         name: str,
@@ -860,14 +865,20 @@ class MexcWebSocketClient(WebSocketClient):
             return f"{trade_pair.ticker.upper()}_{trade_pair.quote.upper()}"
         return "BTC_USDT"
 
+    def _construct_trade_pair(
+        self,
+        symbol: str,
+    ) -> TradePair:
+        return symbol.split("_") if "_" in symbol else (symbol, "")
+
     def _generate_param(
         self,
         trade_pair: TradePair | None = None,
         param: dict = None,
     ) -> dict:
         symbol: str = self._parse_trade_pair(trade_pair)
-        if (param is None):
-            res = dict()
+
+        res = dict(param) if param else dict()
         res['symbol'] = symbol
         return res
 
@@ -907,11 +918,23 @@ class MexcWebSocketClient(WebSocketClient):
         - of a contract, send the transaction data without users' login.
         - Send once a second after subscription.
         """
+        def ticker_wrapper(msg: dict) -> None:
+            data = msg.get("data", {})
+
+            # Parse symbol string back to TradePair (e.g., "BTC_USDT" -> "BTC", "USDT")
+            ticker_part, quote_part = self._construct_trade_pair(msg.get("symbol", data.get("symbol", "")))
+
+            ticker_dto: Ticker = Ticker(
+                ticker=TradePair(ticker=ticker_part, quote=quote_part),
+                timestamp=data.get("timestamp", self.generate_timestamp()),
+                last_price=float(data.get("lastPrice", 0.0))
+            )
+            callback(ticker_dto)
 
         topic: str = "ticker"
         self.ws.subscribe(
             topic = topic,
-            callback = callback,
+            callback = ticker_wrapper,
             param = self._generate_param(
                 trade_pair=trade_pair,
                 param=param,
@@ -945,10 +968,22 @@ class MexcWebSocketClient(WebSocketClient):
         trade_pair: TradePair | None = None,
         param: dict | None = None,
     ):
+        def depth_wrapper(msg: dict) -> None:
+            data: dict = msg.get("data", {})
+            ticker_part, quote_part = self._construct_trade_pair(msg.get("symbol", data.get("symbol", "")))
+
+            depth_dto: Depth = Depth(
+                ticker=TradePair(ticker=ticker_part, quote=quote_part),
+                timestamp=data.get("timestamp", self.generate_timestamp()),
+                asks = list(),
+                bids = list(),
+            )
+            callback(depth_dto)
+
         topic = "depth"
         self.ws.subscribe(
             topic=topic,
-            callback=callback,
+            callback=depth_wrapper,
             param=self._generate_param(
                 trade_pair=trade_pair,
                 param=param,
