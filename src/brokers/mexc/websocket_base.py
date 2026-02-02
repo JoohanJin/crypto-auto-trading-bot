@@ -33,7 +33,7 @@ class MexcWebSocket(WebSocket):
     ) -> None:
         super().__init__(
             url = url,
-            name = name or f"MexC_WebSocket_Client_{self.id}",
+            name = name or f"MEXC_WEBSOCKET_CLIENT_{self.id}",
             api_key = api_key,
             secret_key = secret_key,
             ping_interval = ping_interval,
@@ -119,6 +119,10 @@ class MexcWebSocket(WebSocket):
         try:
             self.send(header)
             self.subscriptions.append(header)
+            operation_logger.info(
+                f"{__name__} - {self.__class__.__name__} - {self.name} - "
+                f"sent request for subscriptions for: {topic}"
+            )
         except Exception as e:
             operation_logger.warning(
                 f"{__name__} - {self.__class__.__name__} - Unexpected error during subscription: {str(e)}"
@@ -365,10 +369,11 @@ class MexcWebSocket(WebSocket):
             return  # ignore all the data from websocket
 
         try:
+            data: dict | list = None
             if isinstance(msg, str):
-                data: dict = json.loads(msg)
+                data = json.loads(msg)
             if isinstance(msg, bytes):
-                data: dict = json.loads(msg.decode("utf-8"))
+                data = json.loads(msg.decode("utf-8"))
 
             if isinstance(data, dict):
                 self._deal_with_response(data)
@@ -411,7 +416,8 @@ class MexcWebSocket(WebSocket):
         # Status 1000 = normal closure, 1006 = abnormal closure (no close frame), None = network issue
         else:
             operation_logger.info(
-                f"{__name__} - {self.__class__.__name__} - MexC WebSocket - Accidental MexC WebSocket close detected, spawning reconnection thread."
+                f"{__name__} - {self.__class__.__name__} - MexC WebSocket - Accidental MexC WebSocket close detected, "
+                "spawning reconnection thread."
             )
             # Spawn a separate thread for reconnection to avoid deadlock
             # (on_close runs inside the websocket_connection thread)
@@ -626,10 +632,12 @@ class MexcWebSocket(WebSocket):
             return
 
         def deal_with_msg(topic):
+            # Change this to make it to the DTOs
             callback_function = self._get_callback_func(topic)
 
             if isinstance(callback_function, Callable):
                 callback_function(msg)
+
             return
         '''
         # END of Message Handling Sub-Functions
@@ -654,7 +662,6 @@ class MexcWebSocket(WebSocket):
 
         else:
             deal_with_msg(topic)
-
         return
 
     def _get_callback_func(self, topic) -> Callable | None:
