@@ -534,6 +534,10 @@ class BinanceMarketWebSocket(WebSocket):
         self.subscriptions_lock: threading.Lock = threading.Lock()
         self.subscriptions: set[str] = set()  # Set of stream names
 
+        # This is for acknowledgement of the subscriptions from Binance Broker
+        self.streams_lock: threading.Lock = threading.Lock()
+        self.streams: dict[int, str] = dict()
+
         self.default_callback: Callable | None = default_callback
 
         # Threading events
@@ -689,30 +693,43 @@ class BinanceMarketWebSocket(WebSocket):
                 f"must be strings, and 'callback' must be a Callable."
             )
 
+        id: int = self.generate_timestamp()
+
         # Normalize to list
         if isinstance(streams, str):
             streams = [streams]
-
-        # Register callbacks for each stream (persistent, not one-shot)
-        with self.callbacks_lock:
-            self.callbacks[push_topic] = callback
-
-        # Track for resubscribe on reconnect
-        with self.subscriptions_lock:
-            self.subscriptions.update(streams)
 
         # Build and send subscribe request
         payload = {
             "method": "SUBSCRIBE",
             "params": streams,
-            "id": self.generate_timestamp(),
+            "id": id,
         }
 
-        self.send(payload)
-        operation_logger.info(
-            f"{__name__} - {self.__class__.__name__} - {self.name} - "
-            f"Subscribed to streams: {streams}"
-        )
+        # Register callbacks for each stream (persistent, not one-shot)
+        try:
+            self.send(payload)
+            operation_logger.info(
+                f"{__name__} - {self.__class__.__name__} - {self.name} - "
+                f"sent request for subscriptions for: {streams}"
+            )
+
+            with self.callbacks_lock:
+                self.callbacks[push_topic] = callback
+
+            # Track for resubscribe on reconnect
+            with self.subscriptions_lock:
+                self.subscriptions.update(streams)
+
+            # for acknowledgement
+            with self.streams_lock:
+                self.streams[id] = streams
+        except Exception as e:
+            operation_logger.warning(
+                f"{__name__} - {self.__class__.__name__} - {self.name} - "
+                f"Unexpected error while making a subscription: {str(e)}"
+            )
+
         return
 
     def unsubscribe(
@@ -871,26 +888,55 @@ class BinanceMarketWebSocket(WebSocket):
         # print(msg)
 
         try:
-            data = json.loads(msg)
+            msg: dict = json.loads(msg)
+            if isinstance(msg, dict):
+                self._deal_with_response(msg)
         except json.JSONDecodeError as e:
             operation_logger.warning(
                 f"{__name__} - {self.__class__.__name__} - {self.name} - "
                 f"Failed to parse message: {str(e)}"
             )
             return
+        except Exception as e:
+            operation_logger.warning(
+                f"{__name__} - {self.__class__.__name__} - {self.name} - "
+                f"Unexpected while getting msg from Binance WebSocket API: {str(e)}"
+            )
+        return
 
-        stream_topic: str = data.get("e")
+    def _deal_with_response(
+        self,
+        msg: dict,
+    ) -> None:
+        # subscription acknowledgement
+        def is_sub_response(msg):
+            # {'result': None, 'id': 1770044294399}
+            id: int = msg.get('id', -1)
+            stream: str = self.streams.get(id, None)
 
-        # Dispatch to registered callback
-        with self.callbacks_lock:
-            callback = self.callbacks.get(stream_topic)
+            if stream is not None:
+                operation_logger.info(
+                    f"{__name__} - {self.__class__.__name__} - Successfully Subscribed to {str(stream)}"
+                )
+            return
 
-        if callback:
-            callback(data)
-        elif self.default_callback:
-            self.default_callback(data)
+        def deal_with_msg(msg):
+            stream_topic: str = msg.get("e")
+
+            # Dispatch to registered callback
+            with self.callbacks_lock:
+                callback = self.callbacks.get(stream_topic)
+
+            if isinstance(callback, Callable):
+                callback(msg)
+            elif self.default_callback:
+                self.default_callback(msg)
+            return
+
+        if (msg.get("result", "") is None):
+            is_sub_response(msg)
         else:
-            self._operation_logging(data)
+            deal_with_msg(msg)
         return
 
     def on_close(
