@@ -26,3 +26,6 @@ class TradePair:
 
     def copy(self) -> TradePair:
         return replace(self)
+
+    def __repr__(self) -> str:
+        return f"TradePair object - ticker: {self.ticker} - quote: {self.quote}"
