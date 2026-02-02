@@ -10,10 +10,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends tini \
 
 WORKDIR /app
 
-COPY requirements.txt .
+COPY requirements.txt pyproject.toml ./
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY src/ /app/src/
+
+RUN pip install --no-cache-dir .
 
 RUN useradd -m tradeuser && chown -R tradeuser:tradeuser /app
 USER tradeuser
