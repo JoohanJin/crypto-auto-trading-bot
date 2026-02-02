@@ -16,7 +16,7 @@ class Ticker(WebSocketDTO):
     last_price: float
 
     def __repr__(self) -> str:
-        return f"Ticker Object - ticker: {self.ticker} - timestamp: {self.timestamp} - last_price: {self.last_price}"
+        return f"Ticker Object at timestamp of {self.timestamp} for {self.ticker}"
 
 
 @dataclass(frozen=True)
@@ -28,8 +28,14 @@ class Kline(WebSocketDTO):
     high_price: float
     low_price: float
 
+    def __repr__(self) -> str:
+        return f"Kline Object at timestamp of {self.timestamp} for {self.ticker}"
+
 
 @dataclass(frozen=True)
 class Depth(WebSocketDTO):
     asks: list
     bids: list
+
+    def __repr__(self) -> str:
+        return f"Depth Object at timestamp of {self.timestamp} for {self.ticker}"
