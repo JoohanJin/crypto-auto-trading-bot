@@ -1,9 +1,11 @@
 # Standard Library
 from typing import Literal, Union
 from collections.abc import Callable
+import time
 
 
 # Custom Library
+from src.core.models.websocket_dto import Ticker
 from src.infrastructure.logging.set_logger import operation_logger
 from src.brokers.binance.base_sdk import FutureBase
 from src.brokers.binance.websocket_base import (
@@ -1096,6 +1098,9 @@ class FutureMarket(FutureBase):
 
 
 class BinanceWebSocketClient(WebSocketClient):
+    def generate_timestamp(self) -> int:
+        return int(time.time() * 1_000)
+
     def __init__(
         self,
         api_key: str,  # Necessary
@@ -1274,8 +1279,20 @@ class BinanceWebSocketClient(WebSocketClient):
         - topic: ticker
         - push_topic: 24hrTicker
         '''
+        def ticker_callback(msg: dict) -> None:
+            symbol: str = msg.get("s", None)
+            symbol_ticker: str = symbol[3:]
+            symbol_quote: str = symbol[:len(symbol) - 4]
+            ticker = Ticker(
+                ticker=TradePair(ticker=symbol_ticker, quote=symbol_quote,),
+                last_price=float(msg.get('c', 0)),
+                timestamp=int(msg.get("E", self.generate_timestamp()))
+            )
+            callback(ticker)
+            return
+
         stream: str = f"@{req_topic}"
-        self._market_subscribe(stream, push_topic, callback, trade_pair)
+        self._market_subscribe(stream, push_topic, ticker_callback, trade_pair)
         return
 
     def depth(
