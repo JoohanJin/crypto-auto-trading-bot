@@ -11,7 +11,7 @@ from pydantic import BaseModel, ValidationError
 TBaseModel = TypeVar("TBaseModel", bound=BaseModel)
 
 
-class CommonBaseSDK(ABC):
+class RestService(ABC):
     """
     A common base class for handling API requests, signature generation, and session management
     for different exchange SDKs (e.g., MEXC and Binance).
@@ -26,8 +26,8 @@ class CommonBaseSDK(ABC):
     def generate_timestamp(self) -> int:
         return int(time.time() * 1_000)
 
-    @staticmethod
     def parse_response(
+        self,
         response: requests.Response,
         model: Type[TBaseModel] | None = None,
     ) -> TBaseModel | list[TBaseModel] | dict[str, Any] | list[Any] | str | None:
@@ -59,10 +59,10 @@ class CommonBaseSDK(ABC):
                 return [model.model_validate(item) for item in payload]
             if isinstance(payload, dict):
                 return model.model_validate(payload)
-        except ValidationError as exc:  # pragma: no cover - pydantic detail
+        except ValidationError as e:  # pragma: no cover - pydantic detail
             raise ValueError(
-                f"Failed to parse response into {model.__name__}: {exc}"
-            ) from exc
+                f"{__name__} - {self.__class__.__name__} - {self.name} - Failed to parse response into {model.__name__}: {str(e)}"
+            ) from e
 
         raise ValueError(
             f"Response body of type {type(payload).__name__} cannot be parsed using {model.__name__}."
@@ -71,19 +71,24 @@ class CommonBaseSDK(ABC):
         return
 
     def __init__(
-        self: "CommonBaseSDK",
+        self,
+        name: str,
         base_url: str,
         api_key: str | None = None,
         secret_key: str | None = None,
     ):
-        self.api_key = api_key
-        self.secret_key = secret_key
-        self.base_url = base_url
+        self.name: str = name
+        self.api_key: str = api_key
+        self.secret_key: str = secret_key
+        self.base_url: str = base_url
 
         # Initialize a session
-        self.session = requests.Session()
+        self.session: requests.Session = requests.Session()
 
-    def set_content_type(self: "CommonBaseSDK", content_type: str):
+    def set_content_type(
+        self,
+        content_type: str
+    ):
         """
         Set the Content-Type header for the session.
         """
@@ -94,11 +99,11 @@ class CommonBaseSDK(ABC):
         )
 
     def generate_signature(
-        self: "CommonBaseSDK",
+        self,
         query_string: str,
     ) -> str:
         """
-        fucn generate_signature:
+        ;func generate_signature:
             - Generate a signature for the request using HMAC SHA256.
             - This is used for authentication with the API.
             - Child classes would override this method if needed.
@@ -121,7 +126,7 @@ class CommonBaseSDK(ABC):
 
     @abstractmethod
     def call(
-        self: "CommonBaseSDK",
+        self,
         method: Union[
             Literal["GET"],
             Literal["POST"],
@@ -152,4 +157,29 @@ class CommonBaseSDK(ABC):
 
 
 if __name__ == "__main__":
-    print(CommonBaseSDK.snake_to_camel("abc"))
+    import unittest
+
+    class TestSnakeToCamel(unittest.TestCase):
+        """Unit tests for snake_to_camel conversion."""
+
+        def test_single_word_no_underscores(self):
+            """Single word with no underscores should remain lowercase."""
+            self.assertEqual(RestService.snake_to_camel("abc"), "abc")
+
+        def test_two_words(self):
+            """Two words separated by underscore should convert to camelCase."""
+            self.assertEqual(RestService.snake_to_camel("abc_cdf"), "abcCdf")
+
+        def test_multiple_underscores(self):
+            """Multiple underscores should convert each word."""
+            self.assertEqual(RestService.snake_to_camel("abc_cdf_efg"), "abcCdfEfg")
+
+        def test_with_numbers(self):
+            """Conversion should handle numbers correctly."""
+            self.assertEqual(RestService.snake_to_camel("page_num"), "pageNum")
+
+        def test_single_letter(self):
+            """Single letter should remain lowercase."""
+            self.assertEqual(RestService.snake_to_camel("a"), "a")
+
+    unittest.main()

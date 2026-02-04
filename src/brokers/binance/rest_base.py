@@ -5,7 +5,7 @@ import json
 
 # Custom Library
 from src.infrastructure.logging.set_logger import operation_logger
-from src.brokers.base.base_sdk import CommonBaseSDK
+from src.brokers.base.rest_sdk import CommonBaseSDK
 
 
 class FutureBase(CommonBaseSDK):
@@ -112,5 +112,5 @@ class FutureBase(CommonBaseSDK):
             response.raise_for_status()
             return None
         except Exception as e:
-            operation_logger.critical(f"{__name__} - Unknown Exception: {str(e)}")
+            operation_logger.critical(f"{__name__} - Unknown Error while communicating with broker: {str(e)}")
             return None
