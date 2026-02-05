@@ -1,11 +1,14 @@
+# Standard Library
 import requests
 import hmac
 import hashlib
 import time
 from typing import Any, Union, Literal, Type, TypeVar
 from abc import ABC, abstractmethod
-
 from pydantic import BaseModel, ValidationError
+
+# Custom Library
+from src.core.models.trade import TradePair
 
 
 TBaseModel = TypeVar("TBaseModel", bound=BaseModel)
@@ -67,7 +70,6 @@ class RestService(ABC):
         raise ValueError(
             f"Response body of type {type(payload).__name__} cannot be parsed using {model.__name__}."
         )
-
         return
 
     def __init__(
@@ -153,6 +155,68 @@ class RestService(ABC):
 
         return: JSON response from the API
         """
+        return
+
+
+class FutureClient(ABC):
+    @classmethod
+    @abstractmethod
+    def _parse_trade_pair(
+        cls,
+        trade_pair: TradePair,
+    ) -> str:
+        """
+        Convert a TradePair object to the exchange-specific symbol format.
+
+        Args:
+            trade_pair: TradePair object (ticker + quote)
+
+        Returns:
+            Symbol string in exchange format (e.g., "BTCUSDT" or "BTC_USDT")
+        """
+        return
+
+    def __init__(
+        self,
+        name: str | None = None,
+    ) -> None:
+        self.name: str = name or ""
+        return
+
+    @abstractmethod
+    def ping(self):
+        return
+
+    @abstractmethod
+    def get_order_book(self):
+        return
+
+    @abstractmethod
+    def get_kline(self):
+        return
+
+    @abstractmethod
+    def get_ticker(self):
+        return
+
+    @abstractmethod
+    def get_funding_rate_history(self):
+        return
+
+    @abstractmethod
+    def get_account_balance(self):
+        return
+
+    @abstractmethod
+    def get_positions(self):
+        return
+
+    @abstractmethod
+    def get_open_orders(self):
+        return
+
+    @abstractmethod
+    def place_order(self):
         return
 
 
