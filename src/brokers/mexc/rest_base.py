@@ -3,8 +3,8 @@ from typing import Optional, Union, Literal
 import json
 
 # Custom libraries
-from src.brokers.base.rest_sdk import RestService
 from src.infrastructure.logging.set_logger import operation_logger
+from src.brokers.base.rest_sdk import RestService
 
 
 class MexcFutureGateway(RestService):
@@ -85,9 +85,9 @@ class MexcFutureGateway(RestService):
                 data = data if data is None else json.dumps(data),
             )
 
-            payload = self.__class__.parse_response(response)
+            payload = self.parse_response(response)
 
-            # TODO: make a custom data structure for O(1) data get
+            # TODO: make a custom data structure for O(1) data-get for logging and Exception handling
             if response.status_code >= 400:
                 status: int = response.status_code
                 error_msg: str = (
@@ -98,43 +98,53 @@ class MexcFutureGateway(RestService):
 
                 if status == 400:
                     operation_logger.critical(
-                        f"{__name__} - BadRequest Error from MexC USDT-M Future API: {str(error_msg)}"
+                        f"{__name__} - {self.__class__.__name__} - {self.name} - BadRequest Error "
+                        f"from MexC USDT-M Future API: {str(error_msg)}"
                     )
                 elif status == 401:
                     operation_logger.critical(
-                        f"{__name__} - Unauthorized Error from MexC USDT-M Future API: {str(error_msg)}"
+                        f"{__name__} - {self.__class__.__name__} - {self.name} - Unauthorized Error "
+                        f"from MexC USDT-M Future API: {str(error_msg)}"
                     )
                 elif status == 402:
                     operation_logger.critical(
-                        f"{__name__} - ApiKeyExpired Error from MexC USDT-M Future API: {str(error_msg)}"
+                        f"{__name__} - {self.__class__.__name__} - {self.name} - ApiKeyExpired Error "
+                        f"from MexC USDT-M Future API: {str(error_msg)}"
                     )
                 elif status == 406:
                     operation_logger.critical(
-                        f"{__name__} - AccessIPNotInWhiteList Error from MexC USDT-M Future API: {str(error_msg)}"
+                        f"{__name__} - {self.__class__.__name__} - {self.name} - AccessIPNotInWhiteList Error "
+                        f"from MexC USDT-M Future API: {str(error_msg)}"
                     )
                 elif status == 500:
                     operation_logger.critical(
-                        f"{__name__} - ServerInternal Error from MexC USDT-M Future API: {str(error_msg)}"
+                        f"{__name__} - {self.__class__.__name__} - {self.name} - ServerInternal Error "
+                        f"from MexC USDT-M Future API: {str(error_msg)}"
                     )  # TODO: Implement retry logic
                 elif status == 506:
                     operation_logger.critical(
-                        f"{__name__} - UnknownSourceOfRequest Error from MexC USDT-M Future API: {str(error_msg)}"
+                        f"{__name__} - {self.__class__.__name__} - {self.name} - UnknownSourceOfRequest Error "
+                        f"from MexC USDT-M Future API: {str(error_msg)}"
                     )
                 elif status == 510:
                     operation_logger.critical(
-                        f"{__name__} - ExcessiveFrequencyOfRequest Error from MexC USDT-M Future API: {str(error_msg)}"
+                        f"{__name__} - {self.__class__.__name__} - {self.name} - ExcessiveFrequencyOfRequest Error "
+                        f"from MexC USDT-M Future API: {str(error_msg)}"
                     )  # TODO: implement retry logic
                 elif status == 511:
                     operation_logger.critical(
-                        f"{__name__} - EndpointInaccurate Error from MexC USDT-M Future API: {str(error_msg)}"
+                        f"{__name__} - {self.__class__.__name__} - {self.name} - EndpointInaccurate Error "
+                        f"from MexC USDT-M Future API: {str(error_msg)}"
                     )
                 elif status == 513:
                     operation_logger.critical(
-                        f"{__name__} - InvalidRequest Error from MexC USDT-M Future API: {str(error_msg)}"
+                        f"{__name__} - {self.__class__.__name__} - {self.name} - InvalidRequest Error "
+                        f"from MexC USDT-M Future API: {str(error_msg)}"
                     )
                 else:
                     operation_logger.critical(
-                        f"{__name__} - ClientError Error from MexC USDT-M Future API: {str(error_msg)}"
+                        f"{__name__} - {self.__class__.__name__} - {self.name} - ClientError Error "
+                        f"from MexC USDT-M Future API: {str(error_msg)}"
                     )
 
                 raise Exception(error_msg)
@@ -145,6 +155,7 @@ class MexcFutureGateway(RestService):
             return None
         except Exception as e:
             operation_logger.critical(
-                f"{__name__} - Unexpected Error while communicating to Mexc Rest API: {str(e)}"
+                f"{__name__} - {self.__class__.__name__} - {self.name} - Unexpected Error "
+                f"while communicating to Mexc Rest API: {str(e)}"
             )
             return None
