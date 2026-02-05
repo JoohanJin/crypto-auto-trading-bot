@@ -174,8 +174,9 @@ class WebSocketClient(ABC):
         self.name: str = name
         return
 
+    @classmethod
     @abstractmethod
-    def _parse_trade_pair(self, trade_pair: TradePair) -> str:
+    def _parse_trade_pair(cls, trade_pair: TradePair) -> str:
         '''
         ;func _parse_trade_pair()
             - parse the Trade Pair and return the str data type appropriate for each broker
