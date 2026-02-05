@@ -5,15 +5,16 @@ import json
 
 # Custom Library
 from src.infrastructure.logging.set_logger import operation_logger
-from src.brokers.base.rest_sdk import CommonBaseSDK
+from src.brokers.base.rest_sdk import RestService
 
 
-class FutureBase(CommonBaseSDK):
+class BinanceFutureGateway(RestService):
     """
     SDK for Binance Futures API, inheriting from CommonBaseAPI.
     """
     def __init__(
-        self: "FutureBase",
+        self,
+        name: str | None = None,
         base_url: str = "https://fapi.binance.com",
         api_key: str | None = None,
         secret_key: str | None = None,
@@ -22,6 +23,7 @@ class FutureBase(CommonBaseSDK):
         # base_url = "https://testnet.binancefuture.com"  # this is the testNet
 
         super().__init__(
+            name = name if name is not None else "BINANCE_FUTURE_REST_CLIENT",
             api_key = api_key,
             secret_key = secret_key,
             base_url = base_url,
@@ -31,7 +33,7 @@ class FutureBase(CommonBaseSDK):
         return
 
     def call(
-        self: "FutureBase",
+        self,
         method: Union[
             Literal["GET"],
             Literal["POST"],
@@ -78,7 +80,7 @@ class FutureBase(CommonBaseSDK):
                 data = request_data,
             )
 
-            payload = self.__class__.parse_response(response)
+            payload = self.parse_response(response)
 
             if response.status_code >= 400:
                 status: int = response.status_code  # Status Code of the response.
@@ -89,28 +91,55 @@ class FutureBase(CommonBaseSDK):
                 )
 
                 if status == 400:
-                    operation_logger.critical(f"{__name__} - BadRequest Error from Binance USDT-M Future API: {str(error_msg)}")
+                    operation_logger.critical(
+                        f"{__name__} - {self.__class__.__name__} - {self.name} - BadRequest Error "
+                        f"from Binance USDT-M Future API: {str(error_msg)}"
+                    )
                 elif status == 401:
-                    operation_logger.critical(f"{__name__} - Unauthorized Error from Binance USDT-M Future API: {str(error_msg)}")
+                    operation_logger.critical(
+                        f"{__name__} - {self.__class__.__name__} - {self.name} - Unauthorized Error "
+                        f"from Binance USDT-M Future API: {str(error_msg)}"
+                    )
                 elif status == 403:
-                    operation_logger.critical(f"{__name__} - Forbidden Error from Binance USDT-M Future API: {str(error_msg)}")
+                    operation_logger.critical(
+                        f"{__name__} - {self.__class__.__name__} - {self.name} - Forbidden Error "
+                        f"from Binance USDT-M Future API: {str(error_msg)}"
+                    )
                 elif status == 404:
-                    operation_logger.critical(f"{__name__} - NotFound Error from Binance USDT-M Future API: {str(error_msg)}")
+                    operation_logger.critical(
+                        f"{__name__} - {self.__class__.__name__} - {self.name} - NotFound Error "
+                        f"from Binance USDT-M Future API: {str(error_msg)}"
+                    )
                 elif status == 418:
-                    operation_logger.critical(f"{__name__} - RateLimitBan Error from Binance USDT-M Future API: {str(error_msg)}")
+                    operation_logger.critical(
+                        f"{__name__} - {self.__class__.__name__} - {self.name} - RateLimitBan Error "
+                        f"from Binance USDT-M Future API: {str(error_msg)}"
+                    )
                 elif status == 429:
-                    operation_logger.critical(f"{__name__} - ToomanyRequests Error from Binance USDT-M Future API: {str(error_msg)}")
+                    operation_logger.critical(
+                        f"{__name__} - {self.__class__.__name__} - {self.name} - ToomanyRequests Error "
+                        f"from Binance USDT-M Future API: {str(error_msg)}"
+                    )
                 elif 500 <= status < 600:
-                    operation_logger.critical(f"{__name__} - Server Error from Binance USDT-M Future API: {str(error_msg)}")
+                    operation_logger.critical(
+                        f"{__name__} - {self.__class__.__name__} - {self.name} - Server Error "
+                        f"from Binance USDT-M Future API: {str(error_msg)}"
+                    )
                 else:
-                    operation_logger.critical(f"{__name__} - ClientError Error from Binance USDT-M Future API: {str(error_msg)}")
+                    operation_logger.critical(
+                        f"{__name__} - {self.__class__.__name__} - {self.name} - ClientError Error "
+                        f"from Binance USDT-M Future API: {str(error_msg)}"
+                    )
 
-                raise Exception(error_message = error_msg)
+                raise Exception(error_msg)
 
             return payload
         except ValueError:
             response.raise_for_status()
             return None
         except Exception as e:
-            operation_logger.critical(f"{__name__} - Unknown Error while communicating with broker: {str(e)}")
+            operation_logger.critical(
+                f"{__name__} - {self.__class__.__name__} - {self.name} - Unknown Error "
+                f"while communicating with broker: {str(e)}"
+            )
             return None
