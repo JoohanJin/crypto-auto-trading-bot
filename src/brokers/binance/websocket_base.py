@@ -30,7 +30,7 @@ class BinanceUserWebSocket(WebSocket):
         name: str = None,
     ) -> None:
         super().__init__(
-            name=name or "Binance_User_WebSocket_Client",
+            name=name or "BINANCE_USER_WEBSOCKET_CLIENT",
             url=url,
             api_key=api_key,
             secret_key=secret_key,
