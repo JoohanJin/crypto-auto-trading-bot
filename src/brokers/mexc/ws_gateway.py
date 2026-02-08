@@ -8,7 +8,7 @@ import threading
 import websocket
 
 # Custom Library
-from src.brokers.base.websocket_sdk import WebSocket
+from src.brokers.base.ws_sdk import WebSocket
 
 # Getting Logger access
 from src.infrastructure.logging.set_logger import operation_logger

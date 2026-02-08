@@ -9,7 +9,7 @@ import websocket
 
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 
-from src.brokers.base.websocket_sdk import WebSocket
+from src.brokers.base.ws_sdk import WebSocket
 from src.infrastructure.logging.set_logger import operation_logger
 
 

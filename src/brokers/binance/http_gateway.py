@@ -5,7 +5,7 @@ import json
 
 # Custom Library
 from src.infrastructure.logging.set_logger import operation_logger
-from src.brokers.base.rest_sdk import RestService
+from src.brokers.base.http_sdk import RestService
 
 
 class BinanceFutureGateway(RestService):
