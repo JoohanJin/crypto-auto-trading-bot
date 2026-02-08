@@ -2,7 +2,7 @@
 from collections.abc import Callable
 
 # Custom Library
-from src.brokers.base.websocket_sdk import WebSocketClient
+from src.brokers.base.ws_sdk import WebSocketClient
 from src.core.models.trade import TradePair
 from src.infrastructure.logging.set_logger import operation_logger
 

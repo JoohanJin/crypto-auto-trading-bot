@@ -3,7 +3,7 @@ import threading
 import pandas as pd
 from queue import Queue
 
-from src.brokers.mexc.future import FutureWebSocket
+from src.brokers.mexc.http_client import FutureWebSocket
 from src.infrastructure.logging.set_logger import operation_logger
 
 

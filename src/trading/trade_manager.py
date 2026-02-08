@@ -5,10 +5,10 @@ import time
 from typing import List, Tuple
 
 # Custom Library
-from src.brokers.binance.future import FutureMarket as BinanceFutureMarket
+from src.brokers.binance.http_client import FutureMarket as BinanceFutureMarket
 from src.integrations.telegram.telegram_bot_class import CustomTelegramBot
 from src.infrastructure.logging.set_logger import operation_logger, trading_logger
-from src.brokers.mexc.future import FutureMarket as MexCFutureMarket
+from src.brokers.mexc.http_client import FutureMarket as MexCFutureMarket
 from src.core.models.score_mapping import ScoreMapper
 from src.core.models.signal import Signal, TradeSignal
 from src.interfaces.pipeline_interface import PipelineController
