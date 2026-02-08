@@ -6,13 +6,24 @@ from src.core.models.trade import TradePair
 
 
 @dataclass(frozen=True)
-class WebSocketDTO:
-    ticker: TradePair
+class ServiceDTO:
     timestamp: int
+    source: str
 
 
 @dataclass(frozen=True)
-class Ticker(WebSocketDTO):
+class Ping(ServiceDTO):
+    success: bool
+
+
+@dataclass(frozen=True)
+class FundingRate(ServiceDTO):
+    ticker: TradePair
+
+
+@dataclass(frozen=True)
+class Ticker(ServiceDTO):
+    ticker: TradePair
     last_price: float
 
     def __repr__(self) -> str:
@@ -20,7 +31,8 @@ class Ticker(WebSocketDTO):
 
 
 @dataclass(frozen=True)
-class Kline(WebSocketDTO):
+class Kline(ServiceDTO):
+    ticker: TradePair
     interval: str  # Or define enum for this?
     amount: float
     open_price: float
@@ -33,7 +45,8 @@ class Kline(WebSocketDTO):
 
 
 @dataclass(frozen=True)
-class Depth(WebSocketDTO):
+class OrderBook(ServiceDTO):
+    ticker: TradePair
     asks: list
     bids: list
 

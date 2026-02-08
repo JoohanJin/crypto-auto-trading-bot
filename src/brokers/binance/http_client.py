@@ -1,22 +1,49 @@
 # Standard Library
 from typing import Literal, Union
-from collections.abc import Callable
-import time
 
+# logger
+from src.infrastructure.logging.set_logger import operation_logger
 
 # Custom Library
-from src.core.models.websocket_dto import Ticker
-from src.infrastructure.logging.set_logger import operation_logger
-from src.brokers.binance.base_sdk import FutureBase
-from src.brokers.binance.websocket_base import (
-    BinanceMarketWebSocket,
-    BinanceUserWebSocket
-)
-from src.brokers.base.websocket_sdk import WebSocketClient, WebSocket
 from src.core.models.trade import TradePair
 
+# RESTful Client
+from src.brokers.base.http_sdk import FutureClient, RestService
+from src.brokers.binance.http_gateway import BinanceFutureGateway
 
-class FutureMarket(FutureBase):
+
+class BinanceFutureClient(FutureClient):
+    @classmethod
+    def _parse_trade_pair(
+        cls,
+        trade_pair: TradePair | None,
+        capitalize: bool = True,
+    ) -> str:
+        if isinstance(trade_pair, TradePair):
+            ticker: str = trade_pair.ticker.upper() if capitalize else trade_pair.ticker.lower()
+            quote: str = trade_pair.quote.upper() if capitalize else trade_pair.quote.lower()
+            return f"{ticker}{quote}"
+        return "BTCUSDT" if capitalize else "btcusdt"
+
+    def __init__(
+        self,
+        api_key: str,
+        secret_key: str,
+        name: str | None = None,
+    ) -> None:
+        if name is None:
+            name = "BINANCE_FUTURE_CLIENT"
+        
+        super().__init__(
+            name=name.upper(),
+        )
+        self.gateway: RestService = BinanceFutureGateway(
+            name=f"{name.upper()}_GATEWAY",
+            api_key=api_key,
+            secret_key=secret_key,
+        )
+        return
+
     """
     REST API Version 1 for Binance Futures.
 
@@ -25,7 +52,6 @@ class FutureMarket(FutureBase):
 
     probably need to change this to "BTCUSDC" in the future.
     """
-
     # PUBLIC ENDPOINT
     def ping(
         self,
@@ -39,12 +65,12 @@ class FutureMarket(FutureBase):
         """
         url: str = "/fapi/v1/ping"
 
-        return self.call(
+        return self.gateway.call(
             method = "GET",
             url = url,
         )
 
-    def server_time(
+    def get_server_time(
         self,
     ) -> dict:
         """
@@ -56,12 +82,12 @@ class FutureMarket(FutureBase):
         """
         url: str = "/fapi/v1/time"
 
-        return self.call(
+        return self.gateway.call(
             method = "GET",
             url = url,
         )
 
-    def exchange_info(
+    def get_exchange_info(
         self,
     ) -> dict:
         """
@@ -73,14 +99,14 @@ class FutureMarket(FutureBase):
         """
         url: str = "/fapi/v1/exchangeInfo"
 
-        return self.call(
+        return self.gateway.call(
             method = "GET",
             url = url,
         )
 
-    def order_book(
+    def get_order_book(
         self,
-        symbol: str = "BTCUSDT",
+        symbol: TradePair | None = None,
         limit: int = 1_000,
     ) -> dict:
         """
@@ -95,19 +121,19 @@ class FutureMarket(FutureBase):
         """
         url: str = "/fapi/v1/depth"
         params: dict[str, str | int] = {
-            "symbol": symbol,
+            "symbol": self._parse_trade_pair(symbol),
             "limit": limit,
         }
 
-        return self.call(
+        return self.gateway.call(
             method = "GET",
             url = url,
             params = params,
         )
 
-    def recent_trades(
+    def get_recent_trades(
         self,
-        symbol: str = "BTCUSDT",
+        symbol: TradePair | None = None,
         limit: int = 1_000,
     ) -> dict:
         """
@@ -122,19 +148,19 @@ class FutureMarket(FutureBase):
         """
         url: str = "/fapi/v1/trades"
         params: dict[str, str | int] = {
-            "symbol": symbol,
+            "symbol": self._parse_trade_pair(symbol),
             "limit": limit,
         }
 
-        return self.call(
+        return self.gateway.call(
             method = "GET",
             url = url,
             params = params,
         )
 
-    def historical_trades(
+    def get_historical_trades(
         self,
-        symbol: str = "BTCUSDT",
+        symbol: TradePair | None = None,
         limit: int = 500,
         from_id: int | None = None,
     ) -> dict:
@@ -151,7 +177,7 @@ class FutureMarket(FutureBase):
         """
         url: str = "/fapi/v1/historicalTrades"
         params: dict[str, str | int] = {
-            "symbol": symbol,
+            "symbol": self._parse_trade_pair(symbol),
             "limit": limit,
         }
         if from_id is not None:
@@ -159,19 +185,19 @@ class FutureMarket(FutureBase):
 
         headers: dict[str, str] = {}
         # TODO: if api_key is None, raise an error.
-        if self.api_key:
-            headers["X-MBX-APIKEY"] = self.api_key
+        if self.gateway.api_key:
+            headers["X-MBX-APIKEY"] = self.gateway.api_key
 
-        return self.call(
+        return self.gateway.call(
             method = "GET",
             url = url,
             params = params,
             headers = headers,
         )
 
-    def compressed_aggregate_trades(
+    def get_compressed_aggregate_trades(
         self,
-        symbol: str = "BTCUSDT",
+        symbol: TradePair | None = None,
         from_id: int | None = None,
         start_time: int | None = None,
         end_time: int | None = None,
@@ -192,7 +218,7 @@ class FutureMarket(FutureBase):
         """
         url: str = "/fapi/v1/aggTrades"
         params: dict[str, str | int] = {
-            "symbol": symbol,
+            "symbol": self._parse_trade_pair(symbol),
             "limit": limit,
         }
         if from_id is not None:
@@ -202,15 +228,15 @@ class FutureMarket(FutureBase):
         if end_time is not None:
             params["endTime"] = end_time
 
-        return self.call(
+        return self.gateway.call(
             method = "GET",
             url = url,
             params = params,
         )
 
-    def klines(
+    def get_kline(
         self,
-        symbol: str = "BTCUSDT",
+        symbol: TradePair | None = None,
         interval: str = "1m",
         startTime: int | None = None,
         endTime: int | None = None,
@@ -228,7 +254,7 @@ class FutureMarket(FutureBase):
         """
         url: str = "/fapi/v1/klines"
         params: dict[str, str | int] = {
-            "symbol": symbol,
+            "symbol": self._parse_trade_pair(symbol),
             "interval": interval,
         }
 
@@ -239,15 +265,15 @@ class FutureMarket(FutureBase):
         if limit is not None:
             params["limit"] = limit
 
-        return self.call(
+        return self.gateway.call(
             method = "GET",
             url = url,
             params = params,
         )
 
-    def continuous_klines(
+    def get_continuous_klines(
         self,
-        pair: str = "BTCUSDT",
+        pair: TradePair | None = None,
         contract_type: str = "PERPETUAL",
         interval: str = "1m",
         startTime: int | None = None,
@@ -267,7 +293,7 @@ class FutureMarket(FutureBase):
         """
         url: str = "/fapi/v1/continuousKlines"
         params: dict[str, str | int] = {
-            "pair": pair,
+            "pair": self._parse_trade_pair(pair),
             "contractType": contract_type,
             "interval": interval,
         }
@@ -279,15 +305,15 @@ class FutureMarket(FutureBase):
         if limit is not None:
             params["limit"] = limit
 
-        return self.call(
+        return self.gateway.call(
             method = "GET",
             url = url,
             params = params,
         )
 
-    def index_price_klines(
+    def get_index_price_klines(
         self,
-        pair: str = "BTCUSDT",
+        pair: TradePair | None = None,
         interval: str = "1m",
         startTime: int | None = None,
         endTime: int | None = None,
@@ -305,7 +331,7 @@ class FutureMarket(FutureBase):
         """
         url: str = "/fapi/v1/indexPriceKlines"
         params: dict[str, str | int] = {
-            "pair": pair,
+            "pair": self._parse_trade_pair(pair),
             "interval": interval,
         }
 
@@ -316,15 +342,15 @@ class FutureMarket(FutureBase):
         if limit is not None:
             params["limit"] = limit
 
-        return self.call(
+        return self.gateway.call(
             method = "GET",
             url = url,
             params = params,
         )
 
-    def mark_price_klines(
+    def get_mark_price_klines(
         self,
-        symbol: str = "BTCUSDT",
+        symbol: TradePair | None = None,
         interval: str = "1m",
         startTime: int | None = None,
         endTime: int | None = None,
@@ -342,7 +368,7 @@ class FutureMarket(FutureBase):
         """
         url: str = "/fapi/v1/markPriceKlines"
         params: dict[str, str | int] = {
-            "symbol": symbol,
+            "symbol": self._parse_trade_pair(symbol),
             "interval": interval,
         }
 
@@ -353,15 +379,15 @@ class FutureMarket(FutureBase):
         if limit is not None:
             params["limit"] = limit
 
-        return self.call(
+        return self.gateway.call(
             method = "GET",
             url = url,
             params = params,
         )
 
-    def premium_klines(
+    def get_premium_klines(
         self,
-        symbol: str = "BTCUSDT",
+        symbol: TradePair | None = None,
         interval: str = "1m",
         startTime: int | None = None,
         endTime: int | None = None,
@@ -379,7 +405,7 @@ class FutureMarket(FutureBase):
         """
         url: str = "/fapi/v1/premiumIndexKlines"
         params: dict[str, str | int] = {
-            "symbol": symbol,
+            "symbol": self._parse_trade_pair(symbol),
             "interval": interval,
         }
 
@@ -390,15 +416,15 @@ class FutureMarket(FutureBase):
         if limit is not None:
             params["limit"] = limit
 
-        return self.call(
+        return self.gateway.call(
             method = "GET",
             url = url,
             params = params,
         )
 
-    def mark_price(
+    def get_mark_price(
         self,
-        symbol: str = "BTCUSDT",
+        symbol: TradePair | None = None,
     ) -> dict:
         """
         Get the current mark price and funding rate for a specific symbol.
@@ -411,18 +437,18 @@ class FutureMarket(FutureBase):
         """
         url: str = "/fapi/v1/premiumIndex"
         params: dict[str, str] = {
-            "symbol": symbol,
+            "symbol": self._parse_trade_pair(symbol),
         }
 
-        return self.call(
+        return self.gateway.call(
             method = "GET",
             url = url,
             params = params,
         )
 
-    def funding_rate_history(
+    def get_funding_rate_history(
         self,
-        symbol: str = "BTCUSDT",
+        symbol: TradePair | None = None,
         startTime: int | None = None,
         endTime: int | None = None,
         limit: int = 100,  # maximum 1_000
@@ -441,7 +467,7 @@ class FutureMarket(FutureBase):
         """
         url: str = "/fapi/v1/fundingRate"
         params: dict[str, str | int] = {
-            "symbol": symbol,
+            "symbol": self._parse_trade_pair(symbol),
             "limit": limit,
         }
         if startTime is not None:
@@ -449,13 +475,13 @@ class FutureMarket(FutureBase):
         if endTime is not None:
             params["endTime"] = endTime
 
-        return self.call(
+        return self.gateway.call(
             method = "GET",
             url = url,
             params = params,
         )
 
-    def funding_rate_info(
+    def get_funding_rate_info(
         self,
     ) -> dict:
         """
@@ -467,14 +493,14 @@ class FutureMarket(FutureBase):
         """
         url: str = "/fapi/v1/fundingRate"
 
-        return self.call(
+        return self.gateway.call(
             method = "GET",
             url = url,
         )
 
-    def ticker_24hr(
+    def get_ticker(
         self,
-        symbol: str = "BTCUSDT",
+        symbol: TradePair | None = None,
     ) -> dict:
         """
         Get 24 hour rolling window price change statistics for a specific symbol.
@@ -487,18 +513,18 @@ class FutureMarket(FutureBase):
         """
         url: str = "/fapi/v1/ticker/24hr"
         params: dict[str, str] = {
-            "symbol": symbol,
+            "symbol": self._parse_trade_pair(symbol),
         }
 
-        return self.call(
+        return self.gateway.call(
             method = "GET",
             url = url,
             params = params,
         )
 
-    def top_trader_long_short_ratio(
+    def get_top_trader_long_short_ratio(
         self,
-        symbol: str = "BTCUSDT",
+        symbol: TradePair | None = None,
         period: str = "5m",
         limit: int = 30,  # maximum 500,
         startTime: int | None = None,
@@ -509,7 +535,7 @@ class FutureMarket(FutureBase):
         """
         url: str = "/futures/data/topLongShortAccountRatio"
         params: dict[str, str | int] = {
-            "symbol": symbol,
+            "symbol": self._parse_trade_pair(symbol),
             "period": period,
             "limit": limit,
         }
@@ -518,15 +544,15 @@ class FutureMarket(FutureBase):
         if endTime is not None:
             params["endTime"] = endTime
 
-        return self.call(
+        return self.gateway.call(
             method = "GET",
             url = url,
             params = params,
         )
 
-    def long_short_ratio(
+    def get_long_short_ratio(
         self,
-        symbol: str = "BTCUSDT",
+        symbol: TradePair | None = None,
         period: str = "5m",
         limit: int = 30,  # maximum 500,
         startTime: int | None = None,
@@ -537,7 +563,7 @@ class FutureMarket(FutureBase):
         """
         url: str = "/futures/data/globalLongShortAccountRatio"
         params: dict[str, str | int] = {
-            "symbol": symbol,
+            "symbol": self._parse_trade_pair(symbol),
             "period": period,
             "limit": limit,
         }
@@ -546,15 +572,15 @@ class FutureMarket(FutureBase):
         if endTime is not None:
             params["endTime"] = endTime
 
-        return self.call(
+        return self.gateway.call(
             method = "GET",
             url = url,
             params = params,
         )
 
-    def taker_busy_sell_volume(
+    def get_taker_buy_sell_volume(
         self,
-        symbol: str = "BTCUSDT",
+        symbol: TradePair | None = None,
         period: str = "5m",  # 5m, 15m, 30m, 1h, 2h, 4h, 6h, 12h, 1d
         limit: int = 30,  # maximum 500,
         start_time: int | None = None,
@@ -565,7 +591,7 @@ class FutureMarket(FutureBase):
         """
         url: str = "/futures/data/takerlongshortRatio"
         params: dict[str, str | int] = {
-            "symbol": symbol,
+            "symbol": self._parse_trade_pair(symbol),
             "period": period,
             "limit": limit,
         }
@@ -574,15 +600,15 @@ class FutureMarket(FutureBase):
         if end_time is not None:
             params["endTime"] = end_time
 
-        return self.call(
+        return self.gateway.call(
             method = "GET",
             url = url,
             params = params,
         )
 
-    def basis(
+    def get_basis(
         self,
-        pair: str = "BTCUSDT",
+        pair: TradePair | None = None,
         contract_type: str = "PERPETUAL",
         period: str = "5m",  # 5m, 15m, 30m, 1h, 2h, 4h, 6h, 12h, 1d
         limit: int = 30,  # maximum 500,
@@ -594,7 +620,7 @@ class FutureMarket(FutureBase):
         """
         url: str = "/futures/data/basis"
         params: dict[str, str | int] = {
-            "pair": pair,
+            "pair": self._parse_trade_pair(pair),
             "contractType": contract_type,
             "period": period,
             "limit": limit,
@@ -604,62 +630,62 @@ class FutureMarket(FutureBase):
         if endTime is not None:
             params["endTime"] = endTime
 
-        return self.call(
+        return self.gateway.call(
             method = "GET",
             url = url,
             params = params,
         )
 
-    def composite_index_symbol_info(
+    def get_composite_index_symbol_info(
         self,
-        symbol: str | None = "BTCUSDT",
+        symbol: TradePair | None = None,
     ) -> dict:
         """
         - Get the composite index symbol information.
         """
         url: str = "/fapi/v1/indexInfo"
         params: dict[str, str] = {
-            "symbol": symbol,
+            "symbol": self._parse_trade_pair(symbol),
         }
 
-        return self.call(
+        return self.gateway.call(
             method = "GET",
             url = url,
             params = params,
         )
 
-    def asset_index(
+    def get_asset_index(
         self,
-        symbol: str = "BTCUSDT",
+        symbol: TradePair | None = None,
     ) -> dict:
         """
         - asset index for multi-assets mode.
         """
         url: str = "/fapi/v1/assetIndex"
         params: dict[str, str] = {
-            "symbol": symbol,
+            "symbol": self._parse_trade_pair(symbol),
             # "timestamp": FutureMarket.generate_timestmap(),
         }
 
-        return self.call(
+        return self.gateway.call(
             method = "GET",
             url = url,
             params = params,
         )
 
-    def query_index_price_consituents(
+    def get_index_price_constituents(
         self,
-        symbol: str = "BTCUSDT",
+        symbol: TradePair | None = None,
     ) -> dict:
         """
         - Query index price constituents.
         """
         url: str = "/fapi/v1/indexPriceConstituents"
         params: dict[str, str] = {
-            "symbol": symbol,
+            "symbol": self._parse_trade_pair(symbol),
         }
 
-        return self.call(
+        return self.gateway.call(
             method = "GET",
             url = url,
             params = params,
@@ -700,12 +726,12 @@ class FutureMarket(FutureBase):
         tp_price: float,
         leverage: int,
         symbol_curr_quantity: float,  # get it from the binance websocket possibly.
-        symbol: str = "BTCUSDT",
-        side: str = Union[Literal["BUY"], Literal["SELL"]],
+        symbol: TradePair | None = None,
+        side: Literal["BUY", "SELL"] = "BUY",
         recv_window: int = 5_000,
     ) -> None:
         '''
-        - Call three different new_order():
+        - Call three different place_order():
             - one for the original position
             - Others for TP and SL
 
@@ -721,7 +747,7 @@ class FutureMarket(FutureBase):
         )  # change the leverage to the default, 5 for now.
 
         # MAIN ORDER
-        res = self.new_order(
+        res = self.place_order(
             symbol = symbol,
             side = side,
             type = "MARKET",
@@ -732,7 +758,7 @@ class FutureMarket(FutureBase):
             operation_logger.info(f"{__name__} - The new order has been opened.")
 
         # STOP LOSS
-        self.new_order(
+        self.place_order(
             symbol = symbol,
             stop_price = sl_price,
             type = "STOP_MARKET",
@@ -743,7 +769,7 @@ class FutureMarket(FutureBase):
         operation_logger.info(f"{__name__} - The new order's STOP LOSS PRICE is at {sl_price}.")
 
         # TAKE PROFIT
-        self.new_order(
+        self.place_order(
             symbol = symbol,
             stop_price = tp_price,
             type = "TAKE_PROFIT_MARKET",
@@ -755,10 +781,10 @@ class FutureMarket(FutureBase):
 
         return
 
-    def new_order(
+    def place_order(
         self,
         side: Union[Literal["BUY"], Literal["SELL"]],
-        symbol: str = "BTCUSDT",
+        symbol: TradePair | None = None,
         position_side: str | None = None,  # "BOTH", "LONG", "SHORT", None
         type: Union[Literal["MARKET"], Literal["TAKE_PROFIT_MARKET"], Literal["STOP_MARKET"]] = "MARKET",
         quantity: float | None = None,
@@ -791,7 +817,7 @@ class FutureMarket(FutureBase):
 
         '''
         params: dict[str, int | float | str] = dict(
-            symbol = symbol,
+            symbol = self._parse_trade_pair(symbol),
             side = side,
             position_side = position_side,
             type = type,
@@ -814,31 +840,31 @@ class FutureMarket(FutureBase):
             timestamp = self.generate_timestamp(),
         )
 
-        return self.call(
+        return self.gateway.call(
             method = "POST",
             params = params,
             url = url,
         )
 
-    def multiple_orders(
+    def place_multiple_orders(
         self,
     ):
         raise NotImplementedError
         return
 
-    def modify_order(
+    def change_order(
         self,
     ):
         raise NotImplementedError
         return
 
-    def modify_multiple_orders(
+    def change_multiple_orders(
         self,
     ):
         raise NotImplementedError
         return
 
-    def get_order_modify_history(
+    def get_order_change_history(
         self,
     ):
         raise NotImplementedError
@@ -870,9 +896,9 @@ class FutureMarket(FutureBase):
         raise NotImplementedError
         return
 
-    def query_all_orders(
+    def get_all_orders(
         self,
-        symbol: str = "BTCUSDT",
+        symbol: TradePair | None = None,
         order_id: int | None = None,
         start_time: int | None = None,
         end_time: int | None = None,
@@ -883,7 +909,7 @@ class FutureMarket(FutureBase):
         url: str = "/fapi/v1/allOrders"
 
         params: dict[str, int | str] = {
-            "symbol": symbol,
+            "symbol": self._parse_trade_pair(symbol),
             "timestamp": timestamp if timestamp is not None else self.generate_timestamp(),
         }
 
@@ -898,29 +924,29 @@ class FutureMarket(FutureBase):
         if recv_window is not None:
             params["recvWindow"] = recv_window
 
-        return self.call(
+        return self.gateway.call(
             method = "GET",
             url = url,
             params = params,
         )
 
-    def query_open_order(self,):
+    def get_open_order(self,):
         raise NotImplementedError
         return
 
-    def query_all_open_orders(
+    def get_open_orders(
         self,
         url: str = "/fapi/v1/openOrders",
-        symbol: str = "BTCUSDT",
+        symbol: TradePair | None = None,
         recv_window: int = 5_000,
     ) -> dict | None:
         params: dict[str, int] = dict(
-            symbol = symbol,
+            symbol = self._parse_trade_pair(symbol),
             recv_window = recv_window,
             timestamp = self.generate_timestamp(),
         )
 
-        return self.call(
+        return self.gateway.call(
             method = "GET",
             url = url,
             params = params,
@@ -945,18 +971,18 @@ class FutureMarket(FutureBase):
     def change_initial_leverage(
         self,
         url: str = "/fapi/v1/leverage",
-        symbol: str = "BTCUSDT",
+        symbol: TradePair | None = None,
         leverage: int = 10,  # originally 20, but let's keep it safe. 5 or 10.
         recvWindow: int = 5000,
     ):
         params = {
-            "symbol": symbol,
+            "symbol": self._parse_trade_pair(symbol),
             "leverage": leverage,
             "recvWindow": recvWindow,
             "timestamp": self.generate_timestamp(),
         }
 
-        return self.call(
+        return self.gateway.call(
             method = "POST",
             url = url,
             params = params,
@@ -991,7 +1017,7 @@ class FutureMarket(FutureBase):
         raise NotImplementedError
         return
 
-    def future_account_balance_v3(
+    def get_account_balance(
         self,
         url: str = "/fapi/v3/balance",
         recv_window: int = 5_000,
@@ -1003,29 +1029,13 @@ class FutureMarket(FutureBase):
             asset = asset,
         )
 
-        return self.call(
+        return self.gateway.call(
             method = "GET",
             params = params,
             url = url,
         )
 
-    def future_account_balance_v2(
-        self,
-        url: str = "/fapi/v2/balance",
-        recv_window: int = 5_000,
-    ) -> dict | None:
-        params: dict[str, int] = dict(
-            recvWindow = recv_window,
-            timestamp = self.generate_timestamp(),
-        )
-
-        return self.call(
-            method = "GET",
-            params = params,
-            url = url,
-        )
-
-    def account_information_v2(
+    def get_account_information_v2(
         self,
         url: str = "/fapi/v2/account",
         recv_window: int = 5_000,
@@ -1035,7 +1045,7 @@ class FutureMarket(FutureBase):
             timestamp = self.generate_timestamp(),
         )
 
-        return self.call(
+        return self.gateway.call(
             method = "GET",
             params = params,
             url = url,
@@ -1044,35 +1054,38 @@ class FutureMarket(FutureBase):
     def get_position_information_v2(
         self,
         url: str = "/fapi/v2/positionRisk",
-        symbol: str = "BTCUSDT",
+        symbol: TradePair | None = None,
         recv_window: int = 5_000,
     ) -> list[dict | None]:
         params: dict[str, int | float] = dict(
-            symbol = symbol,
+            symbol = self._parse_trade_pair(symbol),
             recv_window = recv_window,
             timestamp = self.generate_timestamp(),
         )
 
-        return self.call(
+        return self.gateway.call(
             method = "GET",
             url = url,
             params = params,
         )
 
+    def get_positions(self):
+        raise NotImplementedError
+
     # TODO: need to re-implement the function
     def get_current_open_order(
         self,
         url: str = "/fapi/v1/openOrder",
-        symbol: str = "BTCUSDT",
+        symbol: TradePair | None = None,
         recv_window: int = 5_000,
     ):
         params: dict[str, int | float] = dict(
-            symbol = symbol,
+            symbol = self._parse_trade_pair(symbol),
             recv_window = recv_window,
             timestamp = self.generate_timestamp()
         )
 
-        return self.call(
+        return self.gateway.call(
             method = "GET",
             url = url,
             params = params,
@@ -1081,319 +1094,28 @@ class FutureMarket(FutureBase):
     def get_all_open_order(
         self,
         url: str = "/fapi/v1/openOrders",
-        symbol: str = "BTCUSDT",
+        symbol: TradePair | None = None,
         recv_window = 5_000,
     ):
         params: dict[str, int | float] = dict(
-            symbol = symbol,
+            symbol = self._parse_trade_pair(symbol),
             recv_window = recv_window,
             timestamp = self.generate_timestamp(),
         )
 
-        return self.call(
+        return self.gateway.call(
             method = "GET",
             url = url,
             params = params,
         )
 
 
-class BinanceWebSocketClient(WebSocketClient):
-    def generate_timestamp(self) -> int:
-        return int(time.time() * 1_000)
+if __name__ == "__main__":
+    bfc = BinanceFutureClient(
+        name = "TEST_BINANCE_FUTURE_RESTFUL",
+        api_key="test_api_key",
+        secret_key="test_secret_key"
+    )
 
-    def __init__(
-        self,
-        api_key: str,  # Necessary
-        secret_key: str,  # Necessary
-        name: str = "BINANCE_WEBSOCKET_CLIENT",
-        ping_interval: int = 20,
-        default_callback: Callable | None = None,
-    ) -> None:
-        '''
-        ;Handle one subscription at a time at the future level
-        ;Composition
-
-        ;MarketWebSocketClient
-            - public endpoint
-        ;UserWebSocketClient
-            - private endpoint
-        ;TradeWebSocketClient
-            - private endpoint
-        '''
-        super().__init__(name = name if name else "BINANCE_FUTURE_WEBSOCKET_CLIENT")
-
-        # access point of each WebSCoektClient
-        self.wss: dict[str, WebSocket] = dict()
-
-        # UserWebSocketClient - Connect to the private endpoint.
-        self.wss["user"] = BinanceUserWebSocket(
-            api_key=api_key,
-            secret_key=secret_key,
-            name=f"{self.name}_USER_WEBSOCKET",
-            ping_interval=ping_interval,
-        )
-
-        # MarketWebSocketClient - Connect to the public endpoint.
-        self.wss["market"] = BinanceMarketWebSocket(
-            name=f"{self.name}_MARKET_WEBSOCKET",
-            ping_interval=ping_interval,
-        )
-
-        # TradeWebSCoektClient - Connect to the private endpoint
-        # self.wss["trade"]
-
-        return
-
-    def start(self):
-        for key in self.wss:
-            ws = self.wss[key]
-            try:
-                ws.start()
-                operation_logger.info(
-                    f"{__name__} - {self.__class__.__name__} - {self.name} - Successfully started "
-                    f"{ws.name if hasattr(ws, 'name') else f'{self.name}_{key.upper()}_WEBSOCKET'}."
-                )
-            except Exception as e:
-                operation_logger.critical(
-                    f"{__name__} - {self.__class__.__name__} - {self.name} - Unexpected Error while starting "
-                    f"{ws.name if hasattr(ws, 'name') else f'{self.name}_{key.upper()}_WEBSOCKET'}: {str(e)}"
-                )
-
-        self._authenticate()
-        return
-
-    def _parse_trade_pair(
-        self,
-        trade_pair: TradePair,
-        capitalize: bool = False,
-    ) -> str | None:
-        if isinstance(trade_pair, TradePair):
-            ticker: str = trade_pair.ticker.upper() if capitalize else trade_pair.ticker.lower()
-            quote: str = trade_pair.quote.upper() if capitalize else trade_pair.quote.lower()
-            return f"{ticker}{quote}"
-        return "BTCUSDT" if capitalize else "btcusdt"
-
-    '''
-    ####################################################################################
-    User Stream
-    ####################################################################################
-    '''
-    def account_position(
-        self,
-        callback: Callable,
-        trade_pair: TradePair | None = None,
-        topic: str = "account.position",
-    ) -> None:
-        self._user_subscribe(callback, topic, trade_pair)
-        return
-
-    '''
-    ####################################################################################
-    Market Stream
-    ####################################################################################
-    '''
-    def agg_trade(
-        self,
-        callback: Callable,
-        trade_pair: TradePair | None = None,
-        req_topic: str = "aggTrade",
-        push_topic: str = "aggTrade",
-    ) -> None:
-        '''
-        ;func aggTrade
-            - Aggregate Trade Streams
-
-        - Request Topic: aggTrade
-        - Push Topic: aggTrade
-        - Stream e.g.: btcusdt@aggTrade
-        '''
-        stream: str = f"@{req_topic}"
-        self._market_subscribe(stream, push_topic, callback, trade_pair)
-        return
-
-    def mark_price(
-        self,
-    ) -> None:
-        raise NotImplementedError
-
-    def mini_ticker(
-        self,
-    ) -> None:
-        raise NotImplementedError
-
-    def kline(
-        self,
-        callback: Callable,
-        trade_pair: TradePair | None = None,
-        req_topic: str = "continuousKline",
-        contract_type: Union[
-            Literal["perpetual"],
-            Literal["current_quarter"],
-            Literal["next_quarter"],
-            Literal["tradifi_perpetual"]
-        ] = "perpetual",
-        interval: Union[
-            Literal["1s"],
-            Literal["1m"],
-            Literal["3m"],
-            Literal["5m"],
-            Literal["15m"],
-            Literal["30m"],
-            Literal["1h"],
-            Literal["2h"],
-            Literal["4h"],
-            Literal["6h"],
-            Literal["8h"],
-            Literal["12h"],
-            Literal["1d"],
-            Literal["3d"],
-            Literal["1w"],
-            Literal["1M"],
-        ] = "1s",
-        push_topic: str = "continuous_kline",
-    ) -> None:
-        '''
-        ;func kline
-            - Continuous Contract Kline Candlestick
-
-        - Request Topic: continuousKline
-        - Push Topic: continuous_kline
-        - Stream Format: <symbol>_<contract_type>@continuousKline_<interval>
-        - Stream e.g.: btcusdt_perpetual@continuousKline_1s
-        '''
-        stream: str = f"_{contract_type}@{req_topic}_{interval}"
-        self._market_subscribe(stream, push_topic, callback, trade_pair)
-        return
-
-    def ticker(
-        self,
-        callback: Callable,
-        trade_pair: TradePair | None = None,
-        req_topic: str = "ticker",
-        push_topic: str = "24hrTicker",
-    ) -> None:
-        '''
-        ;func ticker
-        - <symbol>@ticker
-        - Individual symbol ticker stream
-        - topic: ticker
-        - push_topic: 24hrTicker
-        '''
-        def ticker_callback(msg: dict) -> None:
-            symbol: str = msg.get("s", None)
-            symbol_ticker: str = symbol[3:]
-            symbol_quote: str = symbol[:len(symbol) - 4]
-            ticker = Ticker(
-                ticker=TradePair(ticker=symbol_ticker, quote=symbol_quote,),
-                last_price=float(msg.get('c', 0)),
-                timestamp=int(msg.get("E", self.generate_timestamp()))
-            )
-            callback(ticker)
-            return
-
-        stream: str = f"@{req_topic}"
-        self._market_subscribe(stream, push_topic, ticker_callback, trade_pair)
-        return
-
-    def depth(
-        self,
-        callback: Callable,
-        trade_pair: TradePair | None = None,
-        req_topic: str = "bookTicker",
-        push_topic: str = "bookTicker",
-    ) -> None:
-        '''
-        ;func depth()
-        - <symbol>@bookTicker
-        '''
-        stream: str = f"@{req_topic}"
-        self._market_subscribe(stream, push_topic, callback, trade_pair)
-        return
-
-    def partial_book_depth(self) -> None:
-        raise NotImplementedError
-
-    def diff_book_depth(self) -> None:
-        raise NotImplementedError
-
-    def rpi_diff_book_depth(self) -> None:
-        raise NotImplementedError
-
-    def _authenticate(self) -> None:
-        for ws in self.wss:
-            if hasattr(ws, "authenticate"):
-                ws.authenticate()
-
-    def _market_subscribe(
-        self,
-        stream: str,
-        push_topic: str,
-        callback: Callable,
-        trade_pair: TradePair | None = None,
-    ) -> None:
-        """
-        Helper method to handle market data subscriptions and reduce code duplication.
-        """
-        ws = self.wss.get("market")
-        stream = f"{self._parse_trade_pair(trade_pair)}{stream}"
-
-        if not isinstance(ws, BinanceMarketWebSocket):
-            operation_logger.error(
-                f"{__name__} - {self.__class__.__name__} - {self.name} - "
-                "MarketWebSocketClient is not initialized."
-            )
-            return
-
-        if not callable(callback):
-            operation_logger.error(
-                f"{__name__} - {self.__class__.__name__} - {self.name} - "
-                f"The provided callback for {stream} is not callable."
-            )
-            return
-
-        try:
-            ws.subscribe(streams=stream, push_topic=push_topic, callback=callback)
-        except Exception as e:
-            operation_logger.critical(
-                f"{__name__} - {self.__class__.__name__} - {self.name} - "
-                f"Failed to subscribe to {stream}: {str(e)}"
-            )
-        return
-
-    def _user_subscribe(
-        self,
-        callback: Callable,
-        stream: str,
-        trade_pair: TradePair | None = None,
-    ) -> None:
-        ws = self.wss.get("user")
-        symbol = self._parse_trade_pair(trade_pair, capitalize=True)
-
-        if not isinstance(ws, BinanceUserWebSocket):
-            operation_logger.error(
-                f"{__name__} - {self.__class__.__name__} - {self.name} - "
-                "UserWebSocketClient is not initialized."
-            )
-            return
-
-        if not callable(callback):
-            operation_logger.error(
-                f"{__name__} - {self.__class__.__name__} - {self.name} - "
-                f"The provided callback for {stream} is not callable."
-            )
-            return
-
-        try:
-            ws.subscribe(
-                callback_function=callback,
-                method=stream,
-                params=dict(
-                    symbol=symbol,
-                )
-            )
-        except Exception as e:
-            operation_logger.critical(
-                f"{__name__} - {self.__class__.__name__} - {self.name} - "
-                f"Failed to subscribe to {stream}: {str(e)}"
-            )
-        return
+    # print(bfc.get_ticker())
+    print(bfc.ping())

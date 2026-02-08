@@ -207,7 +207,7 @@ class WebSocketClient(ABC):
         return
 
     @abstractmethod
-    def depth(self) -> None:
+    def order_book(self) -> None:
         '''
         ;func depth()
             - return the depth of the market, i.e., Order Book Depth
