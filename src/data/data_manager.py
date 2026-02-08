@@ -7,7 +7,7 @@ import threading
 from queue import Queue
 
 # Custom Module
-from src.brokers.mexc.future import FutureWebSocket
+from src.brokers.mexc.http_client import FutureWebSocket
 from src.infrastructure.logging.set_logger import operation_logger
 from src.data.data_saver import DataSaver
 from src.core.models.index import IndexType

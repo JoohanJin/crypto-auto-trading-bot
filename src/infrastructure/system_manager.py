@@ -18,10 +18,10 @@ from src.core.models.index import Index
 from src.core.models.signal import Signal
 
 # MEXC
-from src.brokers.mexc.future import FutureMarket as MexcFutureMarket, FutureWebSocket as MexcFutureWebSocket
+from src.brokers.mexc.http_client import FutureMarket as MexcFutureMarket, FutureWebSocket as MexcFutureWebSocket
 
 # BINANCE
-from src.brokers.binance.future import FutureMarket as BinanceFutureMarket
+from src.brokers.binance.http_client import FutureMarket as BinanceFutureMarket
 
 
 class SystemManager:
