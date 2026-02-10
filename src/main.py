@@ -29,7 +29,9 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from src.infrastructure.system_manager import SystemManager
-from src.infrastructure.logging.set_logger import operation_logger
+from src.infrastructure.logging.set_logger import get_logger
+
+logger = get_logger(__name__)
 
 
 def main():
@@ -44,13 +46,11 @@ def main():
         while True:
             time.sleep(0.5)  # Sleep to reduce the cpu usage.
     except RuntimeError as e:
-        operation_logger.critical(
-            f"{__name__}: function main() has raised an RuntimeError: {str(e)}"
-        )
+        logger.critical(f"function main() has raised an RuntimeError: {str(e)}")
         sys.exit(1)
     except Exception as e:
-        operation_logger.critical(
-            f"{__name__}: function main() has raised an Unexpected error starting the system: {str(e)}"
+        logger.critical(
+            f"function main() has raised an Unexpected error starting the system: {str(e)}"
         )
         sys.exit(1)
 

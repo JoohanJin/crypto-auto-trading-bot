@@ -4,8 +4,10 @@ import time
 import threading
 import websocket
 
-from src.infrastructure.logging.set_logger import operation_logger
+from src.infrastructure.logging.set_logger import get_logger, get_adapter
 from src.core.models.trade import TradePair
+
+logger = get_logger(__name__)
 
 
 class WebSocket(ABC):
@@ -21,7 +23,7 @@ class WebSocket(ABC):
         log: str,
     ) -> None:
         log = str(log)
-        operation_logger.info(log)
+        self.logger.info(log)
 
     def generate_timestamp(self) -> int:
         return int(time.time() * 1_000)
@@ -34,6 +36,8 @@ class WebSocket(ABC):
         ping_interval: int,  # in seconds -> every <ping_interval> send the hearbeat
         url: str | None = None,
     ) -> None:
+        self.logger = get_adapter(logger, self.__class__.__name__)
+        
         # wss endpoint
         self.url: str = url
 
@@ -50,7 +54,7 @@ class WebSocket(ABC):
         self.ping_interval: int = ping_interval
 
         # threads list
-        self.threads: list[threading.Thread] = list()
+        self.threads: list[threading.Thread] = []
 
         return
 

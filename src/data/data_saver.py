@@ -3,11 +3,15 @@ import time
 import pandas as pd
 
 # Custom Library
-from src.infrastructure.logging.set_logger import operation_logger
+from src.infrastructure.logging.set_logger import get_logger, get_adapter
+
+logger = get_logger(__name__)
 
 
 class DataSaver:
     def __init__(self):
+        self.logger = get_adapter(logger, self.__class__.__name__)
+        
         # Set the base directory to the correct location of 'src'
         self.base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
         self.data_dir = os.path.join(
@@ -29,14 +33,10 @@ class DataSaver:
 
             # Validate the input data
             if data is None or not isinstance(data, pd.DataFrame):
-                operation_logger.error(
-                    f"{__name__} - TypeError - DataSaver.write: Provided data is not a Pandas DataFrame."
-                )
+                self.logger.error("TypeError - DataSaver.write: Provided data is not a Pandas DataFrame.")
                 return
             if data.empty:
-                operation_logger.error(
-                    f"{__name__} - No Data in DataSaver.write: Provided data is empty after dropna."
-                )
+                self.logger.error("No Data in DataSaver.write: Provided data is empty after dropna.")
                 return
 
             # Drop NaN values
@@ -62,23 +62,15 @@ class DataSaver:
                 )
 
         except FileNotFoundError as e:
-            operation_logger.error(
-                f"{__name__} - FileNotFoundError in DataSaver.write: {str(e)}"
-            )
+            self.logger.error(f"FileNotFoundError in DataSaver.write: {str(e)}")
         except PermissionError as e:
-            operation_logger.error(
-                f"{__name__} - PermissionError in DataSaver.write: {str(e)}"
-            )
+            self.logger.error(f"PermissionError in DataSaver.write: {str(e)}")
         except AttributeError as e:
-            operation_logger.error(
-                f"{__name__} - AttributeError in DataSaver.write: {str(e)}"
-            )
+            self.logger.error(f"AttributeError in DataSaver.write: {str(e)}")
         except OSError as e:
-            operation_logger.error(f"{__name__} - OSError in DataSaver.write: {str(e)}")
+            self.logger.error(f"OSError in DataSaver.write: {str(e)}")
         except Exception as e:
-            operation_logger.error(
-                f"{__name__} - Unexpected error in DataSaver.write: {str(e)}"
-            )
+            self.logger.error(f"Unexpected error in DataSaver.write: {str(e)}")
 
 
 # Test Code Run Zone

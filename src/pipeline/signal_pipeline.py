@@ -2,9 +2,11 @@
 from queue import Queue, Full, Empty
 
 # Custom Library
-from src.infrastructure.logging.set_logger import operation_logger
+from src.infrastructure.logging.set_logger import get_logger, get_adapter
 from src.core.models.signal import Signal
 from src.pipeline.base_pipeline import BasePipeline  # TODO: Need to define this class in another class
+
+logger = get_logger(__name__)
 
 
 class SignalPipeline(BasePipeline[Signal]):
@@ -28,6 +30,7 @@ class SignalPipeline(BasePipeline[Signal]):
                 }
             }
         '''
+        self.logger = get_adapter(logger, self.__class__.__name__)
         self.signal_queue: Queue[Signal] = Queue()
         return
 
@@ -52,14 +55,10 @@ class SignalPipeline(BasePipeline[Signal]):
             )
             return True
         except Full:
-            operation_logger.warning(
-                f"{__name__} - Indicator Queue is full. Data cannot be added."
-            )
+            self.logger.warning("Indicator Queue is full. Data cannot be added.")
             return False
         except Exception as e:
-            operation_logger.warning(
-                f"{__name__} - Indicator Queue: Unknown exception has occurred: {str(e)}"
-            )
+            self.logger.warning(f"Indicator Queue: Unknown exception has occurred: {str(e)}")
             return False
 
     def pop(
@@ -90,14 +89,10 @@ class SignalPipeline(BasePipeline[Signal]):
                 timeout=timeout,
             )
         except Empty:
-            operation_logger.warning(
-                f"{__name__} -  Indicator Queue is empty. Data cannot be added."
-            )
+            self.logger.warning("Indicator Queue is empty. Data cannot be added.")
             return None
         except Exception as e:
-            operation_logger.warning(
-                f"{__name__} - Indicator Queue: Unknown exception has occurred: {str(e)}"
-            )
+            self.logger.warning(f"Indicator Queue: Unknown exception has occurred: {str(e)}")
             return None
 
 

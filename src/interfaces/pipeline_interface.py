@@ -2,9 +2,10 @@ from typing import Generic, TypeVar
 from src.pipeline.base_pipeline import BasePipeline
 import time
 
-from src.infrastructure.logging.set_logger import operation_logger
+from src.infrastructure.logging.set_logger import get_logger, get_adapter
 
 T = TypeVar('T')  # User Defined template
+logger = get_logger(__name__)
 
 
 class PipelineController(Generic[T]):
@@ -14,7 +15,8 @@ class PipelineController(Generic[T]):
     - Therefore, even when there are some changes on the data pipeline,
         we do not need to change the code for each class.
     '''
-    def generate_timestamp(self) -> int:
+    @classmethod
+    def generate_timestamp(cls) -> int:
         return int(time.time() * 1000)
 
     def __init__(
@@ -27,13 +29,13 @@ class PipelineController(Generic[T]):
             - Get the actual pipeline.
             - Get the push_only variable so that we can add control of the side. (uni-directional)
         '''
+        self.logger = get_adapter(logger, self.__class__.__name__)
+        
         # Let the programmer decides which operation to be used.
         self.pipeline: BasePipeline = pipeline  # ! DataPipeline or SignalPipeline -> Unified Registry?
         self.time_window: int = time_window
 
-        operation_logger.info(
-            f"{__name__} - {self.__class__.__name__} - pipelineController has been generated."
-        )
+        self.logger.info("pipelineController has been generated.")
         return
 
     def push(
@@ -46,10 +48,7 @@ class PipelineController(Generic[T]):
             self.pipeline.push(object)
             return True
         except Exception as e:
-            operation_logger.warning(
-                f"{__name__} - {self.__class__.__name__} - Unknown Error has "
-                f"been occured. Unsuccessful Push from the pipeline interface: {str(e)}"
-            )
+            self.logger.warning(f"Unknown Error has been occured. Unsuccessful Push from the pipeline interface: {str(e)}")
             return False
 
     def pop(
@@ -71,10 +70,7 @@ class PipelineController(Generic[T]):
             return None
         except Exception as e:
             # ! raise CustomException
-            operation_logger.warning(
-                f"{__name__} - {self.__class__.__name__} - Unknown Error has been occured. "
-                f"Unsuccessful Pop: {str(e)}"
-            )
+            self.logger.warning(f"Unknown Error has been occured. Unsuccessful Pop: {str(e)}")
             raise  # ! raise the custom exception
 
     def check_data_validity(

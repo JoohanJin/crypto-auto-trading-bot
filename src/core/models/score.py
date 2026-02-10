@@ -1,9 +1,11 @@
 from dataclasses import dataclass
+
+from src.core.models.base import MutableModel
 from src.core.models.trend import TrendState
 
 
 @dataclass
-class ScoreMetrics:
+class ScoreMetrics(MutableModel):
     timestamp: int
     current_score: float
     trend: TrendState

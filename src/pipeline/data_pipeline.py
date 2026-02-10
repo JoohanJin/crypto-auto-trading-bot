@@ -3,9 +3,11 @@ import queue
 from typing import Dict
 
 # CUSTOM LIBRARY
-from src.infrastructure.logging.set_logger import operation_logger
+from src.infrastructure.logging.set_logger import get_logger, get_adapter
 from src.core.models.index import Index
 from src.pipeline.base_pipeline import BasePipeline
+
+logger = get_logger(__name__)
 
 
 class DataPipeline(BasePipeline[Index]):  # TODO: Make the object for th Data object.
@@ -41,6 +43,7 @@ class DataPipeline(BasePipeline[Index]):  # TODO: Make the object for th Data ob
         '''
         # inherit the queue and data type in the queue from the base class.
         super().__init__()
+        self.logger = get_adapter(logger, self.__class__.__name__)
         # data buffer, can be added in the future.
 
         return
@@ -79,14 +82,10 @@ class DataPipeline(BasePipeline[Index]):  # TODO: Make the object for th Data ob
             )
             return True
         except queue.Full:
-            operation_logger.warning(
-                f"{__name__} - {self.__class__.__name__} - Queue is full. Data cannot be added."
-            )
+            self.logger.warning("Queue is full. Data cannot be added.")
             return False
         except Exception as e:
-            operation_logger.warning(
-                f"{__name__} - {self.__class__.__name__} - self.queue: Unknown exception has occurred: {str(e)}"
-            )
+            self.logger.warning(f"self.queue: Unknown exception has occurred: {str(e)}")
             return False
 
     def pop(
@@ -114,12 +113,8 @@ class DataPipeline(BasePipeline[Index]):  # TODO: Make the object for th Data ob
         try:
             return self.queue.get(block=block, timeout=timeout)
         except queue.Empty:
-            operation_logger.warning(
-                f"{__name__} - {self.__class__.__name__} - self.queue is empty: Data cannot be retrieved."
-            )
+            self.logger.warning("self.queue is empty: Data cannot be retrieved.")
             return None
         except Exception as e:
-            operation_logger.warning(
-                f"{__name__} - {self.__class__.__name__} - self.queue: Unknown exception has occurred: {str(e)}."
-            )
+            self.logger.warning(f"self.queue: Unknown exception has occurred: {str(e)}.")
             return None

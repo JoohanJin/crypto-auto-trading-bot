@@ -3,10 +3,12 @@ import threading
 from typing import Dict, Tuple
 import pandas as pd
 
-from src.infrastructure.logging.set_logger import operation_logger
+from src.infrastructure.logging.set_logger import get_logger, get_adapter
 from src.interfaces.pipeline_interface import PipelineController
 from src.core.models.constants import MA_WRITE_PERIODS
 from src.core.models.index import Index, IndexType
+
+logger = get_logger(__name__)
 
 
 class IndexFactory:
@@ -64,7 +66,9 @@ class DataProcessor:
         - func __init__():
             - initialize the Data Processor
         '''
-        self.threads: list[threading.Thread] = list()
+        self.logger = get_adapter(logger, self.__class__.__name__)
+        
+        self.threads: list[threading.Thread] = []
         self.lock_price_data: threading.Lock = lock_price_data
         self.__index_factory: IndexFactory = index_factory
         self.pipeline_controller: PipelineController[Index] = pipeline_controller
@@ -76,8 +80,8 @@ class DataProcessor:
             self.__initialize_threads()
             self.__start_threads()
         except Exception as e:
-            operation_logger.critical(
-                f"{__name__} - {self.__class__.__name__} - Error while starting DataProcessor: {str(e)}"
+            self.logger.critical(
+                f"Error while starting DataProcessor: {str(e)}"
             )
         return
 
@@ -103,13 +107,13 @@ class DataProcessor:
                 name = "index_thread",
                 daemon = True,
             )
-            operation_logger.info(f"{__name__} - {self.__class__.__name__} - Thread '{index_thread.name}' (ID: {index_thread.ident}) has been created")
+            self.logger.info(f"Thread '{index_thread.name}' (ID: {index_thread.ident}) has been created")
 
             self.threads.extend([index_thread])
         except (RuntimeError, TypeError, AttributeError, MemoryError) as e:
-            operation_logger.error(f"{__name__} - {self.__class__.__name__} - fail to make instances for the thread: {str(e)}")
+            self.logger.error(f"fail to make instances for the thread: {str(e)}")
         except Exception as e:
-            operation_logger.error(f"{__name__} - {self.__class__.__name__} - Unexpected error starting thread: {str(e)}")
+            self.logger.error(f"Unexpected error starting thread: {str(e)}")
 
         return
 
@@ -127,17 +131,17 @@ class DataProcessor:
         for thread in self.threads:
             try:
                 thread.start()
-                operation_logger.info(
-                    f"{__name__} - {self.__class__.__name__} - Thread '{thread.name}' (ID: {thread.ident}) has started"
+                self.logger.info(
+                    f"Thread '{thread.name}' (ID: {thread.ident}) has started"
                 )
             except RuntimeError as e:
-                operation_logger.critical(
-                    f"{__name__} - {self.__class__.__name__} - Failed to start thread '{thread.name}': {str(e)}"
+                self.logger.critical(
+                    f"Failed to start thread '{thread.name}': {str(e)}"
                 )
                 raise RuntimeError
             except Exception as e:
-                operation_logger.critical(
-                    f"{__name__} - {self.__class__.__name__} - Unexpected error starting thread: '{thread.name}': {str(e)}"
+                self.logger.critical(
+                    f"Unexpected error starting thread: '{thread.name}': {str(e)}"
                 )
                 raise Exception
         return
@@ -155,7 +159,7 @@ class DataProcessor:
                     self.pipeline_controller.push(index)
             return True
         except Exception as e:
-            operation_logger.warning(f"{__name__} - Unexpected Exception Orccured: {str(e)}")
+            self.logger.warning(f"Unexpected Exception Orccured: {str(e)}")
         return
 
     # Data Processor
@@ -230,21 +234,21 @@ class DataProcessor:
 
         except KeyError as e:
             # Specific error handling for KeyError, i.e., missing collumn
-            operation_logger.error(
-                f"{__name__}: function {self.__class__.__name__}.__calculate_ema_sma_price has raised the KeyError: {e}"
+            self.logger.error(
+                f"function {self.__class__.__name__}.__calculate_ema_sma_price has raised the KeyError: {e}"
             )
             return None
 
         except IndexError as e:
             # Specific error handling for IndexError, i.e., out of range and slicing of the DataFrame.
-            operation_logger.error(
-                f"{__name__}: function {self.__class__.__name__}.__calculate_ema_sma_price has raised the IndexError: {e}"
+            self.logger.error(
+                f"function {self.__class__.__name__}.__calculate_ema_sma_price has raised the IndexError: {e}"
             )
             return None
 
         except Exception as e:
-            operation_logger.warning(
-                f"{__name__}: function {self.__class__.__name__}.__calculate_ema_sma_price has has raised the Unknown Exception - {str(e)}."
+            self.logger.warning(
+                f"function {self.__class__.__name__}.__calculate_ema_sma_price has has raised the Unknown Exception - {str(e)}."
             )
             return None
 
@@ -277,8 +281,8 @@ class DataProcessor:
             )
             return
         except Exception as e:
-            operation_logger.critical(
-                f"{__name__}: Error in class {self.__class__.__name__} in method _put_ticker_data(): {e}"
+            self.logger.critical(
+                f"Error in class {self.__class__.__name__} in method _put_ticker_data(): {e}"
             )
         return
 

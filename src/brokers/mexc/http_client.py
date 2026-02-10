@@ -6,14 +6,25 @@ Documentation: https://mexcdevelop.github.io/apidocs/contract_v1_en
 from typing import Literal, Union
 
 # Custom Library
+from src.infrastructure.logging.set_logger import get_logger, get_adapter
 from src.core.models.trade import TradePair
 
 # RESTful Client
-from src.brokers.base.http_sdk import FutureClient, RestService
+from src.brokers.base.http_sdk import HttpClient, HttpService
 from src.brokers.mexc.http_gateway import MexcFutureGateway
 
+# Data Structure
+from src.core.models.service_dto import (
+    Ping,
+    OrderBook,
+    FairPrice,
+    Ticker
+)
 
-class MexcFutureClient(FutureClient):
+logger = get_logger(__name__)
+
+
+class MexcFutureClient(HttpClient):
     @classmethod
     def _parse_trade_pair(
         cls,
@@ -22,6 +33,23 @@ class MexcFutureClient(FutureClient):
         if isinstance(trade_pair, TradePair):
             return f"{trade_pair.ticker.upper()}_{trade_pair.quote.upper()}"
         return "BTC_USDT"
+    
+    @classmethod
+    def _construct_trade_pair(
+        cls,
+        symbol: str | None,
+    ) -> TradePair | None:
+        if symbol is None:
+            return TradePair("BTC", "USDT")
+
+        # MEXC convention: "BTC_USDT"
+        if "_" in symbol:
+            parts = symbol.split("_")
+            if len(parts) == 2:
+                ticker, quote = parts
+                return TradePair(ticker, quote)
+        
+        return None
 
     def __init__(
         self,
@@ -32,7 +60,9 @@ class MexcFutureClient(FutureClient):
         super().__init__(
             name=name.upper(),
         )
-        self.gateway: RestService = MexcFutureGateway(
+        self.logger = get_adapter(logger, self.name)
+        
+        self.gateway: HttpService = MexcFutureGateway(
             name = f"{name.upper()}_GATEWAY",
             api_key=api_key,
             secret_key=secret_key,
@@ -59,13 +89,24 @@ class MexcFutureClient(FutureClient):
 
         - Documentation:
             - https://mexcdevelop.github.io/apidocs/contract_v1_en/?python#get-the-server-time
+
+        {'success': True, 'code': 0, 'data': 1770526883890}
         """
+        def construct_ping_dto(msg: dict):
+            return Ping(
+                timestamp=msg.get('data', None) or self.generate_timestamp(),
+                success=msg.get('success', None) or False,
+                source="MEXC",
+            )
+
         url: str = "api/v1/contract/ping"
 
-        return self.gateway.call(
-            method="GET",
-            url=url,
-            params=dict(),
+        return construct_ping_dto(
+            self.gateway.call(
+                method="GET",
+                url=url,
+                params={},
+            )
         )
 
     def get_detail(
@@ -91,9 +132,9 @@ class MexcFutureClient(FutureClient):
         return self.gateway.call(
             method="GET",
             url=url,
-            params=dict(
-                symbol=self._parse_trade_pair(symbol)
-            ),
+            params={
+                "symbol": self._parse_trade_pair(symbol)
+            },
         )
 
     def get_support_currencies(
@@ -138,19 +179,37 @@ class MexcFutureClient(FutureClient):
         - Documentation:
             - https://mexcdevelop.github.io/apidocs/contract_v1_en/?python#get-the-contract-s-depth-information
         """
+        symbol = symbol if symbol else TradePair("BTC", "USDT")
+
+        def constrcut_order_book_dto(msg: dict) -> OrderBook | None:
+            data: dict | None = msg.get('data', None)
+            if isinstance(data, dict):
+                return OrderBook(
+                    timestamp=data.get('timestamp', None) or self.generate_timestamp(),
+                    source="MEXC",
+                    ticker=symbol,
+                    asks=data.get("asks", None),
+                    bids=data.get("bids", None),
+                )
+
+            else:
+                return
+
         url: str = f"api/v1/contract/depth/{self._parse_trade_pair(symbol)}"
 
-        params: dict[str, int] = dict()
+        params: dict[str, int] = {}
         if limit is not None:
             params["limit"] = limit
 
-        return self.gateway.call(
-            method="GET",
-            url=url,
-            params=params,
+        return constrcut_order_book_dto(
+            self.gateway.call(
+                method="GET",
+                url=url,
+                params=params,
+            )
         )
 
-    def get_depth_commits(
+    def get_order_book_commits(
         self,
         symbol: TradePair | None = None,
         limit: int = 5,
@@ -171,7 +230,7 @@ class MexcFutureClient(FutureClient):
         """
         url: str = f"api/v1/contract/depth_commits/{self._parse_trade_pair(symbol)}/{limit}"
 
-        params: dict[str, int] = dict()
+        params: dict[str, int] = {}
         if limit is not None:
             params["limit"] = limit
 
@@ -222,10 +281,27 @@ class MexcFutureClient(FutureClient):
         - Documentation:
             - https://mexcdevelop.github.io/apidocs/contract_v1_en/?python#get-contract-fair-price
         """
+        symbol = symbol if symbol else TradePair("BTC", "USDT")
+
+        def construct_fair_price_dto(msg: dict) -> FairPrice:
+            data = msg.get("data", None)
+            
+            if isinstance(data, dict):
+                return FairPrice(
+                    timestamp=data.get("timestamp", None) or self.generate_timestamp(),
+                    fair_price=data.get("fairPrice", 0.0),
+                    source="MEXC",
+                    ticker=symbol,
+                )
+            else:
+                return
+
         url: str = f"api/v1/contract/fair_price/{self._parse_trade_pair(symbol)}"
-        return self.gateway.call(
-            method="GET",
-            url=url,
+        return construct_fair_price_dto(
+            self.gateway.call(
+                method="GET",
+                url=url,
+            )
         )
 
     def get_funding_rate(
@@ -292,10 +368,10 @@ class MexcFutureClient(FutureClient):
         symbol_str: str = self._parse_trade_pair(symbol)
         url: str = f"api/v1/contract/kline/{symbol_str}"
 
-        params: dict[str, int | str] = dict(
-            symbol = symbol_str,
-            interval = interval,
-        )
+        params: dict[str, int | str] = {
+            "symbol": symbol_str,
+            "interval": interval,
+        }
 
         if start_time is not None:
             params["startTime"] = start_time
@@ -345,10 +421,10 @@ class MexcFutureClient(FutureClient):
         symbol_str: str = self._parse_trade_pair(symbol)
         url: str = f"api/v1/contract/kline/index_price/{symbol_str}"
 
-        params: dict[str, int | str] = dict(
-            symbol=symbol_str,
-            interval=interval,
-        )
+        params: dict[str, int | str] = {
+            "symbol": symbol_str,
+            "interval": interval,
+        }
 
         if start_time is not None:
             params["startTime"] = start_time
@@ -398,10 +474,10 @@ class MexcFutureClient(FutureClient):
         symbol_str: str = self._parse_trade_pair(symbol)
         url: str = f"api/v1/contract/kline/fair_price/{symbol_str}"
 
-        params: dict[str | int] = dict(
-            symbol = symbol_str,
-            interval = interval,
-        )
+        params: dict[str | int] = {
+            "symbol": symbol_str,
+            "interval": interval,
+        }
 
         if start_time is not None:
             params["startTime"] = start_time
@@ -416,8 +492,8 @@ class MexcFutureClient(FutureClient):
 
     def get_deals(
         self,
-        limit: int | None = 100,
         symbol: TradePair | None = None,
+        limit: int | None = 100,
     ) -> dict:
         """
         - func deals():
@@ -433,10 +509,10 @@ class MexcFutureClient(FutureClient):
         symbol_str: str = self._parse_trade_pair(symbol)
         url: str = f"api/v1/contract/deals/{symbol_str}"
 
-        params: dict[str, int] = dict(
-            symbol = symbol_str,
-            limit = limit,
-        )
+        params: dict[str, int] = {
+            "symbol": symbol_str,
+            "limit": limit,
+        }
 
         return self.gateway.call(
             method="GET",
@@ -458,16 +534,33 @@ class MexcFutureClient(FutureClient):
         - rate limit:
             - 20 times / 2 seconds
         """
+        symbol = symbol if symbol else TradePair("BTC", "USDT")
+
+        def construct_ticker_dto(msg: dict) -> Ticker | None:
+            data = msg.get('data', None)
+
+            if isinstance(data, dict):
+                return Ticker(
+                    timestamp=data.get('timestamp', None) or self.generate_timestamp(),
+                    source="MEXC",
+                    ticker=symbol,
+                    last_price=data.get('lastPrice', 0.0),
+                )
+            else:
+                return
+
         url: str = "api/v1/contract/ticker"
 
-        params: dict[str, str] = dict(
-            symbol = self._parse_trade_pair(symbol),
-        )
+        params: dict[str, str] = {
+            "symbol": self._parse_trade_pair(symbol),
+        }
 
-        return self.gateway.call(
-            method="GET",
-            url=url,
-            params=params,
+        return construct_ticker_dto(
+            self.gateway.call(
+                method="GET",
+                url=url,
+                params=params,
+            )
         )
 
     def get_risk_reverse(
@@ -509,11 +602,11 @@ class MexcFutureClient(FutureClient):
         """
         url: str = "api/v1/contract/risk_reverse/history"
 
-        params: dict[str, str | int] = dict(
-            symbol = self._parse_trade_pair(symbol),
-            page_num = page_num,
-            page_size = page_size,
-        )
+        params: dict[str, str | int] = {
+            "symbol": self._parse_trade_pair(symbol),
+            "page_num": page_num,
+            "page_size": page_size,
+        }
 
         return self.gateway.call(
             method="GET",
@@ -541,11 +634,11 @@ class MexcFutureClient(FutureClient):
         """
         url: str = "api/v1/contract/funding_rate/history"
 
-        params: dict[int, str | int] = dict(
-            symbol = self._parse_trade_pair(symbol),
-            page_num = page_num,
-            page_size = page_size,
-        )
+        params: dict[int, str | int] = {
+            "symbol": self._parse_trade_pair(symbol),
+            "page_num": page_num,
+            "page_size": page_size,
+        }
 
         return self.gateway.call(
             method="GET",
@@ -577,7 +670,7 @@ class MexcFutureClient(FutureClient):
 
     def get_asset(
         self,
-        currency: str = "USDT",
+        quote: str = "USDT",
     ):
         """
         - topic: assets(currency: str)
@@ -589,7 +682,7 @@ class MexcFutureClient(FutureClient):
         - Request Parameters
             - currency: str, mandatory
         """
-        return self.gateway.call("GET", f"api/v1/private/account/asset/{currency}")
+        return self.gateway.call("GET", f"api/v1/private/account/asset/{quote}")
 
     def get_history_position(
         self,
@@ -611,12 +704,12 @@ class MexcFutureClient(FutureClient):
             - page_num: current page, default is 1
             - page_size
         """
-        params: dict[str, str | int] = dict(
-            symbol = self._parse_trade_pair(symbol),
-            type = type,
-            page_num = page_num,
-            page_size = page_size,
-        )
+        params: dict[str, str | int] = {
+            "symbol": self._parse_trade_pair(symbol),
+            "type": type,
+            "page_num": page_num,
+            "page_size": page_size,
+        }
 
         return self.gateway.call(
             method="GET",
@@ -638,9 +731,9 @@ class MexcFutureClient(FutureClient):
         - request parameters:
             - symbol: str, optional, the name of the contract
         """
-        params: dict[str, str | int] = dict(
-            symbol = self._parse_trade_pair(symbol),
-        )
+        params: dict[str, str | int] = {
+            "symbol": self._parse_trade_pair(symbol),
+        }
 
         return self.gateway.call(
             method="GET",
@@ -668,11 +761,11 @@ class MexcFutureClient(FutureClient):
         """
         url: str = "api/v1/private/order/list/open_orders"
 
-        params: dict[str, str | int] = dict(
-            symbol = self._parse_trade_pair(symbol),
-            page_num = page_num,
-            page_size = page_size,
-        )
+        params: dict[str, str | int] = {
+            "symbol": self._parse_trade_pair(symbol),
+            "page_num": page_num,
+            "page_size": page_size,
+        }
 
         return self.gateway.call(
             method="GET",
@@ -694,9 +787,9 @@ class MexcFutureClient(FutureClient):
         - request parameters:
             - symbol: str, optional, the name of the contract, not uploaded will return all
         """
-        params: dict[str, str] = dict(
-            symbol = self._parse_trade_pair(symbol),
-        )
+        params: dict[str, str] = {
+            "symbol": self._parse_trade_pair(symbol),
+        }
 
         return self.gateway.call(
             method="GET",
@@ -721,7 +814,7 @@ class MexcFutureClient(FutureClient):
         return self.gateway.call(
             method="GET",
             url="api/v1/private/account/tiered_fee_rate",
-            params = dict(symbol = self._parse_trade_pair(symbol)),
+            params = {"symbol": self._parse_trade_pair(symbol)},
         )
 
     def place_order(
@@ -730,13 +823,13 @@ class MexcFutureClient(FutureClient):
         vol: float,
         side: int,  # 1 and 3
         type: int = 5,  # 5 for market, need to test 6
-        openType: int = 1,  # 1 for isolatied, 2 for cross
-        positionId: int = None,
-        externalOid: int = None,
-        stopLossPrice: float = None,
-        takeProfitPrice: float = None,
-        positionMode: int = None,
-        reduceOnly: bool = False,
+        open_type: int = 1,  # 1 for isolatied, 2 for cross
+        position_id: int = None,
+        external_id: int = None,
+        stop_loss_price: float = None,
+        take_profit_price: float = None,
+        position_mode: int = None,
+        reduce_only: bool = False,
         symbol: TradePair | None = None,
         leverage: int = 20,
     ) -> dict:
@@ -820,21 +913,21 @@ class MexcFutureClient(FutureClient):
                     - one-way positions: if you need to only reduce positions, pass in true
                     - two-way positions: will not accept this parameter.
         """
-        params: dict[str, str | int | float] = dict(
-            symbol = self._parse_trade_pair(symbol),
-            price = price,
-            vol = vol,
-            leverage = leverage,
-            side = side,
-            type = type,
-            openType = openType,
-            positionId = positionId,
-            externalOid = externalOid,
-            stopLossPrice = stopLossPrice,
-            takeProfitPrice = takeProfitPrice,
-            positionMode = positionMode,
-            reduceOnly = reduceOnly,
-        )
+        params: dict[str, str | int | float] = {
+            "symbol": self._parse_trade_pair(symbol),
+            "price": price,
+            "vol": vol,
+            "leverage": leverage,
+            "side": side,
+            "type": type,
+            "openType": open_type,
+            "positionId": position_id,
+            "externalOid": external_id,
+            "stopLossPrice": stop_loss_price,
+            "takeProfitPrice": take_profit_price,
+            "positionMode": position_mode,
+            "reduceOnly": reduce_only,
+        }
 
         return self.gateway.call(
             method="POST",
@@ -856,4 +949,17 @@ if __name__ == "__main__":
         secret_key="test_secret_key"
     )
 
-    print(mfc.ping())
+    print(mfc.get_ticker())
+    # # 1. Using dir() to get all attributes and methods
+    # print("All attributes and methods using dir():")
+    # print(dir(mfc))
+
+    # # 2. Filtering for only public methods
+    # public_methods = [method for method in dir(mfc) if callable(getattr(mfc, method)) and not method.startswith("_")]
+    # print("\nPublic methods found in MexcFutureClient:")
+    # print(public_methods)
+
+    # # 3. Using the inspect module to get method objects
+    # print("\nMethods found using inspect.getmembers():")
+    # methods = inspect.getmembers(mfc, predicate=inspect.ismethod)
+    # print([m[0] for m in methods])

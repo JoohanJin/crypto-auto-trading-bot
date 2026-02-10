@@ -7,10 +7,12 @@ import time
 # CUSTOM LIBRARY
 from src.core.models.index import Index, IndexType
 from src.integrations.telegram.telegram_bot_class import CustomTelegramBot
-from src.infrastructure.logging.set_logger import operation_logger
+from src.infrastructure.logging.set_logger import get_logger, get_adapter
 from src.core.models.signal import Signal, TradeSignal
 from src.interfaces.pipeline_interface import PipelineController
 from src.strategy.strategy_manager import StrategyManager
+
+logger = get_logger(__name__)
 
 
 class SignalGenerator:
@@ -38,18 +40,12 @@ class SignalGenerator:
             try:
                 # start the thread.
                 thread.start()
-                operation_logger.info(
-                    f"{__name__} - Thread '{thread.name}' (ID: {thread.ident}) has started"
-                )
+                logger.info(f"Thread '{thread.name}' (ID: {thread.ident}) has started")
             except RuntimeError as e:
-                operation_logger.critical(
-                    f"{__name__} - Failed to start thread '{thread.name}': {str(e)}"
-                )
+                logger.critical(f"Failed to start thread '{thread.name}': {str(e)}")
                 raise RuntimeError(f"Failed to start thread '{thread.name}': {str(e)}")
             except Exception as e:
-                operation_logger.critical(
-                    f"{__name__} - Unexpected error starting thread: '{thread.name}': {str(e)}"
-                )
+                logger.critical(f"Unexpected error starting thread: '{thread.name}': {str(e)}")
                 raise Exception(
                     f"Unexpected error starting thread: '{thread.name}': {str(e)}"
                 )
@@ -81,6 +77,8 @@ class SignalGenerator:
 
         return None
         """
+        self.logger = get_adapter(logger, self.__class__.__name__)
+        
         # data pipeline to get the indicators
         self.data_pipeline_controller:   PipelineController[dict[str, int | IndexType, dict[int, float]]] = data_pipeline_controller
         self.signal_pipeline_controller:          PipelineController[dict[str, int | object.TradeSignal]] = signal_pipeline_controller
@@ -100,7 +98,7 @@ class SignalGenerator:
         self.signal_window: int = signal_window
 
         # threads pool
-        self.threads: List[threading.Thread] = list()
+        self.threads: List[threading.Thread] = []
 
         self.strategy_manager: StrategyManager = StrategyManager(
             indicators = self.indicators,
@@ -145,9 +143,7 @@ class SignalGenerator:
             target = self.get_data,
             daemon = True,
         )
-        operation_logger.info(
-            f"{__name__}: Thread for index data getter has been set up!"
-        )
+        self.logger.info("Thread for index data getter has been set up!")
 
         self.threads.extend(
             [
@@ -172,7 +168,7 @@ class SignalGenerator:
                     with self.indicators_lock:
                         self.indicators[data.index_type] = data
             except Exception as e:
-                operation_logger.critical(f"{__name__} -  Unexpected Exeption occured - {str(e)}")
+                self.logger.critical(f"Unexpected Exeption occured - {str(e)}")
 
         return
 
@@ -180,4 +176,4 @@ class SignalGenerator:
         try:
             self.signal_pipeline_controller.push(signal)
         except Exception as e:
-            operation_logger.critical(f"{__name__} - Cannot put signal to the queue: {str(e)}")
+            self.logger.critical(f"Cannot put signal to the queue: {str(e)}")

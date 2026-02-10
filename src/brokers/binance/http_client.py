@@ -2,21 +2,29 @@
 from typing import Literal, Union
 
 # logger
-from src.infrastructure.logging.set_logger import operation_logger
+from src.infrastructure.logging.set_logger import get_logger, get_adapter
 
 # Custom Library
-from src.core.models.trade import TradePair
+from src.core.models.trade import OrderType, TimeInForce, TradePair
 
 # RESTful Client
-from src.brokers.base.http_sdk import FutureClient, RestService
+from src.brokers.base.http_sdk import HttpClient, HttpService
 from src.brokers.binance.http_gateway import BinanceFutureGateway
 
+# Data Structure
+from src.core.models.service_dto import (
+    Ticker,
+    Position
+)
 
-class BinanceFutureClient(FutureClient):
+logger = get_logger(__name__)
+
+
+class BinanceFutureClient(HttpClient):
     @classmethod
     def _parse_trade_pair(
         cls,
-        trade_pair: TradePair | None,
+        trade_pair: TradePair | None = None,
         capitalize: bool = True,
     ) -> str:
         if isinstance(trade_pair, TradePair):
@@ -24,6 +32,25 @@ class BinanceFutureClient(FutureClient):
             quote: str = trade_pair.quote.upper() if capitalize else trade_pair.quote.lower()
             return f"{ticker}{quote}"
         return "BTCUSDT" if capitalize else "btcusdt"
+
+    @classmethod
+    def _construct_trade_pair(
+        cls,
+        symbol: str | None = None,
+    ) -> TradePair | None:
+        if symbol is None:
+            return TradePair("BTC", "USDT")
+
+        # Common quote currencies in Binance futures
+        quote_currencies = ["USDT"]
+        
+        for quote in quote_currencies:
+            if symbol.endswith(quote):
+                ticker = symbol[:-len(quote)]
+                return TradePair(ticker, quote)
+        
+        # Fallback: if no common quote found, return None
+        return None
 
     def __init__(
         self,
@@ -37,7 +64,9 @@ class BinanceFutureClient(FutureClient):
         super().__init__(
             name=name.upper(),
         )
-        self.gateway: RestService = BinanceFutureGateway(
+        self.logger = get_adapter(logger, self.name)
+        
+        self.gateway: HttpService = BinanceFutureGateway(
             name=f"{name.upper()}_GATEWAY",
             api_key=api_key,
             secret_key=secret_key,
@@ -66,8 +95,8 @@ class BinanceFutureClient(FutureClient):
         url: str = "/fapi/v1/ping"
 
         return self.gateway.call(
-            method = "GET",
-            url = url,
+            method="GET",
+            url=url,
         )
 
     def get_server_time(
@@ -83,8 +112,8 @@ class BinanceFutureClient(FutureClient):
         url: str = "/fapi/v1/time"
 
         return self.gateway.call(
-            method = "GET",
-            url = url,
+            method="GET",
+            url=url,
         )
 
     def get_exchange_info(
@@ -100,8 +129,8 @@ class BinanceFutureClient(FutureClient):
         url: str = "/fapi/v1/exchangeInfo"
 
         return self.gateway.call(
-            method = "GET",
-            url = url,
+            method="GET",
+            url=url,
         )
 
     def get_order_book(
@@ -126,9 +155,9 @@ class BinanceFutureClient(FutureClient):
         }
 
         return self.gateway.call(
-            method = "GET",
-            url = url,
-            params = params,
+            method="GET",
+            url=url,
+            params=params,
         )
 
     def get_recent_trades(
@@ -153,9 +182,9 @@ class BinanceFutureClient(FutureClient):
         }
 
         return self.gateway.call(
-            method = "GET",
-            url = url,
-            params = params,
+            method="GET",
+            url=url,
+            params=params,
         )
 
     def get_historical_trades(
@@ -189,10 +218,10 @@ class BinanceFutureClient(FutureClient):
             headers["X-MBX-APIKEY"] = self.gateway.api_key
 
         return self.gateway.call(
-            method = "GET",
-            url = url,
-            params = params,
-            headers = headers,
+            method="GET",
+            url=url,
+            params=params,
+            headers=headers,
         )
 
     def get_compressed_aggregate_trades(
@@ -229,9 +258,9 @@ class BinanceFutureClient(FutureClient):
             params["endTime"] = end_time
 
         return self.gateway.call(
-            method = "GET",
-            url = url,
-            params = params,
+            method="GET",
+            url=url,
+            params=params,
         )
 
     def get_kline(
@@ -266,9 +295,9 @@ class BinanceFutureClient(FutureClient):
             params["limit"] = limit
 
         return self.gateway.call(
-            method = "GET",
-            url = url,
-            params = params,
+            method="GET",
+            url=url,
+            params=params,
         )
 
     def get_continuous_klines(
@@ -306,9 +335,9 @@ class BinanceFutureClient(FutureClient):
             params["limit"] = limit
 
         return self.gateway.call(
-            method = "GET",
-            url = url,
-            params = params,
+            method="GET",
+            url=url,
+            params=params,
         )
 
     def get_index_price_klines(
@@ -343,9 +372,9 @@ class BinanceFutureClient(FutureClient):
             params["limit"] = limit
 
         return self.gateway.call(
-            method = "GET",
-            url = url,
-            params = params,
+            method="GET",
+            url=url,
+            params=params,
         )
 
     def get_mark_price_klines(
@@ -380,9 +409,9 @@ class BinanceFutureClient(FutureClient):
             params["limit"] = limit
 
         return self.gateway.call(
-            method = "GET",
-            url = url,
-            params = params,
+            method="GET",
+            url=url,
+            params=params,
         )
 
     def get_premium_klines(
@@ -417,9 +446,9 @@ class BinanceFutureClient(FutureClient):
             params["limit"] = limit
 
         return self.gateway.call(
-            method = "GET",
-            url = url,
-            params = params,
+            method="GET",
+            url=url,
+            params=params,
         )
 
     def get_mark_price(
@@ -441,9 +470,9 @@ class BinanceFutureClient(FutureClient):
         }
 
         return self.gateway.call(
-            method = "GET",
-            url = url,
-            params = params,
+            method="GET",
+            url=url,
+            params=params,
         )
 
     def get_funding_rate_history(
@@ -476,9 +505,9 @@ class BinanceFutureClient(FutureClient):
             params["endTime"] = endTime
 
         return self.gateway.call(
-            method = "GET",
-            url = url,
-            params = params,
+            method="GET",
+            url=url,
+            params=params,
         )
 
     def get_funding_rate_info(
@@ -494,14 +523,14 @@ class BinanceFutureClient(FutureClient):
         url: str = "/fapi/v1/fundingRate"
 
         return self.gateway.call(
-            method = "GET",
-            url = url,
+            method="GET",
+            url=url,
         )
 
     def get_ticker(
         self,
         symbol: TradePair | None = None,
-    ) -> dict:
+    ) -> Ticker | None:
         """
         Get 24 hour rolling window price change statistics for a specific symbol.
 
@@ -511,15 +540,30 @@ class BinanceFutureClient(FutureClient):
 
         return: The response from the server as a dictionary.
         """
+        symbol = symbol if symbol else TradePair('BTC', 'USDT')
+
+        def construct_ticker_dto(data: dict) -> Ticker | None:
+            if isinstance(data, dict):
+                return Ticker(
+                    timestamp=self.generate_timestamp(),
+                    source="BINANCE",
+                    ticker=symbol,
+                    last_price=data.get('lastPrice', 0.0),
+                )
+            else:
+                return
+
         url: str = "/fapi/v1/ticker/24hr"
         params: dict[str, str] = {
             "symbol": self._parse_trade_pair(symbol),
         }
 
-        return self.gateway.call(
-            method = "GET",
-            url = url,
-            params = params,
+        return construct_ticker_dto(
+            self.gateway.call(
+                method="GET",
+                url=url,
+                params=params,
+            )
         )
 
     def get_top_trader_long_short_ratio(
@@ -545,9 +589,9 @@ class BinanceFutureClient(FutureClient):
             params["endTime"] = endTime
 
         return self.gateway.call(
-            method = "GET",
-            url = url,
-            params = params,
+            method="GET",
+            url=url,
+            params=params,
         )
 
     def get_long_short_ratio(
@@ -573,9 +617,9 @@ class BinanceFutureClient(FutureClient):
             params["endTime"] = endTime
 
         return self.gateway.call(
-            method = "GET",
-            url = url,
-            params = params,
+            method="GET",
+            url=url,
+            params=params,
         )
 
     def get_taker_buy_sell_volume(
@@ -601,9 +645,9 @@ class BinanceFutureClient(FutureClient):
             params["endTime"] = end_time
 
         return self.gateway.call(
-            method = "GET",
-            url = url,
-            params = params,
+            method="GET",
+            url=url,
+            params=params,
         )
 
     def get_basis(
@@ -631,9 +675,9 @@ class BinanceFutureClient(FutureClient):
             params["endTime"] = endTime
 
         return self.gateway.call(
-            method = "GET",
-            url = url,
-            params = params,
+            method="GET",
+            url=url,
+            params=params,
         )
 
     def get_composite_index_symbol_info(
@@ -649,9 +693,9 @@ class BinanceFutureClient(FutureClient):
         }
 
         return self.gateway.call(
-            method = "GET",
-            url = url,
-            params = params,
+            method="GET",
+            url=url,
+            params=params,
         )
 
     def get_asset_index(
@@ -668,9 +712,9 @@ class BinanceFutureClient(FutureClient):
         }
 
         return self.gateway.call(
-            method = "GET",
-            url = url,
-            params = params,
+            method="GET",
+            url=url,
+            params=params,
         )
 
     def get_index_price_constituents(
@@ -686,9 +730,9 @@ class BinanceFutureClient(FutureClient):
         }
 
         return self.gateway.call(
-            method = "GET",
-            url = url,
-            params = params,
+            method="GET",
+            url=url,
+            params=params,
         )
 
     """
@@ -743,41 +787,41 @@ class BinanceFutureClient(FutureClient):
         # TODO: decide the following:
         # Sequential manner or multi-threaded manner?
         self.change_initial_leverage(
-            leverage = leverage,
+            leverage=leverage,
         )  # change the leverage to the default, 5 for now.
 
         # MAIN ORDER
         res = self.place_order(
-            symbol = symbol,
-            side = side,
-            type = "MARKET",
-            quantity = symbol_curr_quantity,
-            recv_window = recv_window,
+            symbol=symbol,
+            side=side,
+            type="MARKET",
+            quantity=symbol_curr_quantity,
+            recv_window=recv_window,
         )
         if (res.get("status") == "NEW"):
-            operation_logger.info(f"{__name__} - The new order has been opened.")
+            self.logger.info("The new order has been opened.")
 
         # STOP LOSS
         self.place_order(
-            symbol = symbol,
-            stop_price = sl_price,
-            type = "STOP_MARKET",
-            side = "BUY" if side == "SELL" else "SELL",  # Opposite of the Main Order
-            close_position = "true",
-            time_in_force = "GTE_GTC",
+            symbol=symbol,
+            stop_price=sl_price,
+            type="STOP_MARKET",
+            side="BUY" if side == "SELL" else "SELL",  # Opposite of the Main Order
+            close_position="true",
+            time_in_force="GTE_GTC",
         )
-        operation_logger.info(f"{__name__} - The new order's STOP LOSS PRICE is at {sl_price}.")
+        self.logger.info(f"The new order's STOP LOSS PRICE is at {sl_price}.")
 
         # TAKE PROFIT
         self.place_order(
-            symbol = symbol,
-            stop_price = tp_price,
-            type = "TAKE_PROFIT_MARKET",
-            side = "BUY" if side == "SELL" else "SELL",  # Opposite of the Main Order
-            close_position = "true",
-            time_in_force = "GTE_GTC",
+            symbol=symbol,
+            stop_price=tp_price,
+            type="TAKE_PROFIT_MARKET",
+            side="BUY" if side == "SELL" else "SELL",  # Opposite of the Main Order
+            close_position="true",
+            time_in_force="GTE_GTC",
         )
-        operation_logger.info(f"{__name__} - The new order's TAKE PROFIT PRICE is at {tp_price}.")
+        self.logger.info(f"The new order's TAKE PROFIT PRICE is at {tp_price}.")
 
         return
 
@@ -817,33 +861,33 @@ class BinanceFutureClient(FutureClient):
 
         '''
         params: dict[str, int | float | str] = dict(
-            symbol = self._parse_trade_pair(symbol),
-            side = side,
-            position_side = position_side,
-            type = type,
-            time_in_force = time_in_force,
-            quantity = quantity,
-            reduce_only = reduce_only,
-            price = price,
-            new_client_order_id = new_client_order_id,
-            stop_price = stop_price,
-            close_position = close_position,
-            activation_price = activation_price,
-            callback_rate = callback_rate,
-            working_type = working_type,
-            price_protect = price_protect,
-            new_order_resp_type = new_order_resp_type,
-            price_match = price_match,
-            self_trade_prevention_mode = self_trade_prevention_mode,
-            good_till_date = good_till_date,
-            recv_window = recv_window,
-            timestamp = self.generate_timestamp(),
+            symbol=self._parse_trade_pair(symbol),
+            side=side,
+            position_side=position_side,
+            type=type,
+            time_in_force=time_in_force,
+            quantity=quantity,
+            reduce_only=reduce_only,
+            price=price,
+            new_client_order_id=new_client_order_id,
+            stop_price=stop_price,
+            close_position=close_position,
+            activation_price=activation_price,
+            callback_rate=callback_rate,
+            working_type=working_type,
+            price_protect=price_protect,
+            new_order_resp_type=new_order_resp_type,
+            price_match=price_match,
+            self_trade_prevention_mode=self_trade_prevention_mode,
+            good_till_date=good_till_date,
+            recv_window=recv_window,
+            timestamp=self.generate_timestamp(),
         )
 
         return self.gateway.call(
-            method = "POST",
-            params = params,
-            url = url,
+            method="POST",
+            params=params,
+            url=url,
         )
 
     def place_multiple_orders(
@@ -905,29 +949,44 @@ class BinanceFutureClient(FutureClient):
         limit: int | None = 500,  # max 1_000
         recv_window: int | None = 5_000,
         timestamp: int | None = None,
-    ):
-        url: str = "/fapi/v1/allOrders"
+    ) -> list[dict] | None:
+        """
+        Get all orders for a specific symbol.
 
+        GET /fapi/v1/allOrders
+
+        param symbol: The trading pair symbol.
+        param order_id: Filter by a specific order ID.
+        param start_time: Timestamp in ms to get orders from INCLUSIVE.
+        param end_time: Timestamp in ms to get orders until INCLUSIVE.
+        param limit: The number of orders to return. Default is 500; max is 1000.
+        param recv_window: The request weight limit in milliseconds.
+        param timestamp: Custom timestamp override.
+
+        return: List of orders as dictionaries.
+        """
+        url: str = "/fapi/v1/allOrders"
         params: dict[str, int | str] = {
             "symbol": self._parse_trade_pair(symbol),
             "timestamp": timestamp if timestamp is not None else self.generate_timestamp(),
         }
 
-        if order_id is not None:
-            params["orderId"] = order_id
-        if start_time is not None:
-            params["startTime"] = start_time
-        if end_time is not None:
-            params["endTime"] = end_time
-        if limit is not None:
-            params["limit"] = limit
-        if recv_window is not None:
-            params["recvWindow"] = recv_window
+        # Add optional parameters if provided
+        optional_params = {
+            "orderId": order_id,
+            "startTime": start_time,
+            "endTime": end_time,
+            "limit": limit,
+            "recvWindow": recv_window,
+        }
+        for key, value in optional_params.items():
+            if value is not None:
+                params[key] = value
 
         return self.gateway.call(
-            method = "GET",
-            url = url,
-            params = params,
+            method="GET",
+            url=url,
+            params=params,
         )
 
     def get_open_order(self,):
@@ -939,18 +998,75 @@ class BinanceFutureClient(FutureClient):
         url: str = "/fapi/v1/openOrders",
         symbol: TradePair | None = None,
         recv_window: int = 5_000,
-    ) -> dict | None:
-        params: dict[str, int] = dict(
-            symbol = self._parse_trade_pair(symbol),
-            recv_window = recv_window,
-            timestamp = self.generate_timestamp(),
+    ) -> list[Position] | None:
+        """
+        Get all open orders for a specific symbol.
+
+        GET /fapi/v1/openOrders
+
+        param symbol: The trading pair symbol.
+        param recv_window: The request weight limit in milliseconds.
+
+        return: List of open Position objects.
+        """
+        def generate_position_dto(orders: list[dict]) -> list[Position]:
+            positions: list[Position] = []
+            for order in orders:
+                orig_qty = float(order.get("origQty", 0))
+
+                # Omit orders with 0 quantity (dummy data)
+                if orig_qty == 0:
+                    continue
+
+                position = Position(
+                    timestamp=self.generate_timestamp(),
+                    source="BINANCE",
+                    id=order.get("orderId", 0),
+                    ticker=self._construct_trade_pair(order.get("symbol")),
+                    status=order.get("status", ""),
+                    time_in_force=TimeInForce[order.get("timeInForce", "GTC")],
+                    order_type=OrderType[order.get("type", "MARKET")],
+                    side=order.get("side", ""),
+                    position_side=order.get("positionSide", "BOTH"),
+                    orig_qty=orig_qty,
+                    executed_qty=float(order.get("executedQty", 0)),
+                    avg_price=float(order.get("avgPrice", 0)),
+                    cum_quote=float(order.get("cumQuote", 0)),
+                    price=float(order.get("price", 0)),
+                    stop_price=float(order.get("stopPrice", 0)),
+                    reduce_only=order.get("reduceOnly", False),
+                    close_position=order.get("closePosition", False),
+                    order_time=order.get("time", 0),
+                    update_time=order.get("updateTime", 0),
+                    client_order_id=order.get("clientOrderId", ""),
+                    working_type=order.get("workingType", "CONTRACT_PRICE"),
+                    price_match=order.get("priceMatch", "NONE"),
+                    self_trade_prevention_mode=order.get("selfTradePreventionMode", "NONE"),
+                    good_till_date=order.get("goodTillDate", 0),
+                    price_protect=order.get("priceProtect", False),
+                    activate_price=float(order.get("activatePrice", 0)) if "activatePrice" in order else 0.0,
+                    price_rate=float(order.get("priceRate", 0)) if "priceRate" in order else 0.0,
+                )
+                positions.append(position)
+
+            return positions
+
+        params: dict[str, int | str] = {
+            "symbol": self._parse_trade_pair(symbol),
+            "recv_window": recv_window,
+            "timestamp": self.generate_timestamp(),
+        }
+
+        orders: list[dict] | None = self.gateway.call(
+            method="GET",
+            url=url,
+            params=params,
         )
 
-        return self.gateway.call(
-            method = "GET",
-            url = url,
-            params = params,
-        )
+        if not isinstance(orders, list) or len(orders) == 0:
+            return []
+        
+        return generate_position_dto(orders)
 
     def query_account_trades(self,):
         raise NotImplementedError
@@ -983,9 +1099,9 @@ class BinanceFutureClient(FutureClient):
         }
 
         return self.gateway.call(
-            method = "POST",
-            url = url,
-            params = params,
+            method="POST",
+            url=url,
+            params=params,
         )
 
     def change_multi_assets_mode(self,):
@@ -1023,14 +1139,14 @@ class BinanceFutureClient(FutureClient):
         recv_window: int = 5_000,
         asset: str = "USDT",
     ) -> dict | None:
-        params: dict[str, int] = dict(
-            recvWindow = recv_window,
-            timestamp = self.generate_timestamp(),
-            asset = asset,
-        )
+        params: dict[str, int] = {
+            "recvWindow": recv_window,
+            "timestamp": self.generate_timestamp(),
+            "asset": asset,
+        }
 
         return self.gateway.call(
-            method = "GET",
+            method="GET",
             params = params,
             url = url,
         )
@@ -1040,13 +1156,13 @@ class BinanceFutureClient(FutureClient):
         url: str = "/fapi/v2/account",
         recv_window: int = 5_000,
     ) -> dict | None:
-        params: dict[str, int] = dict(
-            recvWindow = recv_window,
-            timestamp = self.generate_timestamp(),
-        )
+        params: dict[str, int] = {
+            "recvWindow": recv_window,
+            "timestamp": self.generate_timestamp(),
+        }
 
         return self.gateway.call(
-            method = "GET",
+            method="GET",
             params = params,
             url = url,
         )
@@ -1057,16 +1173,16 @@ class BinanceFutureClient(FutureClient):
         symbol: TradePair | None = None,
         recv_window: int = 5_000,
     ) -> list[dict | None]:
-        params: dict[str, int | float] = dict(
-            symbol = self._parse_trade_pair(symbol),
-            recv_window = recv_window,
-            timestamp = self.generate_timestamp(),
-        )
+        params: dict[str, int | float] = {
+            "symbol": self._parse_trade_pair(symbol),
+            "recv_window": recv_window,
+            "timestamp": self.generate_timestamp(),
+        }
 
         return self.gateway.call(
-            method = "GET",
-            url = url,
-            params = params,
+            method="GET",
+            url=url,
+            params=params,
         )
 
     def get_positions(self):
@@ -1079,16 +1195,16 @@ class BinanceFutureClient(FutureClient):
         symbol: TradePair | None = None,
         recv_window: int = 5_000,
     ):
-        params: dict[str, int | float] = dict(
-            symbol = self._parse_trade_pair(symbol),
-            recv_window = recv_window,
-            timestamp = self.generate_timestamp()
-        )
+        params: dict[str, int | float] = {
+            "symbol": self._parse_trade_pair(symbol),
+            "recv_window": recv_window,
+            "timestamp": self.generate_timestamp()
+        }
 
         return self.gateway.call(
-            method = "GET",
-            url = url,
-            params = params,
+            method="GET",
+            url=url,
+            params=params,
         )
 
     def get_all_open_order(
@@ -1097,25 +1213,32 @@ class BinanceFutureClient(FutureClient):
         symbol: TradePair | None = None,
         recv_window = 5_000,
     ):
-        params: dict[str, int | float] = dict(
-            symbol = self._parse_trade_pair(symbol),
-            recv_window = recv_window,
-            timestamp = self.generate_timestamp(),
-        )
+        params: dict[str, int | float] = {
+            "symbol": self._parse_trade_pair(symbol),
+            "recv_window": recv_window,
+            "timestamp": self.generate_timestamp(),
+        }
 
         return self.gateway.call(
-            method = "GET",
-            url = url,
-            params = params,
+            method="GET",
+            url=url,
+            params=params,
         )
 
 
 if __name__ == "__main__":
+    from dotenv import load_dotenv
+    import os
+
+    load_dotenv()
+
     bfc = BinanceFutureClient(
-        name = "TEST_BINANCE_FUTURE_RESTFUL",
-        api_key="test_api_key",
-        secret_key="test_secret_key"
+        name="TEST_BINANCE_FUTURE_RESTFUL",
+        api_key=os.getenv("BINANCE_HMAC_API_KEY"),
+        secret_key=os.getenv("BINANCE_HMAC_SECRET_KEY"),
     )
 
-    # print(bfc.get_ticker())
-    print(bfc.ping())
+    print(bfc.get_open_orders())
+    # response = bfc.get_all_orders()
+    # for res in response:
+    #     print(res)

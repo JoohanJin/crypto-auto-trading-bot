@@ -3,8 +3,10 @@ from src.core.models.broker import BrokerRegistry
 from src.core.models.price import Price
 from src.integrations.telegram.telegram_bot_class import CustomTelegramBot
 from src.core.models.order import Order
-from src.infrastructure.logging.set_logger import operation_logger
+from src.infrastructure.logging.set_logger import get_logger, get_adapter
 from src.core.models.trade import TradePair
+
+logger = get_logger(__name__)
 
 
 class OrderManager:
@@ -28,6 +30,7 @@ class OrderManager:
         telegram_bot: CustomTelegramBot,
         brokers: BrokerRegistry,  # Brokers Storage
     ) -> None:
+        self.logger = get_adapter(logger, self.__class__.__name__)
         self.brokers: BrokerRegistry = brokers
         self.telegram_bot: CustomTelegramBot = telegram_bot
         return
@@ -44,9 +47,7 @@ class OrderManager:
             # TODO: implement the broker registry
             self.brokers
         except Exception as e:
-            operation_logger.critical(
-                f"{__name__} - {self.__class__.__name__} - Error during the Order: {str(e)}"
-            )
+            self.logger.critical(f"Error during the Order: {str(e)}")
         return
 
     def get_ticker_current_price(
@@ -95,9 +96,7 @@ class OrderManager:
         try:
             return round((sum(prices) / len(prices)), rounding)
         except Exception as e:
-            operation_logger.error(
-                f"{__name__} - {self.__class__.__name__} - Error while getting the average ticker price: {str(e)}"
-            )
+            self.logger.error(f"Error while getting the average ticker price: {str(e)}")
 
     def __get_ticker_current_prices(self) -> list[float]:
         '''
@@ -109,6 +108,6 @@ class OrderManager:
         - Return:
             - prices: list[float]
         '''
-        res = list()
+        res = []
 
         return res

@@ -60,6 +60,7 @@ def setup_logger(
 operation_logger = setup_logger("OperationLogger", "system-logging.log", add_console=True)
 trading_logger = setup_logger("TradingLogger", "trading-logging.log", add_console=False)
 
+
 def get_logger(module_name: str, logger_type: str = "operation") -> logging.Logger:
     """
     Get a child logger for a specific module.
@@ -93,6 +94,7 @@ class ContextAdapter(logging.LoggerAdapter):
 def get_adapter(logger: logging.Logger, prefix: str) -> logging.LoggerAdapter:
     """Helper to create a ContextAdapter."""
     return ContextAdapter(logger, {"prefix": prefix})
+
 
 operation_logger.info(
     f"{__name__} - {operation_logger.name} - Operation Logger generation completed."

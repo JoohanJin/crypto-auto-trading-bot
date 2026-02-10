@@ -11,7 +11,9 @@ import websocket
 from src.brokers.base.ws_sdk import WebSocket
 
 # Getting Logger access
-from src.infrastructure.logging.set_logger import operation_logger
+from src.infrastructure.logging.set_logger import get_logger, get_adapter
+
+logger = get_logger(__name__)
 
 
 class MexcWebSocket(WebSocket):
@@ -38,16 +40,17 @@ class MexcWebSocket(WebSocket):
             secret_key = secret_key,
             ping_interval = ping_interval,
         )
+        self.logger = get_adapter(logger, self.name)
 
         # internal DataStructure
         self.default_callback: Callable = default_callback
         self.authenticated: bool = False
 
         # subscriptions fetching for resubscriptiong
-        self.subscriptions: list[str] = list()
+        self.subscriptions: list[str] = []
 
         # callback function map based on the topics
-        self.callbacks: dict[str | int, Callable] = dict()
+        self.callbacks: dict[str | int, Callable] = {}
 
         # Thread Events
         self._thread_stop: threading.Event = threading.Event()
@@ -99,7 +102,7 @@ class MexcWebSocket(WebSocket):
         param: dict | None = None,
     ) -> None:
         if param is None:
-            param: dict = dict()
+            param: dict = {}
 
         self._push_callback_func(topic, callback)
 
@@ -109,24 +112,17 @@ class MexcWebSocket(WebSocket):
         while not self._is_connected():
             time.sleep(0.1)
 
-        header = json.dumps(
-            dict(
-                method = topic,
-                param = param,
-            )
-        )
+        header = json.dumps({
+            "method": topic,
+            "param": param,
+        })
 
         try:
             self.send(header)
             self.subscriptions.append(header)
-            operation_logger.info(
-                f"{__name__} - {self.__class__.__name__} - {self.name} - "
-                f"sent request for subscriptions for: {topic}"
-            )
+            self.logger.info(f"sent request for subscriptions for: {topic}")
         except Exception as e:
-            operation_logger.warning(
-                f"{__name__} - {self.__class__.__name__} - Unexpected error during subscription: {str(e)}"
-            )
+            self.logger.warning(f"Unexpected error during subscription: {str(e)}")
             self._pop_callback_func(topic=topic)
         return
 
@@ -139,12 +135,10 @@ class MexcWebSocket(WebSocket):
             topic = "unsub." + topic
 
         self.send(
-            json.dumps(
-                dict(
-                    method = topic,
-                    param = dict(),
-                )
-            )
+            json.dumps({
+                "method": topic,
+                "param": {},
+            })
         )
         return
 
@@ -176,9 +170,7 @@ class MexcWebSocket(WebSocket):
 
             return ws
         except Exception as e:
-            operation_logger.error(
-                f"{__name__} - {self.__class__.__name__} - Failed to construct websocket object: {str(e)}"
-            )
+            self.logger.error(f"Failed to construct websocket object: {str(e)}")
             raise
 
     def _initialize_threads(self) -> None:
@@ -201,14 +193,10 @@ class MexcWebSocket(WebSocket):
         for thread in self.threads:
             try:
                 thread.start()
-                operation_logger.info(
-                    f"{__name__} - {self.__class__.__name__} - Started thread: {thread.name}"
-                )
+                self.logger.info(f"Started thread: {thread.name}")
                 time.sleep(0.5)
             except Exception as e:
-                operation_logger.critical(
-                    f"{__name__} - {self.__class__.__name__} - Failed to start thread {thread.name}: {str(e)}"
-                )
+                self.logger.critical(f"Failed to start thread {thread.name}: {str(e)}")
                 raise
         return
 
@@ -220,21 +208,17 @@ class MexcWebSocket(WebSocket):
         '''
         Join and remove all threads from self.threads container
         '''
-        operation_logger.info(
-            f"{__name__} - {self.__class__.__name__} - Cleaning up {len(self.threads)} threads."
-        )
+        self.logger.info(f"Cleaning up {len(self.threads)} threads.")
 
         self._thread_stop.set()  # Set it to the True to stop threads
 
         # Only try to close if socket exists and is actually connected
         try:
             if self._is_connected():
-                operation_logger.info("Closing Websocket to unblock run_forever...")
+                self.logger.info("Closing Websocket to unblock run_forever...")
                 self.ws.close()  # force the run_forever function to return.
         except Exception as e:
-            operation_logger.warning(
-                f"{__name__} - {self.__class__.__name__} - Socket already closed or error during close: {str(e)}"
-            )
+            self.logger.warning(f"Socket already closed or error during close: {str(e)}")
 
         # Get current thread to avoid self-join deadlock
         current_thread: threading.Thread = threading.current_thread()
@@ -242,41 +226,31 @@ class MexcWebSocket(WebSocket):
         for thread in self.threads:
             # skip if it is the current thread
             if thread is current_thread:
-                operation_logger.info(
-                    f"{__name__} - {self.__class__.__name__} - Skipping current thread ({thread.name})."
-                )
+                self.logger.info(f"Skipping current thread ({thread.name}).")
                 continue
 
             if thread.is_alive():
-                operation_logger.info(
-                    f"{__name__} - {self.__class__.__name__} - Waiting for {thread.name} to finish..."
-                )
+                self.logger.info(f"Waiting for {thread.name} to finish...")
                 thread.join(timeout=2.0)
 
                 while (thread.is_alive()):
-                    operation_logger.warning(
+                    self.logger.warning(
                         (
-                            f"{__name__} - {self.__class__.__name__} - {thread.name} did not stop cleanly. "
+                            f"{thread.name} did not stop cleanly. "
                             f"waiting for {thread.name} to be terminated properly."
                         )
                     )
                     thread.join(timeout=2.0)
                 else:
-                    operation_logger.info(
-                        f"{__name__} - {self.__class__.__name__} - {thread.name} stopped successfully."
-                    )
+                    self.logger.info(f"{thread.name} stopped successfully.")
             else:
-                operation_logger.info(
-                    f"{__name__} - {self.__class__.__name__} - {thread.name} already stopped successfully."
-                )
+                self.logger.info(f"{thread.name} already stopped successfully.")
 
         # remove all threads from list
         self.threads.clear()
         self._thread_stop.clear()
         self.ws = None
-        operation_logger.info(
-            f"{__name__} - {self.__class__.__name__} - All threads cleaned up and removed."
-        )
+        self.logger.info("All threads cleaned up and removed.")
         return
 
     def _push_callback_func(
@@ -302,9 +276,7 @@ class MexcWebSocket(WebSocket):
         if isinstance(msg, str) or isinstance(msg, bytes):
             self.ws.send(msg)
         else:
-            operation_logger.warning(
-                f"{__name__} - {self.__class__.__name__} - The message to be sent by WebSocketApp should str or bytes."
-            )
+            self.logger.warning("The message to be sent by WebSocketApp should str or bytes.")
             raise ValueError()
         return
 
@@ -312,15 +284,11 @@ class MexcWebSocket(WebSocket):
     def _reconnect(self) -> None:
         # Prevent concurrent reconnection attempts
         if not self._reconnect_lock.acquire(blocking=False):
-            operation_logger.info(
-                f"{__name__} - {self.__class__.__name__} - Reconnection already in progress, skipping."
-            )
+            self.logger.info("Reconnection already in progress, skipping.")
             return
 
         try:
-            operation_logger.info(
-                f"{__name__} - {self.__class__.__name__} - Starting reconnection process..."
-            )
+            self.logger.info("Starting reconnection process...")
 
             # Reset state - old threads will exit naturally when websocket closed
             self._thread_stop.clear()  # Clear stop signal for new threads
@@ -347,14 +315,10 @@ class MexcWebSocket(WebSocket):
                 try:
                     # ! WebSocketApp.send() requires str or bytes -> needs to dump it using json, i.e., json.dump(dict)
                     self.send(hb_payload)
-                    operation_logger.info(
-                        f"{__name__} - {self.__class__.__name__} - {self.name} - Successfully sent a ping message to {self.ws.url}"
-                    )
+                    self.logger.info(f"Successfully sent a ping message to {self.ws.url}")
                     prev_timestamp = self.generate_timestamp()
                 except Exception as e:
-                    operation_logger.warning(
-                        f"{__name__} - {self.__class__.__name__} - {self.name} - Failed to send ping message: {str(e)}"
-                    )
+                    self.logger.warning(f"Failed to send ping message: {str(e)}")
             else:
                 continue
         return
@@ -378,9 +342,7 @@ class MexcWebSocket(WebSocket):
             if isinstance(data, dict):
                 self._deal_with_response(data)
         except Exception as e:
-            operation_logger.warning(
-                f"{__name__} - {self.__class__.__name__} - Failed to get the msg from the websocket: {str(e)}"
-            )
+            self.logger.warning(f"Failed to get the msg from the websocket: {str(e)}")
         return
 
     # Override
@@ -388,9 +350,7 @@ class MexcWebSocket(WebSocket):
         self,
         ws: websocket.WebSocketApp,
     ) -> None:
-        operation_logger.info(
-            f"{__name__} - {self.__class__.__name__} - WebSocket has been opened and made a connection to {self.url}"
-        )
+        self.logger.info(f"WebSocket has been opened and made a connection to {self.url}")
         return
 
     # Override
@@ -400,25 +360,18 @@ class MexcWebSocket(WebSocket):
         status_code: int,
         close_msg: str,
     ) -> None:
-        operation_logger.warning(
-            f"{__name__} - {self.__class__.__name__} - MexC WebSocket has been closed with {status_code}: {close_msg}"
-        )
+        self.logger.warning(f"MexC WebSocket has been closed with {status_code}: {close_msg}")
 
         # Check if this was an intentional close
         if self._intentional_close.is_set():
-            operation_logger.info(
-                f"{__name__} - {self.__class__.__name__} - MexC WebSocket - Intentional close detected, not reconnecting."
-            )
+            self.logger.info("MexC WebSocket - Intentional close detected, not reconnecting.")
             self._intentional_close.clear()  # Reset the flag
             return
 
         # Only reconnect for accidental closes
         # Status 1000 = normal closure, 1006 = abnormal closure (no close frame), None = network issue
         else:
-            operation_logger.info(
-                f"{__name__} - {self.__class__.__name__} - MexC WebSocket - Accidental MexC WebSocket close detected, "
-                "spawning reconnection thread."
-            )
+            self.logger.info("MexC WebSocket - Accidental MexC WebSocket close detected, spawning reconnection thread.")
             # Spawn a separate thread for reconnection to avoid deadlock
             # (on_close runs inside the websocket_connection thread)
             reconnect_thread = threading.Thread(
@@ -445,37 +398,25 @@ class MexcWebSocket(WebSocket):
         while True:
             # Check if intentional close happened during retry
             if self._intentional_close.is_set():
-                operation_logger.info(
-                    f"{__name__} - {self.__class__.__name__} - MexC WebSocket - "
-                    f"Intentional close detected during reconnect, aborting."
-                )
+                self.logger.info("MexC WebSocket - Intentional close detected during reconnect, aborting.")
                 return
 
             try:
-                operation_logger.info(
-                    f"{__name__} - {self.__class__.__name__} - MexC WebSocket - Attempting reconnection..."
-                )
+                self.logger.info("MexC WebSocket - Attempting reconnection...")
 
                 self._reconnect()
 
                 # Wait for connection to be ready
                 if self._connection_ready.wait(timeout=10.0):
                     self._resubscribe()
-                    operation_logger.info(
-                        f"{__name__} - {self.__class__.__name__} - MexC WebSocket - Reconnection completed successfully."
-                    )
+                    self.logger.info("MexC WebSocket - Reconnection completed successfully.")
                     return  # Success!
 
             except Exception as e:
-                operation_logger.warning(
-                    f"{__name__} - {self.__class__.__name__} - MexC WebSocket - Reconnection attempt failed: {str(e)}"
-                )
+                self.logger.warning(f"MexC WebSocket - Reconnection attempt failed: {str(e)}")
 
             # Wait before next attempt
-            operation_logger.info(
-                f"{__name__} - {self.__class__.__name__} - MexC WebSocket - "
-                "Waiting {retry_delay}s before next reconnect attempt..."
-            )
+            self.logger.info(f"MexC WebSocket - Waiting {retry_delay}s before next reconnect attempt...")
             time.sleep(retry_delay)
         return
 
@@ -485,9 +426,7 @@ class MexcWebSocket(WebSocket):
         ws: websocket.WebSocketApp,
         error: Exception,
     ) -> None:
-        operation_logger.error(
-            f"{__name__} - {self.__class__.__name__} - WebSocket API: Unexpected Error Occured: {str(error)}."
-        )
+        self.logger.error(f"WebSocket API: Unexpected Error Occured: {str(error)}.")
 
         return
 
@@ -522,17 +461,15 @@ class MexcWebSocket(WebSocket):
         # hmac using sha256
         signature = self._generate_signature(timestamp)
 
-        header = json.dumps(
-            dict(
-                subscribe=False,
-                method="login",
-                param=dict(
-                    apiKey=self.api_key,
-                    reqTime=timestamp,
-                    signature=signature,
-                )
-            )
-        )
+        header = json.dumps({
+            "subscribe": False,
+            "method": "login",
+            "param": {
+                "apiKey": self.api_key,
+                "reqTime": timestamp,
+                "signature": signature,
+            }
+        })
 
         self.send(header)
         return None
@@ -600,14 +537,10 @@ class MexcWebSocket(WebSocket):
         '''
         def deal_with_auth_msg(msg):
             if (msg.get("data") == "success"):
-                operation_logger.info(
-                    f"{__name__} - {self.__class__.__name__} - Auth for {self.name} has been successful."
-                )
+                self.logger.info(f"Auth for {self.name} has been successful.")
                 self.authenticated = True
             else:
-                operation_logger.info(
-                    f"{__name__} - {self.__class__.__name__} - Auth for {self.name} has failed."
-                )
+                self.logger.info(f"Auth for {self.name} has failed.")
                 self.authenticated = False  # overwrite
             return
 
@@ -622,13 +555,9 @@ class MexcWebSocket(WebSocket):
                 )
                 and (msg.get("channel", "") != "rs.error")
             ):
-                operation_logger.info(
-                    f"{__name__} - {self.__class__.__name__} - Subscription to {topic} has been established: [v]"
-                )
+                self.logger.info(f"Subscription to {topic} has been established: [v]")
             else:
-                operation_logger.warning(
-                    f"{__name__} - {self.__class__.__name__} - Subscription to {topic} has NOT been establish: [x]"
-                )
+                self.logger.warning(f"Subscription to {topic} has NOT been establish: [x]")
             return
 
         def deal_with_msg(topic):
@@ -653,9 +582,7 @@ class MexcWebSocket(WebSocket):
             deal_with_sub_msg(msg)
 
         elif is_error_msg(msg):
-            operation_logger.info(
-                f"{__name__} - func _deal_with_response(): The error has been received from the host: {msg}"
-            )
+            self.logger.info(f"func _deal_with_response(): The error has been received from the host: {msg}")
 
         elif is_pong_msg(msg):  # Do Nothing
             pass

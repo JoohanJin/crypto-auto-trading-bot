@@ -4,7 +4,9 @@ import pandas as pd
 from queue import Queue
 
 from src.brokers.mexc.http_client import FutureWebSocket
-from src.infrastructure.logging.set_logger import operation_logger
+from src.infrastructure.logging.set_logger import get_logger, get_adapter
+
+logger = get_logger(__name__)
 
 
 class DataCollector:
@@ -24,13 +26,15 @@ class DataCollector:
         price_data: pd.DataFrame,
         lock_price_data: threading.Lock,
     ) -> None:
+        self.logger = get_adapter(logger, self.__class__.__name__)
+        
         self.ws: FutureWebSocket = websocket  # make this into interface
         time.sleep(1)
 
         self.price_data: pd.DataFrame = price_data
         self.lock_price_data: threading.Lock = lock_price_data
 
-        self.threads: list[threading.Thread] = list()
+        self.threads: list[threading.Thread] = []
 
         self.price_fetch_buffer: Queue = Queue()
         return
@@ -50,15 +54,15 @@ class DataCollector:
                 target = self._price_data_fetch,
                 daemon = True
             )
-            operation_logger.info(f"{__name__} - {self.__class__.__name__} - Thread for price fetch has been set up!")
+            self.logger.info("Thread for price fetch has been set up!")
 
             # thread_memory_save: threading.Thread = threading.Thread(
             #     name = "resize_df",
             #     target = self._resize_df,
             #     daemon = True
             # )
-            # operation_logger.info(
-            #     f"{__name__} - {self.__class__.__name__} - Thread for DataFrame size limit has been set up!"
+            # self.logger.info(
+            #     "Thread for DataFrame size limit has been set up!"
             # )
 
             self.threads.extend(
@@ -68,9 +72,9 @@ class DataCollector:
                 ]
             )
         except (RuntimeError, TypeError, AttributeError, MemoryError) as e:
-            operation_logger.error(f"{__name__} - {self.__class__.__name__} - fail to make instances for the thread: {str(e)}")
+            self.logger.error(f"fail to make instances for the thread: {str(e)}")
         except Exception as e:
-            operation_logger.critical(f"{__name__}: Unexpected error constructing thread pool - {str(e)}")
+            self.logger.critical(f"Unexpected error constructing thread pool - {str(e)}")
 
         return
 
@@ -88,17 +92,13 @@ class DataCollector:
         for thread in self.threads:
             try:
                 thread.start()
-                operation_logger.info(
-                    f"{__name__} - {self.__class__.__name__} - Thread '{thread.name}' (ID: {thread.ident}) has started"
-                )
+                self.logger.info(f"Thread '{thread.name}' (ID: {thread.ident}) has started")
             except RuntimeError as e:
-                operation_logger.critical(
-                    f"{__name__} - {self.__class__.__name__} - Failed to start thread '{thread.name}': {str(e)}"
-                )
+                self.logger.critical(f"Failed to start thread '{thread.name}': {str(e)}")
                 raise RuntimeError
             except Exception as e:
-                operation_logger.critical(
-                    f"{__name__} - {self.__class__.__name__} - Unexpected error starting thread: '{thread.name}': {str(e)}"
+                self.logger.critical(
+                    f"Unexpected error starting thread: '{thread.name}': {str(e)}"
                 )
                 raise
         return
@@ -133,8 +133,8 @@ class DataCollector:
             )
             return
         except Exception as e:
-            operation_logger.critical(
-                f"{__name__} - {self.__class__.__name__} Error in class {self.__class__.__name__} in method _put_ticker_data(): {e}"
+            self.logger.critical(
+                f"Error in class {self.__class__.__name__} in method _put_ticker_data(): {e}"
             )
         return
 
@@ -160,9 +160,7 @@ class DataCollector:
 
             return result
         except Exception as e:
-            operation_logger.critical(
-                f"{__name__} - Error retreving data from queue: {e}"
-            )
+            self.logger.critical(f"Error retreving data from queue: {e}")
             return None
 
     # data fetcher
@@ -200,7 +198,7 @@ class DataCollector:
                         self.price_data = pd.concat([self.price_data, tmp], axis = 0)
 
             except Exception as e:
-                operation_logger.critical(
+                self.logger.critical(
                     f'Unexpected Error Occurred in function "_price_data_fetch": {e}'
                 )
         return
