@@ -10,7 +10,7 @@ from src.data.data_manager import DataManager
 from src.trading.signal_generator import SignalGenerator
 from src.trading.trade_manager import TradeManager
 from src.pipeline.data_pipeline import DataPipeline
-from src.infrastructure.logging.set_logger import operation_logger
+from src.infrastructure.logging.set_logger import get_logger, get_adapter
 from src.pipeline.signal_pipeline import SignalPipeline
 from src.interfaces.pipeline_interface import PipelineController
 from src.core.models.score_mapping import ScoreMapper
@@ -22,6 +22,9 @@ from src.brokers.mexc.http_client import FutureMarket as MexcFutureMarket, Futur
 
 # BINANCE
 from src.brokers.binance.http_client import FutureMarket as BinanceFutureMarket
+
+# Logger
+logger = get_logger(__name__)
 
 
 class SystemManager:
@@ -37,6 +40,9 @@ class SystemManager:
 
         return None
         """
+        # Initialize Logger Adapter
+        self.logger = get_adapter(logger, self.__class__.__name__)
+        
         try:
             self._stop = threading.Event()
 
@@ -44,22 +50,22 @@ class SystemManager:
 
             # prepare the necessary parts for injection.
             self.mexc_ws: MexcFutureWebSocket = SystemManager.__construct_mexc_ws()
-            operation_logger.info(f"{__name__} - {self.mexc_ws} has been initialized successfully.")
+            self.logger.info(f"{self.mexc_ws} has been initialized successfully.")
 
             self.mexc_future: MexcFutureMarket = SystemManager.__construct_mexc_future()
-            operation_logger.info(f"{__name__} - {self.mexc_ws} has been initialized successfully.")
+            self.logger.info(f"{self.mexc_future} has been initialized successfully.")
 
             self.binance_future: BinanceFutureMarket = SystemManager.__construct_binance_future()
-            operation_logger.info(f"{__name__} - {self.binance_future} has been initialized successfully.")
+            self.logger.info(f"{self.binance_future} has been initialized successfully.")
 
             self.data_pipeline: DataPipeline = DataPipeline()
-            operation_logger.info(f"{self.data_pipeline} has been started.")
+            self.logger.info(f"{self.data_pipeline} has been started.")
 
             self.signal_pipline: SignalPipeline = SignalPipeline()
-            operation_logger.info(f"{self.signal_pipline} has been started.")
+            self.logger.info(f"{self.signal_pipline} has been started.")
 
             self.mapper: ScoreMapper = ScoreMapper()
-            operation_logger.info(f"{self.mapper} has been started.")
+            self.logger.info(f"{self.mapper} has been started.")
 
             self.data_pipeline_controller: PipelineController[Index] = PipelineController(pipeline = self.data_pipeline)
             self.signal_pipeline_controller: PipelineController[Signal] = PipelineController(pipeline = self.signal_pipline)
@@ -84,20 +90,13 @@ class SystemManager:
                 telegram_bot = self.telegram_bot,
             )
 
-            operation_logger.info(
-                (
-                    f"{__name__} - {self.__class__.__name__} - SystemManager has been started "
-                    f"and completed all the required setup!"
-                )
-            )
+            self.logger.info("SystemManager has been started and completed all the required setup!")
 
         except KeyboardInterrupt:
-            operation_logger.info("Program interrupted by user. Exiting...")
+            self.logger.info("Program interrupted by user. Exiting...")
             sys.exit(0)
         except Exception as e:
-            operation_logger.critical(
-                f"{__name__} - Program encounters critical errors."
-            )
+            self.logger.critical("Program encounters critical errors.")
             raise Exception(f"Program encounters critical errors.{str(e)}\n Exiting...")  # ! raise the custom Exceptions.
 
         return
@@ -107,12 +106,10 @@ class SystemManager:
             while not self._stop.is_set():
                 time.sleep(0.5)  # Sleep to reduce the cpu usage.
         except KeyboardInterrupt:
-            operation_logger.info("Program interrupted by user. Exiting...")
+            self.logger.info("Program interrupted by user. Exiting...")
             sys.exit(0)
         except Exception as e:
-            operation_logger.critical(
-                f"{__name__} - Program encounters critical errors."
-            )
+            self.logger.critical("Program encounters critical errors.")
             raise Exception(f"Program encounters critical errors.{str(e)}\n Exiting...")
         return
 
@@ -146,10 +143,10 @@ class SystemManager:
                 channel_id = channel_id,
             )
         except ValueError as e:
-            operation_logger.critical(f"{__name__} - The Value Error occured: {str(e)}")
+            self.logger.critical(f"The Value Error occured: {str(e)}")
             return None
         except Exception as e:
-            operation_logger.critical(f"{__name__} - The Unknown Error occured: {str(e)}")
+            self.logger.critical(f"The Unknown Error occured: {str(e)}")
             return None
 
     @staticmethod
@@ -174,12 +171,13 @@ class SystemManager:
             api_key: str = os.getenv("BINANCE_HMAC_API_KEY")
             secret_key: str = os.getenv("BINANCE_HMAC_SECRET_KEY")
             if not api_key or not secret_key:
-                operation_logger.critica(f"{__name__} - API_KEY and/or SECRET_KEY is None.")
+                # Static methods don't have access to self.logger, so we use the module logger
+                logger.critical("API_KEY and/or SECRET_KEY is None.")
                 raise ValueError
 
             return api_key, secret_key
         except Exception as e:
-            operation_logger.critica(f"{__name__} - Getting unexpected error during getting the credentials for Binance Future: {str(e)}")
+            logger.critical(f"Getting unexpected error during getting the credentials for Binance Future: {str(e)}")
 
     @staticmethod
     def __construct_mexc_ws() -> MexcFutureWebSocket:
@@ -209,7 +207,7 @@ class SystemManager:
                 secret_key = secret_key,
             )
         except ValueError:
-            operation_logger.critical(f"{__name__} - binance_api_key or/and binance_secret_key is/are None.")
+            logger.critical("binance_api_key or/and binance_secret_key is/are None.")
 
 
 def main():  # to test run the system manager.

@@ -3,11 +3,13 @@ import time
 from typing import Callable, Dict
 
 # CUSTOM LIBRARY
-from src.infrastructure.logging.set_logger import trading_logger
+from src.infrastructure.logging.set_logger import get_logger, get_adapter
 from src.core.models.index import IndexType, Index
 from src.core.models.signal import Signal
 from src.core.models.signal import TradeSignal
 from src.strategy.strategy_factory import StrategyConfig
+
+logger = get_logger(__name__)
 
 
 class StrategyExecutor:
@@ -24,6 +26,7 @@ class StrategyExecutor:
         verify_index: Callable[[Index, int], bool],
         sleep_interval: float,
     ) -> None:
+        self.trading_logger = get_adapter(get_logger(__name__, "trading"), self.__class__.__name__)
         self._push_signal = push_signal
         self._get_indicators = get_indicators
         self._should_generate = should_generate
@@ -54,7 +57,7 @@ class StrategyExecutor:
             if should_process and self._should_generate(strategy.name, strategy.signal_window):
                 signal_type = logic(indicators, strategy)
                 if signal_type:
-                    trading_logger.info(f"{__name__} - {strategy.name} Signal generated.")
+                    self.trading_logger.info(f"{strategy.name} Signal generated.")
                     self._emit_signal(signal_type, strategy.name)
                 self._update_timestamp(strategy.name)
 

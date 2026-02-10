@@ -3,7 +3,7 @@ import time
 from typing import Literal, Union, Callable
 
 # Logger
-from src.infrastructure.logging.set_logger import operation_logger
+from src.infrastructure.logging.set_logger import get_logger, get_adapter
 
 # Models
 from src.core.models.service_dto import OrderBook, Ticker
@@ -12,6 +12,8 @@ from src.core.models.trade import TradePair
 # WebSocket
 from src.brokers.base.ws_sdk import WebSocketClient
 from src.brokers.mexc.ws_gateway import MexcWebSocket
+
+logger = get_logger(__name__)
 
 
 class MexcWebSocketClient(WebSocketClient):
@@ -30,6 +32,7 @@ class MexcWebSocketClient(WebSocketClient):
         super().__init__(
             name = name if name else "MEXC_FUTURE_WEBSOCKET_CLIENT"
         )
+        self.logger = get_adapter(logger, self.name)
 
         self.ws: MexcWebSocket = MexcWebSocket(
             url=url,
@@ -44,14 +47,12 @@ class MexcWebSocketClient(WebSocketClient):
     def start(self) -> None:
         try:
             self.ws.start()
-            operation_logger.info(
-                f"{__name__} - {self.__class__.__name__} - Successfully started "
-                f"{self.name if hasattr(self, 'name') else 'MEXC_FUTURE_WEBSOCKET_CLIENT'} "
+            self.logger.info(
+                f"Successfully started {self.name if hasattr(self, 'name') else 'MEXC_FUTURE_WEBSOCKET_CLIENT'} "
             )
         except Exception as e:
-            operation_logger.info(
-                f"{__name__} - {self.__class__.__name__} - Unexpected Error while starting "
-                f"{self.name if hasattr(self, 'name') else 'MEXC_FUTURE_WEBSOCKET_CLIENT'}: {str(e)}"
+            self.logger.info(
+                f"Unexpected Error while starting {self.name if hasattr(self, 'name') else 'MEXC_FUTURE_WEBSOCKET_CLIENT'}: {str(e)}"
             )
         return
 
@@ -77,7 +78,7 @@ class MexcWebSocketClient(WebSocketClient):
     ) -> dict:
         symbol: str = self._parse_trade_pair(trade_pair)
 
-        res = dict(param) if param else dict()
+        res = dict(param) if param else {}
         res['symbol'] = symbol
         return res
 
@@ -176,8 +177,8 @@ class MexcWebSocketClient(WebSocketClient):
                 ticker=TradePair(ticker=ticker_part, quote=quote_part),
                 timestamp=data.get("timestamp", self.generate_timestamp()),
                 source="MEXC",
-                asks = list(),
-                bids = list(),
+                asks = [],
+                bids = [],
             )
             callback(depth_dto)
             return
@@ -344,7 +345,7 @@ class MexcWebSocketClient(WebSocketClient):
         return None
         """
         if param is None:
-            param: dict[str, str] = dict()
+            param: dict[str, str] = {}
 
         topic = "personal.asset"
         self.ws.subscribe(
@@ -366,7 +367,7 @@ class MexcWebSocketClient(WebSocketClient):
     def risk_limitation(
         self,
         callback: Callable,
-        param: dict | None = dict()
+        param: dict | None = {}
     ) -> None:
         # TODO: Need to implement the risk_limitation function
         raise NotImplementedError
@@ -375,7 +376,7 @@ class MexcWebSocketClient(WebSocketClient):
     def adl(
         self,
         callback: Callable,
-        param: dict | None = dict()
+        param: dict | None = {}
     ) -> None:
         # TODO: Need to implement the adl function
         raise NotImplementedError
@@ -384,7 +385,7 @@ class MexcWebSocketClient(WebSocketClient):
     def position_mode(
         self,
         callback: Callable,
-        param: dict | None = dict()
+        param: dict | None = {}
     ) -> None:
         # TODO: Need to implement the position_mode function
         raise NotImplementedError
@@ -400,3 +401,6 @@ if __name__ == "__main__":
     mwc.start()
 
     mwc.ticker(callback=print_msg)
+
+    while True:
+        pass

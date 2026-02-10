@@ -4,9 +4,9 @@ from typing import Dict
 
 
 class IndexType(IntFlag):
-    EMA = 1    # 0001
-    SMA = 2    # 0010
-    PRICE = 4  # 0100
+    EMA = 1 << 0    # 0001
+    SMA = 1 << 1    # 0010
+    PRICE = 1 << 2  # 0100
 
 
 class Index:
@@ -35,8 +35,8 @@ class Index:
         }
     }
     '''
-    @staticmethod
-    def generate_timestamp() -> int:
+    @classmethod
+    def generate_timestamp(cls) -> int:
         return int(time.time() * 1_000)
 
     def __init__(
@@ -45,7 +45,7 @@ class Index:
         index_type: IndexType,
         data: Dict[str, Dict[int, float]],
     ) -> None:
-        self.__timestamp: int = Index.generate_timestamp() if timestamp is None else timestamp
+        self.__timestamp: int = timestamp if timestamp else self.generate_timestamp()
         self.__index_type: IndexType = index_type
         self.__data: Dict[str, Dict[int, float]] = data
         return

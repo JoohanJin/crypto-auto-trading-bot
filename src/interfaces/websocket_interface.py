@@ -4,7 +4,9 @@ from collections.abc import Callable
 # Custom Library
 from src.brokers.base.ws_sdk import WebSocketClient
 from src.core.models.trade import TradePair
-from src.infrastructure.logging.set_logger import operation_logger
+from src.infrastructure.logging.set_logger import get_logger, get_adapter
+
+logger = get_logger(__name__)
 
 
 class WebSocketClientRegistry:
@@ -12,6 +14,7 @@ class WebSocketClientRegistry:
         self,
         name: str | None,
     ) -> None:
+        self.logger = get_adapter(logger, self.__class__.__name__)
         self._registry: dict[str, WebSocketClient] = dict()
         self.name: str = "WebSocketClientRegistry" if name is None else name
         return
@@ -43,9 +46,7 @@ class WebSocketClientRegistry:
                 if hasattr(self._registry[key], 'start'):
                     self._registry[key].start()
             except Exception as e:
-                operation_logger.warning(
-                    f"{__name__} - {self.__class__.__name__} - {self.name}: {str(e)}"
-                )
+                self.logger.warning(f"{self.name}: {str(e)}")
         return
 
     @property
@@ -60,6 +61,8 @@ class WebSocketInterface:
         trade_pair: TradePair | None = None,
         name: str | None = None,
     ) -> None:
+        self.logger = get_adapter(logger, self.__class__.__name__)
+        
         self.trade_pair = TradePair("BTC", "USDT") if trade_pair is None else trade_pair
         self.client_registry = (
             client_registry
@@ -69,9 +72,7 @@ class WebSocketInterface:
 
         self.name: str = "WebSocketInterface" if name is None else name
 
-        operation_logger.info(
-            f"{__name__} - {self.__class__.__name__} - {self.name} has been initialized."
-        )
+        self.logger.info(f"{self.name} has been initialized.")
         return
 
     def push_client(
@@ -105,10 +106,7 @@ class WebSocketInterface:
         try:
             self.client_registry.start()
         except Exception as e:
-            operation_logger.info(
-                f"{__name__} - {self.__class__.__name__} - {self.name} - Unexpected error while starting client: "
-                f"{str(e)}"
-            )
+            self.logger.info(f"Unexpected error while starting client: {str(e)}")
         return
 
     def ticker(
@@ -122,10 +120,7 @@ class WebSocketInterface:
                     trade_pair = self.trade_pair,
                 )
             except Exception as e:
-                operation_logger.crticial(
-                    f"{__name__} - {self.__class__.__name__} - {self.name} - "
-                    f"Unexpected Error while subscribing to ticker: {str(e)}"
-                )
+                self.logger.critical(f"Unexpected Error while subscribing to ticker: {str(e)}")
         return
 
     def kline(
@@ -139,10 +134,7 @@ class WebSocketInterface:
                     trade_pair=self.TradePair,
                 )
             except Exception as e:
-                operation_logger.crticial(
-                    f"{__name__} - {self.__class__.__name__} - {self.name} - "
-                    f"Unexpected Error while subscribing to kline: {str(e)}"
-                )
+                self.logger.critical(f"Unexpected Error while subscribing to kline: {str(e)}")
         return
 
     def depth(
@@ -156,8 +148,5 @@ class WebSocketInterface:
                     trade_pair=self.TradePair,
                 )
             except Exception as e:
-                operation_logger.crticial(
-                    f"{__name__} - {self.__class__.__name__} - {self.name} - "
-                    f"Unexpected Error while subscribing to depth/orderBook: {str(e)}"
-                )
+                self.logger.critical(f"Unexpected Error while subscribing to depth/orderBook: {str(e)}")
         return

@@ -8,16 +8,19 @@ from queue import Queue
 
 # Custom Module
 from src.brokers.mexc.http_client import FutureWebSocket
-from src.infrastructure.logging.set_logger import operation_logger
+from src.infrastructure.logging.set_logger import get_logger, get_adapter
 from src.data.data_saver import DataSaver
 from src.core.models.index import IndexType
 from src.data.data_collector import DataCollector
 from src.data.data_processor import DataProcessor
 from src.interfaces.pipeline_interface import PipelineController
 
+logger = get_logger(__name__)
+
 
 class DataManager:
-    def generate_timestamp(self,) -> int:
+    @classmethod
+    def generate_timestamp(cls) -> int:
         """
         static func generate_timestamp():
             - Generate the timestamp using the current time, in the form of epoch in ms.
@@ -35,11 +38,13 @@ class DataManager:
         pipeline_controller: PipelineController[dict[str, int | IndexType, dict[int, float]]],
         memory_count_limit: int = 2_000,
     ):
+        self.logger = get_adapter(logger, self.__class__.__name__)
+        
         self._memory_saver: DataSaver = DataSaver()  # can be here.
         self.price_fetch_buffer: Queue[Dict[str, Any]] = Queue()
         self._df_size_limit: int = memory_count_limit
 
-        self.threads: list[threading.Thread] = list()
+        self.threads: list[threading.Thread] = []
 
         self.lock_price_data: threading.Lock = threading.Lock()
         # default dataframe with the given columns
@@ -101,19 +106,13 @@ class DataManager:
                 target = self.__resize_df,
                 daemon = True
             )
-            operation_logger.info(
-                f"{__name__}: Thread for DataFrame size limit has been set up!"
-            )
+            self.logger.info("Thread for DataFrame size limit has been set up!")
 
             self.threads.append(thread_memory_save,)
         except (RuntimeError, TypeError, AttributeError, MemoryError) as e:
-            operation_logger.error(
-                f"{__name__} - {self.__class__.__name__} - fail to make instances for the thread: {str(e)}"
-            )
+            self.logger.error(f"fail to make instances for the thread: {str(e)}")
         except Exception as e:
-            operation_logger.critical(
-                f"{__name__}: Unexpected error constructing thread pool - {str(e)}"
-            )
+            self.logger.critical(f"Unexpected error constructing thread pool - {str(e)}")
 
         return
 
@@ -121,19 +120,15 @@ class DataManager:
         for thread in self.threads:
             try:
                 thread.start()
-                operation_logger.info(
-                    f"{__name__} - {self.__class__.__name__} - Thread '{thread.name}' (ID: {thread.ident}) has started"
-                )
+                self.logger.info(f"Thread '{thread.name}' (ID: {thread.ident}) has started")
             except RuntimeError as e:
-                operation_logger.critical(
-                    f"{__name__} - {self.__class__.__name__} - Failed to start thread - "
-                    f"'{thread.name}' (ID: {thread.ident}): {str(e)}"
+                self.logger.critical(
+                    f"Failed to start thread - '{thread.name}' (ID: {thread.ident}): {str(e)}"
                 )
                 raise RuntimeError
             except Exception as e:
-                operation_logger.critical(
-                    f"{__name__} - {self.__class__.__name__} - Unexpected error "
-                    f"starting thread - '{thread.name}' (ID: {thread.ident}): {str(e)}"
+                self.logger.critical(
+                    f"Unexpected error starting thread - '{thread.name}' (ID: {thread.ident}): {str(e)}"
                 )
                 raise
         return
@@ -163,22 +158,19 @@ class DataManager:
                         if self.price_data.shape[0] > self._df_size_limit:
                             data = self.price_data.iloc[: -self._df_size_limit]
                             self.price_data = self.price_data.iloc[-self._df_size_limit :]
-                            operation_logger.info(
-                                f"{__name__} - {self.__class__.__name__} Data Saver resized price DataFrame to "
+                            self.logger.info(
+                                f"Data Saver resized price DataFrame to "
                                 f"{self.price_data.shape[0]} rows and {self.price_data.shape[1]} columns - "
                                 f"cleaned {data.shape[0]} rows and {data.shape[1]} columns"
                             )
                         else:
-                            operation_logger.info(
-                                f"{__name__} - {self.__class__.__name__} - Data Saver skipped cleanup - "
-                                f"size below threshold: {self.price_data.shape[0]} rows"
+                            self.logger.info(
+                                f"Data Saver skipped cleanup - size below threshold: {self.price_data.shape[0]} rows"
                             )
 
                     # TODO: store the data to the database -> possibly just resize it and put the new data into the db.
                     curr_timestamp = self.generate_timestamp()
             except Exception as e:
-                operation_logger.warning(
-                    f"{__name__} - func _resize_df(): Exception caused: {str(e)}"
-                )
+                self.logger.warning(f"func _resize_df(): Exception caused: {str(e)}")
 
         return None

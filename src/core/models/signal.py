@@ -5,11 +5,11 @@ import time
 
 class TradeSignal(IntFlag):
     # state management using the bit manipulation.
-    SHORT_TERM_BUY = 1  # 0001
-    LONG_TERM_BUY = 2  # 0010
-    SHORT_TERM_SELL = 4  # 0010
-    LONG_TERM_SELL = 8  # 0100
-    HOLD = 16  # 1000
+    SHORT_TERM_BUY = 1 << 0  # 0001
+    LONG_TERM_BUY = 1 << 1  # 0010
+    SHORT_TERM_SELL = 1 << 2  # 0010
+    LONG_TERM_SELL = 1 << 3  # 0100
+    HOLD = 1 << 4  # 1000
 
 
 class Signal:

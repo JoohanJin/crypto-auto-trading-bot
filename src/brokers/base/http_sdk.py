@@ -7,14 +7,18 @@ from typing import Any, Union, Literal, Type, TypeVar
 from abc import ABC, abstractmethod
 from pydantic import BaseModel, ValidationError
 
+# Logger
+from src.infrastructure.logging.set_logger import get_logger, get_adapter
 # Custom Library
 from src.core.models.trade import TradePair
 
 
+logger = get_logger(__name__)
+
 TBaseModel = TypeVar("TBaseModel", bound=BaseModel)
 
 
-class RestService(ABC):
+class HttpService(ABC):
     """
     A common base class for handling API requests, signature generation, and session management
     for different exchange SDKs (e.g., MEXC and Binance).
@@ -63,10 +67,17 @@ class RestService(ABC):
             if isinstance(payload, dict):
                 return model.model_validate(payload)
         except ValidationError as e:  # pragma: no cover - pydantic detail
+            self.logger.critical(
+                f"Failed to parse response into {model.__name__}: {str(e)}"
+            )
+
             raise ValueError(
                 f"{__name__} - {self.__class__.__name__} - {self.name} - Failed to parse response into {model.__name__}: {str(e)}"
             ) from e
 
+        self.logger.critical(
+            f"Response body of type {type(payload).__name__} cannot be parsed using {model.__name__}."
+        )
         raise ValueError(
             f"Response body of type {type(payload).__name__} cannot be parsed using {model.__name__}."
         )
@@ -78,7 +89,7 @@ class RestService(ABC):
         base_url: str,
         api_key: str | None = None,
         secret_key: str | None = None,
-    ):
+    ) -> None:
         self.name: str = name
         self.api_key: str = api_key
         self.secret_key: str = secret_key
@@ -86,6 +97,10 @@ class RestService(ABC):
 
         # Initialize a session
         self.session: requests.Session = requests.Session()
+
+        # Class-Level Logger
+        self.logger = get_adapter(logger, self.name)
+        return
 
     def set_content_type(
         self,
@@ -118,6 +133,7 @@ class RestService(ABC):
         """
         if not self.secret_key:
             # !: this api is not sigend.
+            self.logger.warning("Secret key is required for signature generation.")
             raise ValueError("Secret key is required for signature generation.")
 
         return hmac.new(
@@ -158,7 +174,7 @@ class RestService(ABC):
         return
 
 
-class FutureClient(ABC):
+class HttpClient(ABC):
     @classmethod
     @abstractmethod
     def _parse_trade_pair(
@@ -176,11 +192,16 @@ class FutureClient(ABC):
         """
         return
 
+    def generate_timestamp(self) -> int:
+        return int(time.time() * 1_000)
+
     def __init__(
         self,
         name: str | None = None,
     ) -> None:
         self.name: str = name or ""
+        self.logger = get_adapter(logger, self.name)
+
         return
 
     @abstractmethod
@@ -228,22 +249,22 @@ if __name__ == "__main__":
 
         def test_single_word_no_underscores(self):
             """Single word with no underscores should remain lowercase."""
-            self.assertEqual(RestService.snake_to_camel("abc"), "abc")
+            self.assertEqual(HttpService.snake_to_camel("abc"), "abc")
 
         def test_two_words(self):
             """Two words separated by underscore should convert to camelCase."""
-            self.assertEqual(RestService.snake_to_camel("abc_cdf"), "abcCdf")
+            self.assertEqual(HttpService.snake_to_camel("abc_cdf"), "abcCdf")
 
         def test_multiple_underscores(self):
             """Multiple underscores should convert each word."""
-            self.assertEqual(RestService.snake_to_camel("abc_cdf_efg"), "abcCdfEfg")
+            self.assertEqual(HttpService.snake_to_camel("abc_cdf_efg"), "abcCdfEfg")
 
         def test_with_numbers(self):
             """Conversion should handle numbers correctly."""
-            self.assertEqual(RestService.snake_to_camel("page_num"), "pageNum")
+            self.assertEqual(HttpService.snake_to_camel("page_num"), "pageNum")
 
         def test_single_letter(self):
             """Single letter should remain lowercase."""
-            self.assertEqual(RestService.snake_to_camel("a"), "a")
+            self.assertEqual(HttpService.snake_to_camel("a"), "a")
 
     unittest.main()

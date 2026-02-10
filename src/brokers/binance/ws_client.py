@@ -3,7 +3,7 @@ import time
 from typing import Literal, Union
 
 # Logger
-from src.infrastructure.logging.set_logger import operation_logger
+from src.infrastructure.logging.set_logger import get_logger, get_adapter
 
 # Custom Models
 from src.core.models.service_dto import Ticker
@@ -15,6 +15,8 @@ from src.brokers.binance.ws_gateway import (
     BinanceUserWebSocket
 )
 from src.brokers.base.ws_sdk import WebSocketClient, WebSocket
+
+logger = get_logger(__name__)
 
 
 class BinanceWebSocketClient(WebSocketClient):
@@ -53,9 +55,10 @@ class BinanceWebSocketClient(WebSocketClient):
             - private endpoint
         '''
         super().__init__(name = name if name else "BINANCE_FUTURE_WEBSOCKET_CLIENT")
+        self.logger = get_adapter(logger, self.name)
 
         # access point of each WebSCoektClient
-        self.wss: dict[str, WebSocket] = dict()
+        self.wss: dict[str, WebSocket] = {}
 
         # UserWebSocketClient - Connect to the private endpoint.
         self.wss["user"] = BinanceUserWebSocket(
@@ -81,14 +84,12 @@ class BinanceWebSocketClient(WebSocketClient):
             ws = self.wss[key]
             try:
                 ws.start()
-                operation_logger.info(
-                    f"{__name__} - {self.__class__.__name__} - {self.name} - Successfully started "
-                    f"{ws.name if hasattr(ws, 'name') else f'{self.name}_{key.upper()}_WEBSOCKET'}."
+                self.logger.info(
+                    f"Successfully started {ws.name if hasattr(ws, 'name') else f'{self.name}_{key.upper()}_WEBSOCKET'}."
                 )
             except Exception as e:
-                operation_logger.critical(
-                    f"{__name__} - {self.__class__.__name__} - {self.name} - Unexpected Error while starting "
-                    f"{ws.name if hasattr(ws, 'name') else f'{self.name}_{key.upper()}_WEBSOCKET'}: {str(e)}"
+                self.logger.critical(
+                    f"Unexpected Error while starting {ws.name if hasattr(ws, 'name') else f'{self.name}_{key.upper()}_WEBSOCKET'}: {str(e)}"
                 )
 
         self._authenticate()
@@ -260,26 +261,17 @@ class BinanceWebSocketClient(WebSocketClient):
         stream = f"{self._parse_trade_pair(trade_pair)}{stream}"
 
         if not isinstance(ws, BinanceMarketWebSocket):
-            operation_logger.error(
-                f"{__name__} - {self.__class__.__name__} - {self.name} - "
-                "MarketWebSocketClient is not initialized."
-            )
+            self.logger.error("MarketWebSocketClient is not initialized.")
             return
 
         if not callable(callback):
-            operation_logger.error(
-                f"{__name__} - {self.__class__.__name__} - {self.name} - "
-                f"The provided callback for {stream} is not callable."
-            )
+            self.logger.error(f"The provided callback for {stream} is not callable.")
             return
 
         try:
             ws.subscribe(streams=stream, push_topic=push_topic, callback=callback)
         except Exception as e:
-            operation_logger.critical(
-                f"{__name__} - {self.__class__.__name__} - {self.name} - "
-                f"Failed to subscribe to {stream}: {str(e)}"
-            )
+            self.logger.critical(f"Failed to subscribe to {stream}: {str(e)}")
         return
 
     def _user_subscribe(
@@ -292,32 +284,23 @@ class BinanceWebSocketClient(WebSocketClient):
         symbol = self._parse_trade_pair(trade_pair, capitalize=True)
 
         if not isinstance(ws, BinanceUserWebSocket):
-            operation_logger.error(
-                f"{__name__} - {self.__class__.__name__} - {self.name} - "
-                "UserWebSocketClient is not initialized."
-            )
+            self.logger.error("UserWebSocketClient is not initialized.")
             return
 
         if not callable(callback):
-            operation_logger.error(
-                f"{__name__} - {self.__class__.__name__} - {self.name} - "
-                f"The provided callback for {stream} is not callable."
-            )
+            self.logger.error(f"The provided callback for {stream} is not callable.")
             return
 
         try:
             ws.subscribe(
                 callback_function=callback,
                 method=stream,
-                params=dict(
-                    symbol=symbol,
-                )
+                params={
+                    "symbol": symbol,
+                }
             )
         except Exception as e:
-            operation_logger.critical(
-                f"{__name__} - {self.__class__.__name__} - {self.name} - "
-                f"Failed to subscribe to {stream}: {str(e)}"
-            )
+            self.logger.critical(f"Failed to subscribe to {stream}: {str(e)}")
         return
 
 

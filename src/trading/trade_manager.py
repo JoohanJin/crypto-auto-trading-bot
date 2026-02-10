@@ -7,7 +7,7 @@ from typing import List, Tuple
 # Custom Library
 from src.brokers.binance.http_client import FutureMarket as BinanceFutureMarket
 from src.integrations.telegram.telegram_bot_class import CustomTelegramBot
-from src.infrastructure.logging.set_logger import operation_logger, trading_logger
+from src.infrastructure.logging.set_logger import get_logger, get_adapter
 from src.brokers.mexc.http_client import FutureMarket as MexCFutureMarket
 from src.core.models.score_mapping import ScoreMapper
 from src.core.models.signal import Signal, TradeSignal
@@ -15,16 +15,7 @@ from src.interfaces.pipeline_interface import PipelineController
 from src.core.models.trade import TradePair, TradeState
 from src.core.models.order import Order, OrderType
 
-'''
-- Get the signal
-- modify the score
-    - assess the current market status
-
-
-- TradeManager
-- SignalFetcher
-- DecisionMaker
-'''
+logger = get_logger(__name__)
 
 
 class TradeManager:
@@ -33,7 +24,8 @@ class TradeManager:
     #                                               Static Method                                                      #
     ####################################################################################################################
     """
-    def generate_timestamp(self) -> int:
+    @classmethod
+    def generate_timestamp(cls) -> int:
         """
         func generate_timestamp():
             - return the timestamp based on the current time in ms
@@ -90,6 +82,11 @@ class TradeManager:
             - initialize the TradeManager with the given signal generator and REST API caller for MexC.
             - initialize the necessary member variables and start the TradeManager.
         """
+        self.logger = get_adapter(logger, self.__class__.__name__)
+        # For trading specific logs, we can use the same adapter but maybe with a different level or just use info.
+        # However, to keep it consistent with the original design where trading logs went to a different file:
+        self.trading_logger = get_adapter(get_logger(__name__, "trading"), self.__class__.__name__)
+        
         # TODO: Need to keep the record of the previous order.
         # TODO: Keep checking where that order is still alive or not.
         '''
@@ -115,7 +112,7 @@ class TradeManager:
         self.trend_manager_score: int = score_trend_management  # keep the biased score to keep the current score.
 
         # Set the thread pool as a member function.
-        self.threads: List[threading.Thread] = list()
+        self.threads: List[threading.Thread] = []
 
         # Set the trade score as a member variable.
         self.trade_score_lock: threading.Lock = threading.Lock()
@@ -134,9 +131,7 @@ class TradeManager:
         # Start the TradeManager
         self.start()
 
-        operation_logger.info(
-            f"{__name__} - TradeManager has been intialized and ready to get the signal"
-        )
+        self.logger.info("TradeManager has been intialized and ready to get the signal")
         return None
 
     def __del__(
@@ -148,7 +143,7 @@ class TradeManager:
             - delete the TradeManager object.
             - need to remove all the threads and possibly dynamic objects as well.
         """
-        operation_logger.info(f"{__name__} - {self.__class__.__name__} - TradeManager has been deleted")
+        self.logger.info("TradeManager has been deleted")
         return
 
     """
@@ -232,22 +227,16 @@ class TradeManager:
         for thread in self.threads:
             try:  # try this first
                 thread.start()
-                operation_logger.info(
-                    f"{__name__} - Thread {thread.name} has been started"
-                )
+                self.logger.info(f"Thread {thread.name} has been started")
 
             except RuntimeError as e:  # If there is an error during the runtime
-                operation_logger.critical(
-                    f"{__name__}: Failed to start thread '{thread.name}': {str(e)}"
-                )
+                self.logger.critical(f"Failed to start thread '{thread.name}': {str(e)}")
                 raise RuntimeError(
                     f"{__name__}: Failed to start thread '{thread.name}': {str(e)}"
                 )
 
             except Exception as e:  # Unknown Exception
-                operation_logger.error(
-                    f"{__name__} - Unknown Error while starting the threads: {e}"
-                )
+                self.logger.error(f"Unknown Error while starting the threads: {e}")
                 raise Exception(
                     f"{__name__}: Failed to start thread '{thread.name}': {str(e)}"
                 )
@@ -302,9 +291,7 @@ class TradeManager:
                 await asyncio.sleep(0.25)
 
             except Exception as e:
-                operation_logger.error(
-                    f"{__name__} - Error while deciding the trade: {str(e)}"
-                )
+                self.logger.error(f"Error while deciding the trade: {str(e)}")
 
         return None
 
@@ -331,7 +318,7 @@ class TradeManager:
             - REVERSE_SELL = 16
         """
         with self.lock_previous_order:
-            previous_order = self.previous_order.copy()
+            previous_order = self.previous_order.copy() if self.previous_order else None
 
         if (previous_order is not None):  # there is a current order
             # Reverse
@@ -356,7 +343,7 @@ class TradeManager:
     ) -> Order:
         try:
             with self.lock_previous_order:
-                previous_order = self.previous_order.copy()
+                previous_order = self.previous_order.copy() if self.previous_order else None
 
             order_type: OrderType
             order_type_str: str
@@ -405,10 +392,8 @@ class TradeManager:
                 meta_data=meta_data,
             )
         except Exception as e:
-            error_msg: str = f"{__name__} - {self.__class__.__name__} - Error while building the order object: {str(e)}"
-            operation_logger.critical(
-                error_msg
-            )
+            error_msg: str = f"Error while building the order object: {str(e)}"
+            self.logger.critical(error_msg)
             raise Exception(
                 error_msg
             ) from e
@@ -458,11 +443,9 @@ class TradeManager:
             # order trigger to the telgram bot
             self.__make_order(order)
             await self.telegram_bot.send_text(message)
-            trading_logger.info(message)
+            self.trading_logger.info(message)
         except Exception as e:
-            operation_logger.error(
-                f"{__name__} - {self.__class__.__name__} - Error while executing the trade: {str(e)}"
-            )
+            self.logger.error(f"Error while executing the trade: {str(e)}")
             raise Exception
         return None
 
@@ -484,9 +467,7 @@ class TradeManager:
             with self.lock_previous_order:
                 self.previous_order = order
         except Exception as e:
-            operation_logger.critical(
-                f"{__name__} - {self.__class__.__name__} - Unexpected Error while ordering: {str(e)}"
-            )
+            self.logger.critical(f"Unexpected Error while ordering: {str(e)}")
             raise Exception(
                 f"{__name__} - {self.__class__.__name__} - Unexpected Error while ordering: {str(e)}"
             ) from e
@@ -519,14 +500,10 @@ class TradeManager:
                             signal_data = signal,
                         )
                         if (self.generate_timestamp() - curr_timestamp > 300_000):
-                            operation_logger.info(
-                                f"{__name__} - The current score is {self.trade_score}"
-                            )
+                            self.logger.info(f"The current score is {self.trade_score}")
                             curr_timestamp = self.generate_timestamp()
             except Exception as e:
-                operation_logger.error(
-                    f"{__name__} - Error while getting the signal: {str(e)}"
-                )
+                self.logger.error(f"Error while getting the signal: {str(e)}")
         return None
 
     def __get_signal(
@@ -602,9 +579,7 @@ class TradeManager:
                 2,
             )
         except Exception as e:
-            operation_logger.critical(
-                f"{__name__} - Unknown Exception Invoked during fetching the current price: {str(e)}"
-            )
+            self.logger.critical(f"Unknown Exception Invoked during fetching the current price: {str(e)}")
             raise Exception
 
     def __get_target_prices(
@@ -700,9 +675,7 @@ class TradeManager:
                 # A position is already open, so do not make another trade.
                 return False
         except Exception as e:
-            operation_logger.error(
-                f"{__name__} - {self}.__decide_to_make_trade() - Error while deciding to make trade: {str(e)}"
-            )
+            self.logger.error(f"Error while deciding to make trade: {str(e)}")
             return False
 
     def get_ticker_qty(
@@ -747,9 +720,7 @@ class TradeManager:
             margin_amt: float = self.leverage * self.trade_amount * available_quote  # we need the current
             return max(round((margin_amt) / (ticker_price), 3), 0.002)  # upto three significant digits for the BTC quantity
         except Exception as e:
-            operation_logger.critical(
-                f"{__name__} - {self.__class__.__name__} - Unknown Exception for Calculating the BTC Amount: {str(e)}"
-            )
+            self.logger.critical(f"Unknown Exception for Calculating the BTC Amount: {str(e)}")
             return None
 
     def get_available_quote(self) -> float | None:
@@ -777,5 +748,5 @@ class TradeManager:
                     return balance.get("availableBalance")
 
         except Exception as e:
-            operation_logger.critical(f"{__name__} - {self.__class__.__name__} - Unexpected Error: {str(e)}")
+            self.logger.critical(f"Unexpected Error: {str(e)}")
             return None

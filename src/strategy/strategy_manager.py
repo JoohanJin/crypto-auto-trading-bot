@@ -5,7 +5,7 @@ from typing import Any, Callable, Dict
 import time
 
 # CUSTOM LIBRARY
-from src.infrastructure.logging.set_logger import operation_logger, trading_logger
+from src.infrastructure.logging.set_logger import get_logger, get_adapter
 from src.core.models.index import IndexType, Index
 from src.core.models.signal import TradeSignal, Signal
 from src.strategy import (
@@ -15,6 +15,8 @@ from src.strategy import (
     StrategyConfig,
     StrategyCondition,
 )
+
+logger = get_logger(__name__)
 
 
 class StrategyManager:
@@ -40,18 +42,12 @@ class StrategyManager:
             try:
                 # start the thread.
                 thread.start()
-                operation_logger.info(
-                    f"{__name__} - Thread '{thread.name}' (ID: {thread.ident}) has started"
-                )
+                logger.info(f"Thread '{thread.name}' (ID: {thread.ident}) has started")
             except RuntimeError as e:
-                operation_logger.critical(
-                    f"{__name__} - Failed to start thread '{thread.name}': {str(e)}"
-                )
+                logger.critical(f"Failed to start thread '{thread.name}': {str(e)}")
                 raise RuntimeError(f"Failed to start thread '{thread.name}': {str(e)}")
             except Exception as e:
-                operation_logger.critical(
-                    f"{__name__} - Unexpected error starting thread: '{thread.name}': {str(e)}"
-                )
+                logger.critical(f"Unexpected error starting thread: '{thread.name}': {str(e)}")
                 raise Exception(
                     f"Unexpected error starting thread: '{thread.name}': {str(e)}"
                 )
@@ -64,11 +60,14 @@ class StrategyManager:
         push_signal_callback: Callable[[Signal], None],
         signal_window: int = 5_000,
     ) -> None:
+        self.logger = get_adapter(logger, self.__class__.__name__)
+        self.trading_logger = get_adapter(get_logger(__name__, "trading"), self.__class__.__name__)
+
         # shared data structure to store Timestamp of the previoius invokation of each signal.
         self.signal_timestamps: dict[str, int] = dict()
         self.signal_timestamps_lock: threading.Lock = threading.Lock()
         self.signal_window: int = signal_window
-        self.threads: list[threading.Thread] = list()
+        self.threads: list[threading.Thread] = []
 
         self.indicators: dict[IndexType, Index | float | None] = indicators
         self.indicators_lock: threading.Lock = indicators_lock
@@ -88,13 +87,9 @@ class StrategyManager:
     def push_signal(self: "StrategyManager", signal: Signal, details: str) -> None:
         try:
             self._push_signal_callback(signal)
-            trading_logger.info(
-                f"{__name__} - {details} Signal has been generated."
-            )
+            self.trading_logger.info(f"{details} Signal has been generated.")
         except Exception as e:
-            operation_logger.critical(
-                f"{__name__} - Cannot push signal '{signal.signal.name}': {str(e)}"
-            )
+            self.logger.critical(f"Cannot push signal '{signal.signal.name}': {str(e)}")
 
     def _load_strategies(self) -> None:
         fetcher = StrategyFetcher(self.STRATEGY_CONFIG_PATH)
@@ -121,7 +116,7 @@ class StrategyManager:
         Initialize strategy execution threads based on loaded configurations.
         """
         if not self.strategy_executor:
-            operation_logger.critical(f"{__name__}: StrategyExecutor is not initialized.")
+            self.logger.critical("StrategyExecutor is not initialized.")
             return
 
         for strategy in self.strategy_configs:
@@ -134,7 +129,7 @@ class StrategyManager:
                 daemon=True,
             )
             self.threads.append(thread)
-            operation_logger.info(f"{__name__}: Thread for {name} has been set up!")
+            self.logger.info(f"Thread for {name} has been set up!")
 
     def __verify_index(
         self: "StrategyManager",
@@ -178,7 +173,7 @@ class StrategyManager:
         try:
             idx_type = IndexType[indicator_name]
         except KeyError:
-            operation_logger.critical(f"{__name__} - Unknown indicator '{indicator_name}' in strategy config.")
+            self.logger.critical(f"Unknown indicator '{indicator_name}' in strategy config.")
             return None
 
         indicator_obj = indicators.get(idx_type)
