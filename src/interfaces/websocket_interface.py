@@ -14,9 +14,9 @@ class WebSocketClientRegistry:
         self,
         name: str | None,
     ) -> None:
-        self.logger = get_adapter(logger, self.__class__.__name__)
         self._registry: dict[str, WebSocketClient] = dict()
         self.name: str = "WebSocketClientRegistry" if name is None else name
+        self.logger = get_adapter(logger, self.name)
         return
 
     def push(
