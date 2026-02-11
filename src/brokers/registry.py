@@ -13,8 +13,9 @@ class BrokerRegistry:
     # ! TODO: heap sorted based on the priority.
         -> Top priority at the top of the heap.
     '''
-    def __init__(self: "BrokerRegistry") -> None:
-        self.logger = get_adapter(logger, self.__class__.__name__)
+    def __init__(self: "BrokerRegistry", name: str | None = None) -> None:
+        self.name: str = name if name else "BROKER_REGISTRY"
+        self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
         
         self._brokers: dict[str, Broker] = dict()
         self._broker_dict_lock: threading.Lock = threading.Lock()

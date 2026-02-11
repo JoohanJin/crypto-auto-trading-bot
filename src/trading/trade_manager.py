@@ -76,16 +76,18 @@ class TradeManager:
         stop_loss_rate: float = 0.2,  # 20% -> to preven the error
         score_threashold: int = 2_000,  # 1_000,
         score_trend_management: int = 200,  # 200
+        name: str | None = None,
     ) -> None:
         """
         func __init__():
             - initialize the TradeManager with the given signal generator and REST API caller for MexC.
             - initialize the necessary member variables and start the TradeManager.
         """
-        self.logger = get_adapter(logger, self.__class__.__name__)
+        self.name: str = name if name else "TRADE_MANAGER"
+        self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
         # For trading specific logs, we can use the same adapter but maybe with a different level or just use info.
         # However, to keep it consistent with the original design where trading logs went to a different file:
-        self.trading_logger = get_adapter(get_logger(__name__, "trading"), self.__class__.__name__)
+        self.trading_logger = get_adapter(get_logger(__name__, "trading"), f"{self.__class__.__name__}_{self.name}")
         
         # TODO: Need to keep the record of the previous order.
         # TODO: Keep checking where that order is still alive or not.
