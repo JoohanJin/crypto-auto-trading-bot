@@ -37,8 +37,10 @@ class DataManager:
         websocket: FutureWebSocket,
         pipeline_controller: PipelineController[dict[str, int | IndexType, dict[int, float]]],
         memory_count_limit: int = 2_000,
+        name: str | None = None,
     ):
-        self.logger = get_adapter(logger, self.__class__.__name__)
+        self.name: str = name if name else "DATA_MANAGER"
+        self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
         
         self._memory_saver: DataSaver = DataSaver()  # can be here.
         self.price_fetch_buffer: Queue[Dict[str, Any]] = Queue()
