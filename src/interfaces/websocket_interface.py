@@ -4,41 +4,16 @@ from collections.abc import Callable
 # Custom Library
 from src.brokers.base.ws_sdk import WebSocketClient
 from src.core.models.trade import TradePair
-from src.infrastructure.logging.set_logger import get_logger, get_adapter
+from src.interfaces.base.base_registry import BaseClientRegistry
+from src.interfaces.base.base_interface import BaseInterface
+from src.infrastructure.logging.set_logger import get_logger
 
 logger = get_logger(__name__)
 
 
-class WebSocketClientRegistry:
-    def __init__(
-        self,
-        name: str | None,
-    ) -> None:
-        self._registry: dict[str, WebSocketClient] = dict()
-        self.name: str = "WebSocketClientRegistry" if name is None else name
-        self.logger = get_adapter(logger, self.name)
-        return
-
-    def push(
-        self,
-        key: str,
-        client: WebSocketClient,
-    ) -> None:
-        self._registry[key] = client
-        return
-
-    def get(
-        self,
-        key: str,
-    ) -> WebSocketClient | None:
-        return self._registry.get(key, None)
-
-    def pop(
-        self,
-        key: str,
-    ) -> None:
-        self._registry.pop(key, None)
-        return
+class WebSocketClientRegistry(BaseClientRegistry[WebSocketClient]):
+    def __init__(self, name: str | None) -> None:
+        super().__init__(name=name if name else "WebSocketClientRegistry")
 
     def start(self) -> None:
         for key in self._registry:
@@ -46,34 +21,29 @@ class WebSocketClientRegistry:
                 if hasattr(self._registry[key], 'start'):
                     self._registry[key].start()
             except Exception as e:
-                self.logger.warning(f"{self.name}: {str(e)}")
+                self.logger.warning(f"{str(e)}")
         return
 
-    @property
-    def registry(self):
-        return self._registry
 
-
-class WebSocketInterface:
+class WebSocketInterface(BaseInterface[WebSocketClientRegistry, WebSocketClient]):
     def __init__(
         self,
         client_registry: WebSocketClientRegistry | None = None,
         trade_pair: TradePair | None = None,
         name: str | None = None,
     ) -> None:
-        self.logger = get_adapter(logger, self.__class__.__name__)
-        
         self.trade_pair = TradePair("BTC", "USDT") if trade_pair is None else trade_pair
-        self.client_registry = (
+        
+        registry = (
             client_registry
             if client_registry
             else WebSocketClientRegistry(name="DEFAULT_WEBSOCKET_CLIENT_REGISTRY")
         )
-
-        self.name: str = "WebSocketInterface" if name is None else name
-
-        self.logger.info(f"{self.name} has been initialized.")
-        return
+        
+        super().__init__(
+            client_registry=registry,
+            name=name if name else "WebSocketInterface"
+        )
 
     def push_client(
         self,
@@ -81,25 +51,10 @@ class WebSocketInterface:
         client: WebSocketClient,
     ) -> None:
         if isinstance(client, WebSocketClient):
-            self.client_registry.push(key, client)
+            super().push_client(key, client)
         else:
             # TODO: logging
             raise TypeError
-        return
-
-    def get_client(
-        self,
-        key: str,
-    ) -> WebSocketClient | None:
-        return self.client_registry.get(key, None)
-
-    def pop_client(
-        self,
-        key: str,
-    ) -> None:
-        if self.client_registry.get(key, None):
-            self.client_registry.pop(key)
-            return
         return
 
     def start(self) -> None:
@@ -127,7 +82,7 @@ class WebSocketInterface:
         self,
         callback: Callable,
     ) -> None:
-        for key in self.client_registry:
+        for key in self.client_registry.registry:
             try:
                 self.client_registry.registry[key].kline(
                     callback=callback,
@@ -141,7 +96,7 @@ class WebSocketInterface:
         self,
         callback: Callable,
     ) -> None:
-        for key in self.client_registry:
+        for key in self.client_registry.registry:
             try:
                 self.client_registry.registry[key].depth(
                     callback=callback,
