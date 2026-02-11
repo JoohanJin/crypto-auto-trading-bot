@@ -7,7 +7,7 @@ from src.infrastructure.logging.set_logger import get_logger, get_adapter
 from src.core.models.index import IndexType, Index
 from src.core.models.signal import Signal
 from src.core.models.signal import TradeSignal
-from src.strategy.strategy_factory import StrategyConfig
+from src.strategy.strategy_config import StrategyConfig
 
 logger = get_logger(__name__)
 
@@ -25,8 +25,10 @@ class StrategyExecutor:
         update_timestamp: Callable[[str], None],
         verify_index: Callable[[Index, int], bool],
         sleep_interval: float,
+        name: str | None = None,
     ) -> None:
-        self.trading_logger = get_adapter(get_logger(__name__, "trading"), self.__class__.__name__)
+        self.name: str = name if name else "STRATEGY_EXECUTOR"
+        self.trading_logger = get_adapter(get_logger(__name__, "trading"), f"{self.__class__.__name__}_{self.name}")
         self._push_signal = push_signal
         self._get_indicators = get_indicators
         self._should_generate = should_generate
