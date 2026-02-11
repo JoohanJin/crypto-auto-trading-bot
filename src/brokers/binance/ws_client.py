@@ -14,7 +14,8 @@ from src.brokers.binance.ws_gateway import (
     BinanceMarketWebSocket,
     BinanceUserWebSocket
 )
-from src.brokers.base.ws_sdk import WebSocketClient, WebSocket
+from src.brokers.base.ws_client import WebSocketClient
+from src.brokers.base.ws_service import WebSocket
 
 logger = get_logger(__name__)
 
@@ -55,7 +56,7 @@ class BinanceWebSocketClient(WebSocketClient):
             - private endpoint
         '''
         super().__init__(name = name if name else "BINANCE_FUTURE_WEBSOCKET_CLIENT")
-        self.logger = get_adapter(logger, self.name)
+        self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
 
         # access point of each WebSCoektClient
         self.wss: dict[str, WebSocket] = {}
@@ -208,7 +209,7 @@ class BinanceWebSocketClient(WebSocketClient):
             ticker = Ticker(
                 ticker=TradePair(ticker=symbol_ticker, quote=symbol_quote,),
                 source="Binance",
-                last_price=float(msg.get('c', 0)),
+                price=float(msg.get('c', 0)),
                 timestamp=int(msg.get("E", self.generate_timestamp()))
             )
             callback(ticker)

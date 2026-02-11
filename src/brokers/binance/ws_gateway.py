@@ -9,7 +9,7 @@ import websocket
 
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 
-from src.brokers.base.ws_sdk import WebSocket
+from src.brokers.base.ws_service import WebSocket
 from src.infrastructure.logging.set_logger import get_logger, get_adapter
 
 logger = get_logger(__name__)
@@ -38,7 +38,7 @@ class BinanceUserWebSocket(WebSocket):
             secret_key=secret_key,
             ping_interval=ping_interval,
         )
-        self.logger = get_adapter(logger, self.name)
+        self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
 
         self.private_key = None
         if secret_key:

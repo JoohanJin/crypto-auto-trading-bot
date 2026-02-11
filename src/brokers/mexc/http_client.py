@@ -10,7 +10,8 @@ from src.infrastructure.logging.set_logger import get_logger, get_adapter
 from src.core.models.trade import TradePair
 
 # RESTful Client
-from src.brokers.base.http_sdk import HttpClient, HttpService
+from src.brokers.base.http_client import HttpClient
+from src.brokers.base.http_service import HttpService
 from src.brokers.mexc.http_gateway import MexcFutureGateway
 
 # Data Structure
@@ -24,7 +25,7 @@ from src.core.models.service_dto import (
 logger = get_logger(__name__)
 
 
-class MexcFutureClient(HttpClient):
+class MexcFutureHttpClient(HttpClient):
     @classmethod
     def _parse_trade_pair(
         cls,
@@ -60,13 +61,16 @@ class MexcFutureClient(HttpClient):
         super().__init__(
             name=name.upper(),
         )
-        self.logger = get_adapter(logger, self.name)
+        self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
         
         self.gateway: HttpService = MexcFutureGateway(
             name = f"{name.upper()}_GATEWAY",
             api_key=api_key,
             secret_key=secret_key,
         )
+
+        self.logger.info(f"{self.name} has been initialized.")
+
         return
 
     """
@@ -544,7 +548,7 @@ class MexcFutureClient(HttpClient):
                     timestamp=data.get('timestamp', None) or self.generate_timestamp(),
                     source="MEXC",
                     ticker=symbol,
-                    last_price=data.get('lastPrice', 0.0),
+                    price=data.get('lastPrice', 0.0),
                 )
             else:
                 return
@@ -943,7 +947,7 @@ class MexcFutureClient(HttpClient):
 
 
 if __name__ == "__main__":
-    mfc = MexcFutureClient(
+    mfc = MexcFutureHttpClient(
         name = "TEST_BINANCE_FUTURE_RESTFUL",
         api_key="test_api_key",
         secret_key="test_secret_key"

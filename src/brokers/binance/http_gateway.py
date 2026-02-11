@@ -5,7 +5,7 @@ import json
 
 # Custom Library
 from src.infrastructure.logging.set_logger import get_logger, get_adapter
-from src.brokers.base.http_sdk import HttpService
+from src.brokers.base.http_service import HttpService
 
 logger = get_logger(__name__)
 
@@ -30,7 +30,7 @@ class BinanceFutureGateway(HttpService):
             secret_key = secret_key,
             base_url = base_url,
         )
-        self.logger = get_adapter(logger, self.name)
+        self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
         # Set the specific content type for Binance
         self.set_content_type("application/x-www-form-urlencoded")
         return

@@ -8,11 +8,13 @@ from src.infrastructure.logging.set_logger import get_logger, get_adapter
 from src.core.models.trade import OrderType, TimeInForce, TradePair
 
 # RESTful Client
-from src.brokers.base.http_sdk import HttpClient, HttpService
+from src.brokers.base.http_client import HttpClient
+from src.brokers.base.http_service import HttpService
 from src.brokers.binance.http_gateway import BinanceFutureGateway
 
 # Data Structure
 from src.core.models.service_dto import (
+    Ping,
     Ticker,
     Position
 )
@@ -20,7 +22,7 @@ from src.core.models.service_dto import (
 logger = get_logger(__name__)
 
 
-class BinanceFutureClient(HttpClient):
+class BinanceFutureHttpClient(HttpClient):
     @classmethod
     def _parse_trade_pair(
         cls,
@@ -64,13 +66,16 @@ class BinanceFutureClient(HttpClient):
         super().__init__(
             name=name.upper(),
         )
-        self.logger = get_adapter(logger, self.name)
+        self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
         
         self.gateway: HttpService = BinanceFutureGateway(
             name=f"{name.upper()}_GATEWAY",
             api_key=api_key,
             secret_key=secret_key,
         )
+
+        self.logger.info(f"{self.name} has been initialized.")
+
         return
 
     """
@@ -92,11 +97,21 @@ class BinanceFutureClient(HttpClient):
 
         return: The response from the server as a dictionary.
         """
+        def construct_ping_dto(msg: dict) -> Ping | None:
+            ''' if dict msg is empty then it is successful, otherwise reutrn None'''
+            return Ping(
+                timestamp=self.generate_timestamp(),
+                success=msg == {},
+                source="BINANCE",
+            )
+
         url: str = "/fapi/v1/ping"
 
-        return self.gateway.call(
-            method="GET",
-            url=url,
+        return construct_ping_dto(
+            self.gateway.call(
+                method="GET",
+                url=url,
+            )  # => {}
         )
 
     def get_server_time(
@@ -548,7 +563,7 @@ class BinanceFutureClient(HttpClient):
                     timestamp=self.generate_timestamp(),
                     source="BINANCE",
                     ticker=symbol,
-                    last_price=data.get('lastPrice', 0.0),
+                    price=data.get('lastPrice', 0.0),
                 )
             else:
                 return
@@ -1232,13 +1247,13 @@ if __name__ == "__main__":
 
     load_dotenv()
 
-    bfc = BinanceFutureClient(
+    bfc = BinanceFutureHttpClient(
         name="TEST_BINANCE_FUTURE_RESTFUL",
         api_key=os.getenv("BINANCE_HMAC_API_KEY"),
         secret_key=os.getenv("BINANCE_HMAC_SECRET_KEY"),
     )
 
-    print(bfc.get_open_orders())
+    print(bfc.ping())
     # response = bfc.get_all_orders()
     # for res in response:
     #     print(res)

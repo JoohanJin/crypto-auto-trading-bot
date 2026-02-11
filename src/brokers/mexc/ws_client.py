@@ -10,7 +10,7 @@ from src.core.models.service_dto import OrderBook, Ticker
 from src.core.models.trade import TradePair
 
 # WebSocket
-from src.brokers.base.ws_sdk import WebSocketClient
+from src.brokers.base.ws_client import WebSocketClient
 from src.brokers.mexc.ws_gateway import MexcWebSocket
 
 logger = get_logger(__name__)
@@ -32,7 +32,7 @@ class MexcWebSocketClient(WebSocketClient):
         super().__init__(
             name = name if name else "MEXC_FUTURE_WEBSOCKET_CLIENT"
         )
-        self.logger = get_adapter(logger, self.name)
+        self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
 
         self.ws: MexcWebSocket = MexcWebSocket(
             url=url,
@@ -128,7 +128,7 @@ class MexcWebSocketClient(WebSocketClient):
                 ticker=TradePair(ticker=ticker_part, quote=quote_part),
                 timestamp=data.get("timestamp", self.generate_timestamp()),
                 source="MEXC",
-                last_price=float(data.get("lastPrice", 0.0))
+                price=float(data.get("lastPrice", 0.0))
             )
             callback(ticker_dto)
 
