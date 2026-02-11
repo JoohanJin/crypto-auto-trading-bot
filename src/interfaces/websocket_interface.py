@@ -2,27 +2,13 @@
 from collections.abc import Callable
 
 # Custom Library
-from src.brokers.base.ws_sdk import WebSocketClient
+from src.brokers.base.ws_client import WebSocketClient
 from src.core.models.trade import TradePair
-from src.interfaces.base.base_registry import BaseClientRegistry
 from src.interfaces.base.base_interface import BaseInterface
+from src.interfaces.ws_client_registry import WebSocketClientRegistry
 from src.infrastructure.logging.set_logger import get_logger
 
 logger = get_logger(__name__)
-
-
-class WebSocketClientRegistry(BaseClientRegistry[WebSocketClient]):
-    def __init__(self, name: str | None) -> None:
-        super().__init__(name=name if name else "WebSocketClientRegistry")
-
-    def start(self) -> None:
-        for key in self._registry:
-            try:
-                if hasattr(self._registry[key], 'start'):
-                    self._registry[key].start()
-            except Exception as e:
-                self.logger.warning(f"{str(e)}")
-        return
 
 
 class WebSocketInterface(BaseInterface[WebSocketClientRegistry, WebSocketClient]):
@@ -53,8 +39,7 @@ class WebSocketInterface(BaseInterface[WebSocketClientRegistry, WebSocketClient]
         if isinstance(client, WebSocketClient):
             super().push_client(key, client)
         else:
-            # TODO: logging
-            raise TypeError
+            raise TypeError(f"Expected WebSocketClient, got {type(client)}")
         return
 
     def start(self) -> None:

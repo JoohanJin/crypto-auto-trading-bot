@@ -9,7 +9,7 @@ class BaseClientRegistry(Generic[T]):
     def __init__(self, name: str | None = None) -> None:
         self.name: str = name if name else self.__class__.__name__
         self._registry: dict[str, T] = {}
-        self.logger = get_adapter(logger, self.name)
+        self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
 
     def push(self, key: str, client: T) -> None:
         self._registry[key] = client
