@@ -1,47 +1,32 @@
 from src.brokers.base.http_sdk import HttpClient
+from src.interfaces.base.base_registry import BaseClientRegistry
+from src.interfaces.base.base_interface import BaseInterface
 
 
-class HttpClientRegistry:
-    def __init__(self, name: str) -> None:
-        self._registry: dict[str, HttpClient]
-        return
-
-    def push(self) -> None:
-        return
-
-    def get(self) -> None:
-        return
-    
-    def pop(
-        self,
-    ) -> None:
-        return
-
-    @property
-    def registry(self):
-        return self._registry
+class HttpClientRegistry(BaseClientRegistry[HttpClient]):
+    def __init__(self, name: str | None = None) -> None:
+        super().__init__(name=name if name else "HTTP_CLIENT_REGISTRY")
 
 
-class HttpInterface:
+class HttpInterface(BaseInterface[HttpClientRegistry, HttpClient]):
     def __init__(
         self,
-        name: str,
+        name: str | None = None,
         client_registry: HttpClientRegistry | None = None,
     ) -> None:
-        self.name: str = name
-
-        self.client_registry: HttpClientRegistry = (
+        registry = (
             client_registry
             if client_registry
-            else HttpClientRegistry(name=f"{name.upper()}_REGISTRY")
+            else HttpClientRegistry(name=f"{name.upper()}_REGISTRY" if name else "HTTP_CLIENT_INTERFACE_REGISTRY")
         )
-        return
+        
+        super().__init__(
+            client_registry=registry,
+            name=name.upper() if name else "HTTP_CLIENT_INTERFACE"
+        )
 
-    def push_client(self):
-        return
-
-    def get_client(self):
-        return
-
-    def pop_client(self):
-        return
+    def push_client(self, key: str, client: HttpClient) -> None:
+        if isinstance(client, HttpClient):
+            super().push_client(key, client)
+        else:
+            raise TypeError(f"Expected HttpClient, got {type(client)}")
