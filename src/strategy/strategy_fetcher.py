@@ -10,8 +10,9 @@ logger = get_logger(__name__)
 
 
 class StrategyFetcher:
-    def __init__(self, config_path: str | Path) -> None:
-        self.logger = get_adapter(logger, self.__class__.__name__)
+    def __init__(self, config_path: str | Path, name: str | None = None) -> None:
+        self.name: str = name if name else "STRATEGY_FETCHER"
+        self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
         self.config_path = Path(config_path)
 
     def load_strategies(self) -> dict[str, Any]:

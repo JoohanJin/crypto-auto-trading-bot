@@ -1,29 +1,11 @@
 # STANDARD LIBRARY
-from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 # CUSTOM LIBRARY
 from src.core.models.index import IndexType
 from src.core.models.signal import TradeSignal
-
-
-@dataclass
-class StrategyCondition:
-    type: str
-    payload: Dict[str, Any]
-
-
-@dataclass
-class StrategyConfig:
-    name: str
-    enabled: bool
-    indicators: List[IndexType]
-    verify_freshness: bool
-    conditions: List[StrategyCondition]
-    signal_type: TradeSignal
-    signal_window: int
-    parameters: Optional[Dict[str, Any]] = None
-    description: str | None = None
+from src.strategy.strategy_condition import StrategyCondition
+from src.strategy.strategy_config import StrategyConfig
 
 
 class StrategyFactory:

@@ -59,9 +59,11 @@ class StrategyManager:
         indicators_lock: threading.Lock,
         push_signal_callback: Callable[[Signal], None],
         signal_window: int = 5_000,
+        name: str | None = None,
     ) -> None:
-        self.logger = get_adapter(logger, self.__class__.__name__)
-        self.trading_logger = get_adapter(get_logger(__name__, "trading"), self.__class__.__name__)
+        self.name: str = name if name else "STRATEGY_MANAGER"
+        self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
+        self.trading_logger = get_adapter(get_logger(__name__, "trading"), f"{self.__class__.__name__}_{self.name}")
 
         # shared data structure to store Timestamp of the previoius invokation of each signal.
         self.signal_timestamps: dict[str, int] = dict()
