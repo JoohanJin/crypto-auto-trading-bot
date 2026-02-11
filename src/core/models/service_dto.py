@@ -25,7 +25,7 @@ class FundingRate(ServiceDTO):
 @dataclass(frozen=True)
 class Ticker(ServiceDTO):
     ticker: TradePair
-    last_price: float
+    price: float
 
 
 @dataclass(frozen=True)

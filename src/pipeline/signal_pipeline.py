@@ -10,7 +10,7 @@ logger = get_logger(__name__)
 
 
 class SignalPipeline(BasePipeline[Signal]):
-    def __init__(self):
+    def __init__(self, name: str | None = None):
         '''
         func __init__:
             - create a Queue of Dict to store indicator
@@ -30,7 +30,8 @@ class SignalPipeline(BasePipeline[Signal]):
                 }
             }
         '''
-        self.logger = get_adapter(logger, self.__class__.__name__)
+        self.name: str = name if name else "SIGNAL_PIPELINE"
+        self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
         self.signal_queue: Queue[Signal] = Queue()
         return
 

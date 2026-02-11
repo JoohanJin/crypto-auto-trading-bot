@@ -13,6 +13,7 @@ logger = get_logger(__name__)
 class DataPipeline(BasePipeline[Index]):  # TODO: Make the object for th Data object.
     def __init__(
         self,
+        name: str | None = None,
     ) -> None:
         '''
         so each of them is just a data object pushed to the queue, not a group of data.
@@ -43,7 +44,8 @@ class DataPipeline(BasePipeline[Index]):  # TODO: Make the object for th Data ob
         '''
         # inherit the queue and data type in the queue from the base class.
         super().__init__()
-        self.logger = get_adapter(logger, self.__class__.__name__)
+        self.name: str = name if name else "DATA_PIPELINE"
+        self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
         # data buffer, can be added in the future.
 
         return

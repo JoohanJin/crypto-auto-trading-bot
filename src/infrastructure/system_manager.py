@@ -30,6 +30,7 @@ logger = get_logger(__name__)
 class SystemManager:
     def __init__(
         self: "SystemManager",
+        name: str | None = None,
     ):
         """
         func __init__():
@@ -41,7 +42,8 @@ class SystemManager:
         return None
         """
         # Initialize Logger Adapter
-        self.logger = get_adapter(logger, self.__class__.__name__)
+        self.name: str = name if name else "SYSTEM_MANAGER"
+        self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
         
         try:
             self._stop = threading.Event()

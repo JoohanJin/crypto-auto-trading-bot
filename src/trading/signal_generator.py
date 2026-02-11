@@ -62,6 +62,7 @@ class SignalGenerator:
         signal_pipeline_controller: PipelineController[dict[str, int | TradeSignal]],
         custom_telegram_bot: CustomTelegramBot,
         signal_window: int = 5_000,
+        name: str | None = None,
     ) -> None:
         """
         func __init__():
@@ -77,7 +78,8 @@ class SignalGenerator:
 
         return None
         """
-        self.logger = get_adapter(logger, self.__class__.__name__)
+        self.name: str = name if name else "SIGNAL_GENERATOR"
+        self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
         
         # data pipeline to get the indicators
         self.data_pipeline_controller:   PipelineController[dict[str, int | IndexType, dict[int, float]]] = data_pipeline_controller

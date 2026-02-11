@@ -29,8 +29,10 @@ class OrderManager:
         self,
         telegram_bot: CustomTelegramBot,
         brokers: BrokerRegistry,  # Brokers Storage
+        name: str | None = None,
     ) -> None:
-        self.logger = get_adapter(logger, self.__class__.__name__)
+        self.name: str = name if name else "ORDER_MANAGER"
+        self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
         self.brokers: BrokerRegistry = brokers
         self.telegram_bot: CustomTelegramBot = telegram_bot
         return
