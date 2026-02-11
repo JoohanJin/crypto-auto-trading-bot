@@ -7,43 +7,9 @@ from src.infrastructure.logging.set_logger import get_logger, get_adapter
 from src.interfaces.pipeline_interface import PipelineController
 from src.core.models.constants import MA_WRITE_PERIODS
 from src.core.models.index import Index, IndexType
+from src.data.index_factory import IndexFactory
 
 logger = get_logger(__name__)
-
-
-class IndexFactory:
-    '''
-    # factory which generates the Index data type.
-    # what does it do?
-        # check the validity of index Dict?
-        # generate the timestamp?
-    '''
-    @staticmethod
-    def generate_timestamp() -> int:
-        return int(time.time() * 1_000)
-
-    def __init__(
-        self: "IndexFactory",
-        # index: Dict[str, int | IndexType | Dict[int, float]],
-    ) -> None:
-        return
-
-    def generate_index(
-        self: "IndexFactory",
-        index: Dict[str, int | IndexType | Dict[int, float]],
-    ) -> Index | None:
-        timestamp: int = index.get("timestamp", IndexFactory.generate_timestamp())
-        index_type: IndexType | None = index.get("type", None)
-        data: Dict[int, float] | None = index.get("data", None)
-
-        if (index_type and data):
-            return Index(
-                timestamp = timestamp,
-                index_type = index_type,
-                data = data,
-            )
-        else:
-            return None
 
 
 class DataProcessor:
@@ -61,12 +27,14 @@ class DataProcessor:
         lock_price_data: threading.Lock,
         pipeline_controller: PipelineController[dict[str, int | IndexType, dict[int, float]]],
         index_factory: IndexFactory = IndexFactory(),  # dependency injection would work.
+        name: str | None = None,
     ) -> None:
         '''
         - func __init__():
             - initialize the Data Processor
         '''
-        self.logger = get_adapter(logger, self.__class__.__name__)
+        self.name: str = name if name else "DATA_PROCESSOR"
+        self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
         
         self.threads: list[threading.Thread] = []
         self.lock_price_data: threading.Lock = lock_price_data

@@ -9,8 +9,9 @@ logger = get_logger(__name__)
 
 
 class DataSaver:
-    def __init__(self):
-        self.logger = get_adapter(logger, self.__class__.__name__)
+    def __init__(self, name: str | None = None):
+        self.name: str = name if name else "DATA_SAVER"
+        self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
         
         # Set the base directory to the correct location of 'src'
         self.base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))

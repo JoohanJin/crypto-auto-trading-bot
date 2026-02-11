@@ -25,8 +25,10 @@ class DataCollector:
         websocket: FutureWebSocket,  # assume that only fetches the price data.
         price_data: pd.DataFrame,
         lock_price_data: threading.Lock,
+        name: str | None = None,
     ) -> None:
-        self.logger = get_adapter(logger, self.__class__.__name__)
+        self.name: str = name if name else "DATA_COLLECTOR"
+        self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
         
         self.ws: FutureWebSocket = websocket  # make this into interface
         time.sleep(1)
