@@ -23,13 +23,15 @@ class PipelineController(Generic[T]):
         self,
         pipeline: BasePipeline,  # Upcasting!
         time_window: int = 5_000,  # 5_000ms = 5s
+        name: str | None = None,
     ) -> None:
         '''
         func __init__():
             - Get the actual pipeline.
             - Get the push_only variable so that we can add control of the side. (uni-directional)
         '''
-        self.logger = get_adapter(logger, self.__class__.__name__)
+        self.name: str = name if name else "PIPELINE_CONTROLLER"
+        self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
         
         # Let the programmer decides which operation to be used.
         self.pipeline: BasePipeline = pipeline  # ! DataPipeline or SignalPipeline -> Unified Registry?

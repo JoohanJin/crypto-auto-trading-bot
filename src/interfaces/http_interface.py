@@ -1,11 +1,7 @@
-from src.brokers.base.http_sdk import HttpClient
-from src.interfaces.base.base_registry import BaseClientRegistry
+from src.brokers.base.http_client import HttpClient
+from src.core.models.service_dto import Ping, Position
 from src.interfaces.base.base_interface import BaseInterface
-
-
-class HttpClientRegistry(BaseClientRegistry[HttpClient]):
-    def __init__(self, name: str | None = None) -> None:
-        super().__init__(name=name if name else "HTTP_CLIENT_REGISTRY")
+from src.interfaces.http_client_registry import HttpClientRegistry
 
 
 class HttpInterface(BaseInterface[HttpClientRegistry, HttpClient]):
@@ -30,3 +26,29 @@ class HttpInterface(BaseInterface[HttpClientRegistry, HttpClient]):
             super().push_client(key, client)
         else:
             raise TypeError(f"Expected HttpClient, got {type(client)}")
+    
+    def ping(self) -> dict[str, Ping]:
+        pings: dict[str, Ping] = {}
+        for key, client in self.client_registry.registry.items():
+            try:
+                response = client.ping()
+                if isinstance(response, Ping):
+                    pings[response.source] = response
+            except Exception as e:
+                self.logger(f"[{key}] Failed to ping: {str(e)}")
+                continue
+        return pings
+
+    def get_open_orders(self) -> dict[str, list[Position]]:
+        positions: dict[str, list[Position]] = {}
+        for key, client in self.client_registry.registry.items():
+            try:
+                response = client.get_open_orders()
+                if isinstance(response, list) and response:
+                    source = response[0].source
+                    positions[source] = response
+            except Exception as e:
+                self.logger.error(f"[{key}] Failed to fetch open orders: {str(e)}")
+                continue
+        
+        return positions
