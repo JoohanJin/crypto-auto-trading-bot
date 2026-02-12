@@ -1,5 +1,5 @@
 from src.brokers.base.http_client import HttpClient
-from src.core.models.service_dto import Ping, Position
+from src.core.models.service_dto import AccountInformation, Ping, Position
 from src.interfaces.base.base_interface import BaseInterface
 from src.interfaces.http_client_registry import HttpClientRegistry
 
@@ -52,3 +52,22 @@ class HttpInterface(BaseInterface[HttpClientRegistry, HttpClient]):
                 continue
         
         return positions
+
+    def get_account_balance(
+        self,
+        asset: str | None = None,
+    ) -> dict[str, AccountInformation | list[AccountInformation]]:
+        account_balances: dict[str, AccountInformation | list[AccountInformation]] = {}
+
+        for key, client in self.client_registry.registry.items():
+            try:
+                response = client.get_account_balance(
+                    asset=asset,
+                )
+                if isinstance(response, AccountInformation):
+                    account_balances[response.source] = response
+                elif isinstance(response, list):
+                    account_balances[response[0].source] = response
+            except Exception as e:
+                self.logger.errors(f"[{key}] Failed to fetch account balance{str(e)}")
+        return account_balances

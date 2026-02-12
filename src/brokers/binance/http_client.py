@@ -14,6 +14,7 @@ from src.brokers.binance.http_gateway import BinanceFutureGateway
 
 # Data Structure
 from src.core.models.service_dto import (
+    AccountInformation,
     Ping,
     Ticker,
     Position
@@ -66,6 +67,8 @@ class BinanceFutureHttpClient(HttpClient):
         super().__init__(
             name=name.upper(),
         )
+
+        self.source = "BINANCE"
         self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
         
         self.gateway: HttpService = BinanceFutureGateway(
@@ -102,7 +105,7 @@ class BinanceFutureHttpClient(HttpClient):
             return Ping(
                 timestamp=self.generate_timestamp(),
                 success=msg == {},
-                source="BINANCE",
+                source=self.source,
             )
 
         url: str = "/fapi/v1/ping"
@@ -561,7 +564,7 @@ class BinanceFutureHttpClient(HttpClient):
             if isinstance(data, dict):
                 return Ticker(
                     timestamp=self.generate_timestamp(),
-                    source="BINANCE",
+                    source=self.source,
                     ticker=symbol,
                     price=data.get('lastPrice', 0.0),
                 )
@@ -1035,7 +1038,7 @@ class BinanceFutureHttpClient(HttpClient):
 
                 position = Position(
                     timestamp=self.generate_timestamp(),
-                    source="BINANCE",
+                    source=self.source,
                     id=order.get("orderId", 0),
                     ticker=self._construct_trade_pair(order.get("symbol")),
                     status=order.get("status", ""),
@@ -1150,22 +1153,47 @@ class BinanceFutureHttpClient(HttpClient):
 
     def get_account_balance(
         self,
+        asset: str | None = None,
         url: str = "/fapi/v3/balance",
         recv_window: int = 5_000,
-        asset: str = "USDT",
-    ) -> dict | None:
+    ) -> list[AccountInformation] | AccountInformation | dict:
+        def construct_account_information_dto(data: dict):
+            return AccountInformation(
+                timestamp=int(data.get('updateTime', None) or self.generate_timestamp()),
+                source=self.source,
+                id=data.get('accountAlias', None),
+                asset=data.get('asset'),
+                balance=float(data.get('balance', 0.0)),
+                unrealized_pnl=float(data.get('crossUnPnl', 0.0)),
+                available_balance=float(data.get('availableBalance', 0.0))
+            )
+
         params: dict[str, int] = {
             "recvWindow": recv_window,
             "timestamp": self.generate_timestamp(),
-            "asset": asset,
         }
 
-        return self.gateway.call(
+        balances: list[dict] | None = self.gateway.call(
             method="GET",
-            params = params,
-            url = url,
+            params=params,
+            url=url,
         )
 
+        if balances is None:
+            return [] if asset is None else {}
+
+        res: list[AccountInformation] = []
+        if asset is None:
+            for balance in balances:
+                res.append(construct_account_information_dto(balance))
+            return res
+        else:
+            for balance in balances:
+                if balance.get('asset', None) == asset.strip().upper():
+                    return construct_account_information_dto(balance)
+            return {}
+        return
+            
     def get_account_information_v2(
         self,
         url: str = "/fapi/v2/account",
@@ -1178,8 +1206,8 @@ class BinanceFutureHttpClient(HttpClient):
 
         return self.gateway.call(
             method="GET",
-            params = params,
-            url = url,
+            params=params,
+            url=url,
         )
 
     def get_position_information_v2(
@@ -1253,7 +1281,7 @@ if __name__ == "__main__":
         secret_key=os.getenv("BINANCE_HMAC_SECRET_KEY"),
     )
 
-    print(bfc.ping())
+    print(bfc.get_account_balance(asset = "USDT"))
     # response = bfc.get_all_orders()
     # for res in response:
     #     print(res)

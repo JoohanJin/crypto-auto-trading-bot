@@ -62,6 +62,7 @@ class MexcFutureHttpClient(HttpClient):
             name=name.upper(),
         )
         self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
+        self.source: str = "MEXC"
         
         self.gateway: HttpService = MexcFutureGateway(
             name = f"{name.upper()}_GATEWAY",
@@ -100,7 +101,7 @@ class MexcFutureHttpClient(HttpClient):
             return Ping(
                 timestamp=msg.get('data', None) or self.generate_timestamp(),
                 success=msg.get('success', None) or False,
-                source="MEXC",
+                source=self.source,
             )
 
         url: str = "api/v1/contract/ping"
@@ -190,7 +191,7 @@ class MexcFutureHttpClient(HttpClient):
             if isinstance(data, dict):
                 return OrderBook(
                     timestamp=data.get('timestamp', None) or self.generate_timestamp(),
-                    source="MEXC",
+                    source=self.source,
                     ticker=symbol,
                     asks=data.get("asks", None),
                     bids=data.get("bids", None),
@@ -294,7 +295,7 @@ class MexcFutureHttpClient(HttpClient):
                 return FairPrice(
                     timestamp=data.get("timestamp", None) or self.generate_timestamp(),
                     fair_price=data.get("fairPrice", 0.0),
-                    source="MEXC",
+                    source=self.source,
                     ticker=symbol,
                 )
             else:
@@ -546,7 +547,7 @@ class MexcFutureHttpClient(HttpClient):
             if isinstance(data, dict):
                 return Ticker(
                     timestamp=data.get('timestamp', None) or self.generate_timestamp(),
-                    source="MEXC",
+                    source=self.source,
                     ticker=symbol,
                     price=data.get('lastPrice', 0.0),
                 )
