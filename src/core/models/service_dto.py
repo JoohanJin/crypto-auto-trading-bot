@@ -83,4 +83,8 @@ class Position(ServiceDTO):
 
 @dataclass(frozen=True)
 class AccountInformation(ServiceDTO):
-    ticker: TradePair
+    id: str
+    asset: str
+    balance: float
+    unrealized_pnl: float
+    available_balance: float
