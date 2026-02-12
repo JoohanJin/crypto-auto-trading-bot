@@ -14,7 +14,7 @@ class OrderHistory:
         - range search
     '''
     def __init__(
-        self: "OrderHistory",
+        self,
         max_size: int = 100,
     ) -> None:
         return

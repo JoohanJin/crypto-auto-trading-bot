@@ -21,7 +21,7 @@ class DataCollector:
         return int(time.time() * 1_000)
 
     def __init__(
-        self: "DataCollector",
+        self,
         websocket: FutureWebSocket,  # assume that only fetches the price data.
         price_data: pd.DataFrame,
         lock_price_data: threading.Lock,
@@ -41,14 +41,14 @@ class DataCollector:
         self.price_fetch_buffer: Queue = Queue()
         return
 
-    def start(self: "DataCollector") -> None:
+    def start(self) -> None:
         self.ws.ticker(callback = self._put_ticker_data)
 
         self.__initialize_threads()
         self.__start_threads()
         return
 
-    def __initialize_threads(self: "DataCollector") -> None:
+    def __initialize_threads(self) -> None:
         try:
             # start the thread for the data fetch from the API
             thread_price_fetch: threading.Thread = threading.Thread(
@@ -80,7 +80,7 @@ class DataCollector:
 
         return
 
-    def __start_threads(self: "DataCollector") -> None:
+    def __start_threads(self) -> None:
         """
         func _start_threads():
             - start the threads in the thread pool of the class.
@@ -113,7 +113,7 @@ class DataCollector:
 
     # Data processor
     def _put_ticker_data(
-        self: 'DataCollector',
+        self,
         msg: dict,
     ) -> None:
         """
@@ -148,7 +148,7 @@ class DataCollector:
 
     # DataFetcher
     def _get_data_buffer(
-        self: 'DataCollector',
+        self,
     ) -> dict | None:
         """
         func _get_data_buffer():
@@ -167,7 +167,7 @@ class DataCollector:
 
     # data fetcher
     def _price_data_fetch(
-        self: 'DataCollector',
+        self,
     ) -> None:
         """
         func _price_data_fetch():

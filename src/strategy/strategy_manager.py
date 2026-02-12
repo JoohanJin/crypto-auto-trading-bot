@@ -54,7 +54,7 @@ class StrategyManager:
         return
 
     def __init__(
-        self: "StrategyManager",
+        self,
         indicators: dict[IndexType, Index | float | None],
         indicators_lock: threading.Lock,
         push_signal_callback: Callable[[Signal], None],
@@ -80,13 +80,13 @@ class StrategyManager:
         self.start()
         return
 
-    def start(self: "StrategyManager") -> None:
+    def start(self) -> None:
         # if this is the thread-based class
         self._load_strategies()
         self.__init_threads()
         StrategyManager.start_threads(self.threads)
 
-    def push_signal(self: "StrategyManager", signal: Signal, details: str) -> None:
+    def push_signal(self, signal: Signal, details: str) -> None:
         try:
             self._push_signal_callback(signal)
             self.trading_logger.info(f"{details} Signal has been generated.")
@@ -113,7 +113,7 @@ class StrategyManager:
             sleep_interval=self.SLEEP_INTERVAL,
         )
 
-    def __init_threads(self: "StrategyManager") -> None:
+    def __init_threads(self) -> None:
         """
         Initialize strategy execution threads based on loaded configurations.
         """
@@ -134,7 +134,7 @@ class StrategyManager:
             self.logger.info(f"Thread for {name} has been set up!")
 
     def __verify_index(
-        self: "StrategyManager",
+        self,
         index: Index,
         time_window: int = 5_000,
     ) -> bool:
@@ -144,7 +144,7 @@ class StrategyManager:
             return False
 
     def __extract_data(
-        self: "StrategyManager",
+        self,
         index: Index,
     ) -> dict[int, float] | None:
         if index:
@@ -153,7 +153,7 @@ class StrategyManager:
             return None
 
     def _get_indicator_value(
-        self: "StrategyManager",
+        self,
         indicator: Index | None,
         window: int,
     ) -> float | None:
@@ -161,7 +161,7 @@ class StrategyManager:
         return data.get(window) if data else None
 
     def _resolve_indicator_value(
-        self: "StrategyManager",
+        self,
         indicators: dict[IndexType, Index | float | None],
         indicator_name: str,
         window: int | None = None,
@@ -204,7 +204,7 @@ class StrategyManager:
         return False
 
     def _evaluate_condition(
-        self: "StrategyManager",
+        self,
         condition: StrategyCondition,
         indicators: dict[IndexType, Index | float | None],
         strategy: StrategyConfig,
@@ -271,7 +271,7 @@ class StrategyManager:
         return None
 
     def _build_strategy_logic(
-        self: "StrategyManager",
+        self,
         strategy: StrategyConfig,
     ) -> Callable[[dict[IndexType, Index | float | None], StrategyConfig], TradeSignal | None]:
         def logic(indicators: dict[IndexType, Index | float | None], cfg: StrategyConfig) -> TradeSignal | None:
@@ -284,7 +284,7 @@ class StrategyManager:
         return logic
 
     def __update_signal_timestamp(
-        self: "StrategyManager",
+        self,
         key: str,
     ) -> None:
         with self.signal_timestamps_lock:
@@ -292,14 +292,14 @@ class StrategyManager:
         return
 
     def __get_signal_timestamp(
-        self: "StrategyManager",
+        self,
         key: str,
     ) -> int:
         with self.signal_timestamps_lock:
             return self.signal_timestamps.get(key, 0)
 
     def _should_generate_signal(
-        self: "StrategyManager",
+        self,
         key: str,
         signal_window: int | None = None,
     ) -> bool:
@@ -317,7 +317,7 @@ class StrategyManager:
         return StrategyManager.generate_timestamp() - prev_timestamp > window
 
     def _get_indicators_safely(
-        self: "StrategyManager",
+        self,
         *indicator_types: IndexType,
     ) -> dict[IndexType, Index | float | None]:
         """

@@ -17,12 +17,12 @@ class DataProcessor:
     - calculate the ema, sma
     - pass it to the pipeline
     '''
-    @staticmethod
-    def generate_timestamp() -> int:
+    @classmethod
+    def generate_timestamp(cls) -> int:
         return int(time.time() * 1_000)
 
     def __init__(
-        self: "DataProcessor",
+        self,
         price_data: pd.DataFrame,
         lock_price_data: threading.Lock,
         pipeline_controller: PipelineController[dict[str, int | IndexType, dict[int, float]]],
@@ -43,17 +43,17 @@ class DataProcessor:
         self.price_data: pd.DataFrame = price_data
         return
 
-    def start(self: "DataProcessor") -> None:
+    def start(self) -> None:
         try:
             self.__initialize_threads()
             self.__start_threads()
         except Exception as e:
             self.logger.critical(
-                f"Error while starting DataProcessor: {str(e)}"
+                f"Error while starting {self.name}: {str(e)}"
             )
         return
 
-    def __initialize_threads(self: "DataProcessor") -> None:
+    def __initialize_threads(self) -> None:
         '''
         func __initialize_threads():
             - initialize the threads
@@ -85,7 +85,7 @@ class DataProcessor:
 
         return
 
-    def __start_threads(self: "DataProcessor") -> None:
+    def __start_threads(self) -> None:
         """
         func _start_threads():
             - start the threads in the thread pool of the class.
@@ -115,7 +115,7 @@ class DataProcessor:
         return
 
     def __push_indexes(
-        self: 'DataProcessor',
+        self,
         indexes: list[Index]
     ) -> bool:
         '''
@@ -132,7 +132,7 @@ class DataProcessor:
 
     # Data Processor
     def __calculate_ema_sma_price(
-        self: 'DataProcessor',
+        self,
         periods: Tuple[int, ...] = MA_WRITE_PERIODS,  # this will be just used. -> just default input.
     ) -> tuple[dict[str, float | int | IndexType]] | None:
         """
@@ -149,13 +149,12 @@ class DataProcessor:
             - Tuple of SMA and EMA values
         """
         try:
-            current_ts = DataProcessor.generate_timestamp()
+            current_ts = self.generate_timestamp()
             cutoff_ts = current_ts - (periods[-1] * 2 * 1_000)
 
             with self.lock_price_data:
                 if self.price_data.shape[0] == 0:
                     return None
-                # tmp_dataframe = self.price_data[-periods[-1] :]["fairPrice"].copy()  # ! need to change this part
                 mask = self.price_data.index >= cutoff_ts
                 tmp_dataframe = self.price_data.loc[mask, "fairPrice"].copy()
 
@@ -178,7 +177,7 @@ class DataProcessor:
                 sma[period * 2] = float(window.mean())
                 ema[period * 2] = float(window.ewm(span = period, adjust = False).mean().iloc[-1])
 
-            timestamp: int = DataProcessor.generate_timestamp()
+            timestamp: int = self.generate_timestamp()
 
             smas: Dict[str, float | IndexType | Dict[int, float]] = {
                 "data": sma,
@@ -227,7 +226,7 @@ class DataProcessor:
     """
 
     def _put_ticker_data(
-        self: 'DataProcessor',
+        self,
         msg: dict,
     ) -> None:
         """
@@ -256,7 +255,7 @@ class DataProcessor:
 
     # Data Processor
     def _push_moving_averages(
-        self: 'DataProcessor',
+        self,
     ) -> None:
         """
         func _push_moving_averages():

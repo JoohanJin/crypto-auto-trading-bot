@@ -33,7 +33,7 @@ class DataManager:
         return int(time.time() * 1_000)
 
     def __init__(
-        self: "DataManager",
+        self,
         websocket: FutureWebSocket,
         pipeline_controller: PipelineController[dict[str, int | IndexType, dict[int, float]]],
         memory_count_limit: int = 2_000,
@@ -91,7 +91,7 @@ class DataManager:
 
         return
 
-    def start(self: "DataManager",) -> None:
+    def start(self,) -> None:
         # Threads
         self.__initialize_threads()
         self.__start_threads()
@@ -101,7 +101,7 @@ class DataManager:
         self.processor.start()
         return
 
-    def __initialize_threads(self: "DataManager",) -> None:
+    def __initialize_threads(self) -> None:
         try:
             thread_memory_save: threading.Thread = threading.Thread(
                 name = "resize_df",
@@ -118,7 +118,7 @@ class DataManager:
 
         return
 
-    def __start_threads(self: "DataManager",) -> None:
+    def __start_threads(self) -> None:
         for thread in self.threads:
             try:
                 thread.start()
@@ -137,7 +137,7 @@ class DataManager:
 
     # Data Fetcher? -> let's make the separate class.
     def __resize_df(
-        self: 'DataManager',
+        self,
         wait_time: int = 300,  # in seconds, 5 minutes by default
     ) -> None:
         """

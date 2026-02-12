@@ -37,7 +37,7 @@ class OrderManager:
         self.telegram_bot: CustomTelegramBot = telegram_bot
         return
 
-    def __del__(self: "OrderManager") -> None:
+    def __del__(self) -> None:
         return
 
     def order(
