@@ -1,10 +1,10 @@
 import time
-from src.core.models.broker import BrokerRegistry
 from src.core.models.price import Price
 from src.integrations.telegram.telegram_bot_class import CustomTelegramBot
 from src.core.models.order import Order
 from src.infrastructure.logging.set_logger import get_logger, get_adapter
 from src.core.models.trade import TradePair
+from src.interfaces.http_interface import HttpInterface
 
 logger = get_logger(__name__)
 
@@ -13,7 +13,7 @@ class OrderManager:
     '''
     - Manage all the order
         - make the trade decision? hmm not sure.
-    - Manage all the brokers provided
+    - Manage all the clients provided
     '''
     @staticmethod
     def __get_curr_timestamp() -> int:
@@ -28,12 +28,12 @@ class OrderManager:
     def __init__(
         self,
         telegram_bot: CustomTelegramBot,
-        brokers: BrokerRegistry,  # Brokers Storage
+        clients: HttpInterface,  # Http Client Interface
         name: str | None = None,
     ) -> None:
         self.name: str = name if name else "ORDER_MANAGER"
         self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
-        self.brokers: BrokerRegistry = brokers
+        self.clients: HttpInterface = clients
         self.telegram_bot: CustomTelegramBot = telegram_bot
         return
 
@@ -45,9 +45,8 @@ class OrderManager:
         order: Order,
     ) -> None:
         try:
-            # make an order through the broker registry.
-            # TODO: implement the broker registry
-            self.brokers
+            # make an order through the client registry.
+            self.clients  # TODO: implement the broker registry
         except Exception as e:
             self.logger.critical(f"Error during the Order: {str(e)}")
         return
@@ -93,7 +92,7 @@ class OrderManager:
         - return:
             - float
                 - average value of the values in the param
-            - will get the list of ticker prices returned from multiple brokers.
+            - will get the list of ticker prices returned from multiple clients.
         '''
         try:
             return round((sum(prices) / len(prices)), rounding)
@@ -103,7 +102,7 @@ class OrderManager:
     def __get_ticker_current_prices(self) -> list[float]:
         '''
         - func __get_ticker_current_prices()
-            - get the list of ticker prices returned from multiple brokers in the OrderManager.
+            - get the list of ticker prices returned from multiple clients in the OrderManager.
 
         - Params: None
 

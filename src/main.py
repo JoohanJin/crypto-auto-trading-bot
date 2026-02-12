@@ -24,7 +24,6 @@ SOFTWARE.
 
 import sys
 import time
-from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -37,12 +36,12 @@ logger = get_logger(__name__)
 def main():
     try:
         # ? Since __init__() for every class will activate them, no need to do anything here.
-        project_root = Path(__file__).resolve().parents[1]
-        load_dotenv(project_root / ".env")
+        load_dotenv()
 
         main_system_manager: SystemManager = SystemManager()  # noqa: F841
 
         # Start working
+        # TODO: change this approach to signal handling
         while True:
             time.sleep(0.5)  # Sleep to reduce the cpu usage.
     except RuntimeError as e:
@@ -53,6 +52,7 @@ def main():
             f"function main() has raised an Unexpected error starting the system: {str(e)}"
         )
         sys.exit(1)
+    return
 
 
 if __name__ == "__main__":
