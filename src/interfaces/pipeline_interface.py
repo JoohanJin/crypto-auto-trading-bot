@@ -50,7 +50,9 @@ class PipelineController(Generic[T]):
             self.pipeline.push(object)
             return True
         except Exception as e:
-            self.logger.warning(f"Unknown Error has been occured. Unsuccessful Push from the pipeline interface: {str(e)}")
+            self.logger.warning(
+                f"Unknown Error has been occured. Unsuccessful Push from the pipeline interface: {str(e)}"
+            )
             return False
 
     def pop(

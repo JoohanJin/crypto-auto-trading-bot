@@ -36,7 +36,7 @@ class Signal:
     '''
 
     def __init__(
-        self: 'Signal',
+        self,
         signal: TradeSignal,
     ) -> None:
         """

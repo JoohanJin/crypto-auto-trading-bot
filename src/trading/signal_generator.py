@@ -57,7 +57,7 @@ class SignalGenerator:
     ######################################################################################################################
     '''
     def __init__(
-        self: 'SignalGenerator',
+        self,
         data_pipeline_controller: PipelineController[dict[str, int | IndexType, dict[int, float]]],
         signal_pipeline_controller: PipelineController[dict[str, int | TradeSignal]],
         custom_telegram_bot: CustomTelegramBot,
@@ -114,7 +114,7 @@ class SignalGenerator:
 
         return None
 
-    def start(self: "SignalGenerator") -> None:
+    def start(self) -> None:
         # initialize the threads
         self._init_threads()
         # start each thread, which is in the threads pool.
@@ -128,7 +128,7 @@ class SignalGenerator:
     """
 
     def _init_threads(
-        self: 'SignalGenerator',
+        self,
     ):
         """
         - func _init_threads:
@@ -161,7 +161,7 @@ class SignalGenerator:
     ######################################################################################################################
     """
     def get_data(
-        self: 'SignalGenerator',
+        self,
     ) -> None:
         while True:
             try:
@@ -174,7 +174,7 @@ class SignalGenerator:
 
         return
 
-    def push_signal(self: "SignalGenerator", signal: Signal) -> None:
+    def push_signal(self, signal: Signal) -> None:
         try:
             self.signal_pipeline_controller.push(signal)
         except Exception as e:

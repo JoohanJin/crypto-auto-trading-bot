@@ -22,7 +22,7 @@ class ScoreHistory:
     - Tree? B+ ? -> But BST is also fine I think...? hmmm
     '''
     def __init__(
-        self: "ScoreHistory",
+        self,
         max_size: int = 100,
     ) -> None:
         # dict[id, pointer or reference] + linked list

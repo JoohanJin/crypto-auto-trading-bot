@@ -16,13 +16,13 @@ class IndexFactory:
         return int(time.time() * 1_000)
 
     def __init__(
-        self: "IndexFactory",
+        self,
         # index: Dict[str, int | IndexType | Dict[int, float]],
     ) -> None:
         return
 
     def generate_index(
-        self: "IndexFactory",
+        self,
         index: Dict[str, int | IndexType | Dict[int, float]],
     ) -> Index | None:
         timestamp: int = index.get("timestamp", IndexFactory.generate_timestamp())

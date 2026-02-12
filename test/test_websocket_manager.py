@@ -25,13 +25,13 @@ class TestWebSocket(FutureWebSocket):
         # print(self.subscriptions)
 
     def print_ticker_data(
-        self: 'TestWebSocket',
+        self,
         msg: dict,
     ) -> None:
         print(msg)
         return None
 
-    def connect(self: "TestWebSocket"):
+    def connect(self):
         # if there is no retries attribute set to True, then no need to try, but we will anyway
         infinite_reconnect: bool = True
 
@@ -124,7 +124,7 @@ class TestWebSocket(FutureWebSocket):
         return None
 
     def _ping_loop(
-        self: "TestWebSocket",
+        self,
         ping_interval: int,  # Second
         ping_payload: str = '{"method":"ping"}',
     ) -> None:
