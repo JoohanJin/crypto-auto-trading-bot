@@ -5,13 +5,14 @@ import time
 from typing import List, Tuple
 
 # Custom Library
-from src.brokers.binance.http_client import FutureMarket as BinanceFutureMarket
 from src.integrations.telegram.telegram_bot_class import CustomTelegramBot
+from src.interfaces.http_interface import HttpInterface
 from src.infrastructure.logging.set_logger import get_logger, get_adapter
-from src.brokers.mexc.http_client import FutureMarket as MexCFutureMarket
-from src.core.models.score_mapping import ScoreMapper
-from src.core.models.signal import Signal, TradeSignal
 from src.interfaces.pipeline_interface import PipelineController
+from src.core.models.score_mapping import ScoreMapper
+
+# Core Models
+from src.core.models.signal import Signal, TradeSignal
 from src.core.models.trade import TradePair, TradeState
 from src.core.models.order import Order, OrderType
 
@@ -64,12 +65,10 @@ class TradeManager:
     def __init__(
         self,
         signal_pipeline_controller: PipelineController[Signal],
-        mexc_future: MexCFutureMarket,  # TODO: Change this to the interface
-        binanace_future: BinanceFutureMarket,  # TODO: Change this to the interface.
+        http_interface: HttpInterface,
         delta_mapper: ScoreMapper,
         telegram_bot: CustomTelegramBot,
-        base_symbol: str = "BTC",
-        ccy_symbol: str = "USDT",
+        trade_pair: TradePair | None = None,
         leverage: int = 10,
         trade_amount: float = 0.1,  # 10% of the total asset
         take_profit_rate: float = 0.2,  # 20% -> to prevent the error
@@ -85,33 +84,42 @@ class TradeManager:
         """
         self.name: str = name if name else "TRADE_MANAGER"
         self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
+
         # For trading specific logs, we can use the same adapter but maybe with a different level or just use info.
         # However, to keep it consistent with the original design where trading logs went to a different file:
         self.trading_logger = get_adapter(get_logger(__name__, "trading"), f"{self.__class__.__name__}_{self.name}")
-        
+
+        '''
         # TODO: Need to keep the record of the previous order.
         # TODO: Keep checking where that order is still alive or not.
-        '''
         # TODO: Need to refactor the order layer to get the data from the DTO,
         # order for unified and modular implementation.
         '''
-        self.trade_pair: TradePair = TradePair(ticker = base_symbol, quote = ccy_symbol)
+        self.trade_pair: TradePair = (
+            trade_pair
+            if isinstance(trade_pair, TradePair)
+            else TradePair(ticker="BTC", quote="USDT")
+        )
 
         # Set the signal piepline as a member variable
         self.signal_pipeline_controller: PipelineController[Signal] = signal_pipeline_controller
 
-        # Set the MexC Future Market SDK as a member variable
-        # to send the REST API to the MexC API Gateway.
-        # TODO: Need to change this to interface.
-        self.mexc_future_market_sdk = mexc_future
-        self.binance_future_market = binanace_future
+        # For HTTP Communication (RESTful API)
+        self.http_interface: HttpInterface = http_interface
 
         self.delta_mapper: ScoreMapper = delta_mapper
 
         self.telegram_bot: CustomTelegramBot = telegram_bot
+        self.async_loop: asyncio.new_event_loop = asyncio.new_event_loop()  # only for Telegram Client
 
         self.score_threshold: int = score_threashold
         self.trend_manager_score: int = score_trend_management  # keep the biased score to keep the current score.
+
+        # TODO: decide these variables dynamically
+        self.leverage: int = leverage
+        self.trade_amount: float = trade_amount
+        self.tp_rate: float = take_profit_rate
+        self.sl_rate: float = stop_loss_rate
 
         # Set the thread pool as a member function.
         self.threads: List[threading.Thread] = []
@@ -119,13 +127,6 @@ class TradeManager:
         # Set the trade score as a member variable.
         self.trade_score_lock: threading.Lock = threading.Lock()
         self.trade_score: int = 0
-
-        self.leverage: int = leverage
-        self.trade_amount: float = trade_amount
-        self.tp_rate: float = take_profit_rate
-        self.sl_rate: float = stop_loss_rate
-
-        self.async_loop: asyncio.new_event_loop = asyncio.new_event_loop()  # only for Telegram Client
 
         self.lock_previous_order = threading.Lock()
         self.previous_order: Order | None = None
@@ -170,10 +171,10 @@ class TradeManager:
             - it is a void function.
         """
         # Initialize the threads
-        self.__initialize_threads()
+        self._initialize_threads()
 
         # Start the threads
-        self.__start_threads()
+        self._start_threads()
 
         return None
 
@@ -185,11 +186,11 @@ class TradeManager:
             thread.stop()
         return
 
-    def __initialize_threads(
+    def _initialize_threads(
         self,
     ) -> None:
         """
-        func __initialize_threads():
+        func _initialize_threads():
             - private method
             - It will set up the thread pool for the TradeManager.
 
@@ -198,7 +199,7 @@ class TradeManager:
         """
         # Generate the threads for the function, need to plan it.
         thread_get_signal: threading.Thread = threading.Thread(
-            target = self.__thread_get_signal,
+            target = self._thread_get_signal,
             name = "Thread-Get-Signal",
         )
 
@@ -212,11 +213,11 @@ class TradeManager:
         self.threads.extend([thread_get_signal, thread_decide_trade])
         return None
 
-    def __start_threads(
+    def _start_threads(
         self,
     ) -> None:
         """
-        func __start_threads():
+        func _start_threads():
             - private method
             - It will start the thread pool for the TradeManager.
 
@@ -232,7 +233,9 @@ class TradeManager:
                 self.logger.info(f"Thread {thread.name} has been started")
 
             except RuntimeError as e:  # If there is an error during the runtime
-                self.logger.critical(f"Failed to start thread '{thread.name}': {str(e)}")
+                self.logger.critical(
+                    f"Failed to start thread '{thread.name}': {str(e)}"
+                )
                 raise RuntimeError(
                     f"{__name__}: Failed to start thread '{thread.name}': {str(e)}"
                 )
@@ -253,56 +256,15 @@ class TradeManager:
     def thread_handle_async_trade_execution(self, loop) -> None:
         """ """
         asyncio.set_event_loop(loop)
-        loop.run_until_complete(self.__thread_decide_trade())
+        loop.run_until_complete(self._thread_decide_trade())
         return
 
-    async def __thread_decide_trade(
-        self,
-    ) -> None:
-        """
-        func __thread_decide_trade():
-            - private method
-            - decide the trade based on the signal.
-            - This function should be run by the other function which is monitoring some schema.
-
-        param self:
-            - TradeManager object
-
-        return None:
-        """
-        while True:
-            try:
-                with self.trade_score_lock:
-                    score: int = self.trade_score
-
-                decision: int = self.__decide_trade(
-                    score = score,
-                )
-
-                if decision in (2, 4, 6, 8):  # can be further improved in the future.
-                    # Trade
-                    await self.__execute_trade(
-                        buy_or_sell = decision,
-                    )
-
-                    # reset the score, but based on the trend
-                    # TODO: need to implement more sophisticated one.
-                    with self.trade_score_lock:
-                        self.trade_score = self.trend_manager_score if decision in (2, 8) else -1 * (self.trend_manager_score)
-
-                await asyncio.sleep(0.25)
-
-            except Exception as e:
-                self.logger.error(f"Error while deciding the trade: {str(e)}")
-
-        return None
-
-    def __decide_trade(
-        self,
-        score: int,
+    def _decide_trade(
+            self,
+            score: int,
     ) -> TradeState:
         """
-        func __decide_trade():
+        func _decide_trade():
             - private method
             - decide the trade based on the score.
             - It will return the decision based on the score.
@@ -339,7 +301,52 @@ class TradeManager:
                 return TradeState.NEW_SELL
         return TradeState.HOLD  # by default it is not doing anything.
 
-    def __construct_new_order(
+    async def _thread_decide_trade(
+        self,
+    ) -> None:
+        """
+        func _thread_decide_trade():
+            - private method
+            - decide the trade based on the signal.
+            - This function should be run by the other function which is monitoring some schema.
+
+        param self:
+            - TradeManager object
+
+        return None:
+        """
+        while True:
+            try:
+                with self.trade_score_lock:
+                    score: int = self.trade_score
+
+                decision: TradeState = self._decide_trade(
+                    score = score,
+                )
+
+                if decision in (
+                    TradeState.NEW_BUY,
+                    TradeState.NEW_SELL,
+                    TradeState.REVERSE_BUY,
+                    TradeState.REVERSE_SELL
+                ):  # can be further improved in the future.
+                    # Trade
+                    await self._execute_trade(
+                        buy_or_sell = decision,
+                    )
+
+                    # reset the score, but based on the trend
+                    # TODO: need to implement more sophisticated one.
+                    with self.trade_score_lock:
+                        self.trade_score = self.trend_manager_score if decision in (2, 8) else -1 * (self.trend_manager_score)
+
+                await asyncio.sleep(0.25)
+
+            except Exception as e:
+                self.logger.error(f"Error while deciding the trade: {str(e)}")
+        return
+
+    def _construct_new_order(
         self,
         buy_or_sell: TradeState,
     ) -> Order:
@@ -349,14 +356,14 @@ class TradeManager:
 
             order_type: OrderType
             order_type_str: str
-            entry_price: float = self.__get_current_price()
+            entry_price: float = self._get_current_price()
             tp_price: float
             sl_price: float
             ticker_size: float
             quote_size: float
             meta_data: dict[str, bool | str] = None
 
-            tp_price, sl_price = self.__get_target_prices(
+            tp_price, sl_price = self._get_target_prices(
                 buy_or_sell = buy_or_sell,
                 current_price = entry_price,
             )
@@ -394,18 +401,15 @@ class TradeManager:
                 meta_data=meta_data,
             )
         except Exception as e:
-            error_msg: str = f"Error while building the order object: {str(e)}"
-            self.logger.critical(error_msg)
-            raise Exception(
-                error_msg
-            ) from e
+            self.logger.critical(f"Error while building the order object: {str(e)}")
+        return
 
-    async def __execute_trade(
+    async def _execute_trade(
         self,
         buy_or_sell: TradeState,
     ) -> None:
         """
-        func __execute_trade():
+        func _execute_trade():
             - private method
             - execute the trade based on the signal.
             - This function should be run by the other function which is monitoring some schema.
@@ -419,7 +423,7 @@ class TradeManager:
             if buy_or_sell == TradeState.HOLD:
                 return None
 
-            order: Order = self.__construct_new_order(buy_or_sell)
+            order: Order = self._construct_new_order(buy_or_sell)
 
             if buy_or_sell in (2, 4):  # make the trade
                 message = (
@@ -443,7 +447,7 @@ class TradeManager:
                 return None
 
             # order trigger to the telgram bot
-            self.__make_order(order)
+            self._make_order(order)
             await self.telegram_bot.send_text(message)
             self.trading_logger.info(message)
         except Exception as e:
@@ -451,20 +455,12 @@ class TradeManager:
             raise Exception
         return None
 
-    def __make_order(
+    def _make_order(
         self,
         order: Order,
     ) -> None:
         try:
-            # TODO: change this to the broker registry so that just passing
-            # order, i.e., DTO, is enough
-            self.binance_future_market.order(
-                sl_price=order.sl_price,
-                tp_price=order.tp_price,
-                leverage=order.leverage,
-                symbol_curr_quantity=order.ticker_size,
-                side=order.type_str,
-            )
+            # TODO: make an order to the given broker
 
             with self.lock_previous_order:
                 self.previous_order = order
@@ -475,12 +471,12 @@ class TradeManager:
             ) from e
         return None
 
-    def __thread_get_signal(
+    def _thread_get_signal(
         self,
         timestamp_window: int = 5_000,  # for validation purpose
     ) -> None:
         """
-        func __thread_get_signal():
+        func _thread_get_signal():
             - A private method
             - It gets the signal from the signal pipeline
             - This function should be run by other thread which is monitoring the system.
@@ -495,10 +491,10 @@ class TradeManager:
         curr_timestamp = 0
         while True:
             try:
-                signal: TradeSignal = self.__get_signal(timestamp_window = timestamp_window,)
+                signal: TradeSignal = self._get_signal(timestamp_window = timestamp_window,)
                 if signal:
                     with self.trade_score_lock:
-                        self.trade_score += self.__calculate_signal_score_delta(
+                        self.trade_score += self._calculate_signal_score_delta(
                             signal_data = signal,
                         )
                         if (self.generate_timestamp() - curr_timestamp > 300_000):
@@ -508,12 +504,12 @@ class TradeManager:
                 self.logger.error(f"Error while getting the signal: {str(e)}")
         return None
 
-    def __get_signal(
+    def _get_signal(
         self,
         timestamp_window: int = 5_000,
     ) -> TradeSignal | None:
         """
-        func __get_signal(): private method
+        func _get_signal(): private method
             - get the signal from the signal pipeline
             - This function should be run by other thread which is monitoring the system.
 
@@ -526,17 +522,18 @@ class TradeManager:
             - if the signal is not valid, then it will return None.
         """
         signal_data: Signal = self.signal_pipeline_controller.pop()
-        return signal_data.signal if self.verify_signal(
-            signal_data = signal_data,
-            timestamp_window = timestamp_window
-        ) else None
+        return (
+            signal_data.signal
+            if self.verify_signal(signal_data = signal_data, timestamp_window = timestamp_window)
+            else None
+        )
 
-    def __calculate_signal_score_delta(
+    def _calculate_signal_score_delta(
         self,
         signal_data: TradeSignal,
     ) -> int:
         """
-        func __calculate_delta():
+        func _calculate_delta():
             - private method
             - calculate the delta based on the signal data.
             - It will return the delta value based on the signal data.
@@ -556,11 +553,11 @@ class TradeManager:
     '''
     - Execute Trade Utility Function
     '''
-    def __get_current_price(
+    def _get_current_price(
         self,
     ) -> float | None:
         """
-        func __get_current_price():
+        func _get_current_price():
             - private method
             - get the current price from the MexC API Endpoint.
 
@@ -571,26 +568,18 @@ class TradeManager:
             - current price of the asset
         """
         try:
-            return round(
-                float(
-                    # TODO: need to decouple the TradeManager from the self.binance_future_market
-                    self.binance_future_market.mark_price(
-                        symbol = f"{self.trade_pair.ticker}{self.trade_pair.quote}"
-                    ).get("indexPrice", 0)
-                ),
-                2,
-            )
+            return  # TODO: get the BTC currenct price
         except Exception as e:
             self.logger.critical(f"Unknown Exception Invoked during fetching the current price: {str(e)}")
             raise Exception
 
-    def __get_target_prices(
+    def _get_target_prices(
         self,
         buy_or_sell: TradeState,
         current_price: float,
     ) -> Tuple[float, float]:
         """
-        func __get_target_prices():
+        func _get_target_prices():
             - private method
             - get the target prices based on the current price and the signal.
             - It will return the target prices based on the signal.
@@ -623,7 +612,7 @@ class TradeManager:
                 2,
             )
 
-    def __get_trade_amount(
+    def _get_trade_amount(
         self,
     ) -> float:
         '''
@@ -644,11 +633,11 @@ class TradeManager:
             )
         return
 
-    def __decide_to_make_trade(
+    def _decide_to_make_trade(
         self,
     ) -> bool:
         """
-        func __decide_to_make_trade():
+        func _decide_to_make_trade():
             - private method
             - decide whether to make the trade or not.
             - It will return True if there is an order/orders held by the account.
@@ -664,18 +653,8 @@ class TradeManager:
                 - return False
         """
         try:
-            # currently_holding_order: Dict = self.mexc_future_market_sdk.current_position()
-            currently_holding_order: list[dict | None] = self.binance_future_market.get_all_open_order()
-
-            # It will check if there is a currently opened order.
-            if not len(currently_holding_order):  # if it is 0 then it will make a new order.
-                # No position is currently held, so it's okay to make a trade.
-                # By default, there is one position in Binance to indicate current isolation mode
-                # and leverage with 0 margin in it.
-                return True
-            else:
-                # A position is already open, so do not make another trade.
-                return False
+            # TODO: get the order -> and then realize if there is a currently holding order or not.
+            return False
         except Exception as e:
             self.logger.error(f"Error while deciding to make trade: {str(e)}")
             return False
@@ -720,7 +699,7 @@ class TradeManager:
         '''
         try:
             margin_amt: float = self.leverage * self.trade_amount * available_quote  # we need the current
-            return max(round((margin_amt) / (ticker_price), 3), 0.002)  # upto three significant digits for the BTC quantity
+            return round((margin_amt) / (ticker_price), 3)  # upto three significant digits for the BTC quantity
         except Exception as e:
             self.logger.critical(f"Unknown Exception for Calculating the BTC Amount: {str(e)}")
             return None
@@ -738,16 +717,9 @@ class TradeManager:
             - the amount of the quote
         '''
         try:
-            account_balances = self.binance_future_market.future_account_balance_v2()
-
-            for balance in account_balances:
-                if (balance.get("asset") == self.trade_pair.quote):
-                    return float(balance.get("availableBalance"))
-            account_balances = self.binance_future_market.future_account_balance()
-
-            for balance in account_balances:
-                if (balance.get("asset") == self.trade_pair.quote):
-                    return balance.get("availableBalance")
+            # TODO: get the available data.
+            # What are we going to do here ? -> get the average from different source of data?
+            return 0.0
 
         except Exception as e:
             self.logger.critical(f"Unexpected Error: {str(e)}")
