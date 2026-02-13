@@ -5,7 +5,7 @@ import sys
 import threading
 
 # CUSTOM LIBRARY
-from src.infrastructure.logging.set_logger import get_logger, get_adapter  # Logger and Adapter
+from src.infrastructure.logging.set_logger import get_logger, get_adapter
 from src.integrations.telegram.telegram_bot_class import CustomTelegramBot
 from src.data.data_manager import DataManager
 from src.trading.signal_generator import SignalGenerator
@@ -64,15 +64,13 @@ class SystemManager:
             # Telegram Bot for Messaging
             self.telegram_bot: CustomTelegramBot = self._set_up_telegram_bot()
 
+            # Pipeline
             self.data_pipeline: DataPipeline = DataPipeline()
             self.logger.info(f"{self.data_pipeline} has been started.")
-
             self.signal_pipline: SignalPipeline = SignalPipeline()
             self.logger.info(f"{self.signal_pipline} has been started.")
 
-            self.mapper: ScoreMapper = ScoreMapper()
-            self.logger.info(f"{self.mapper} has been started.")
-
+            # PipelineController
             self.data_pipeline_controller: PipelineController[Index] = PipelineController(
                 pipeline = self.data_pipeline
             )
@@ -80,12 +78,21 @@ class SystemManager:
                 pipeline = self.signal_pipline
             )
 
+            # ScoreMapper
+            self.mapper: ScoreMapper = ScoreMapper()
+            self.logger.info(f"{self.mapper} has been started.")
+
+            # Service
+            # Websocket
+            self.websocket_interface: WebSocketInterface = self._construct_ws_interface()
+            self.http_interface: HttpInterface = self._construct_http_interface()
+
             '''
             # Main Components
             '''
             self.data_manager: DataManager = DataManager(
-                websocket = self.mexc_ws,
-                pipeline_controller = self.data_pipeline_controller,
+                websocket_interface=self.websocket_interface,
+                pipeline_controller=self.data_pipeline_controller,
             )
 
             self.signal_generator: SignalGenerator = SignalGenerator(
@@ -97,8 +104,8 @@ class SystemManager:
             # one more classs: trade_manager -> it will have the FutureMarket SDWK
             self.trade_manager: TradeManager = TradeManager(
                 signal_pipeline_controller = self.signal_pipeline_controller,
-                mexc_future = self.mexc_future,
-                binanace_future = self.binance_future,
+                mexc_future = self.mexc_future,  # ! Need to remove this
+                binanace_future = self.binance_future,  # TODO: Need to replace this to to HttpInterface
                 delta_mapper = self.mapper,
                 telegram_bot = self.telegram_bot,
             )
@@ -143,7 +150,9 @@ class SystemManager:
         api_key = os.getenv("TELEGRAM_API_KEY")
         channel_id = os.getenv("TELEGRAM_CHANNEL_ID")
         if not api_key or not channel_id:
-            raise ValueError("TELEGRAM_API_KEY and TELEGRAM_CHANNEL_ID must be set in environment variables.")
+            raise ValueError(
+                "TELEGRAM_API_KEY and TELEGRAM_CHANNEL_ID must be set in environment variables."
+            )
         return api_key, channel_id
 
     def _set_up_telegram_bot(
@@ -166,10 +175,14 @@ class SystemManager:
                 channel_id=channel_id,
             )
         except ValueError as e:
-            self.logger.critical(f"The Value Error occured: {str(e)}")
+            self.logger.critical(
+                f"The Value Error occured during initialization of TelegramBot: {str(e)}"
+            )
             return None
         except Exception as e:
-            self.logger.critical(f"The Unknown Error occured: {str(e)}")
+            self.logger.critical(
+                f"The Unknown Error occured during initializaiton of TelegramBot: {str(e)}"
+            )
             return None
 
     '''
@@ -264,26 +277,28 @@ class SystemManager:
     '''
     # Service Interface
     '''
-    def _construct_http_client_registry(self) -> HttpClientRegistry:
-        return HttpClientRegistry(name="HTTP_CLIENT_REGISTRY")
+    def _construct_http_client_registry(self, name: str) -> HttpClientRegistry:
+        return HttpClientRegistry(name=name)
 
-    def _construct_http_interface(self) -> HttpInterface:
+    def _construct_http_interface(self, name: str | None = None) -> HttpInterface:
+        _name: str = name.upper() or "HTTP_CLIENT_INTERFACE"
         hi: HttpInterface = HttpInterface(
-            name="HTTP_CLIENT_INTERFACE",
-            client_registry=self._construct_http_client_registry(),
+            name=_name,
+            client_registry=self._construct_http_client_registry(name=f"{_name}_REGISTRY"),
         )
         hi.push_client(self._construct_binance_future())
         return hi
         
-    def _construct_ws_client_registry(self) -> WebSocketClientRegistry:
+    def _construct_ws_client_registry(self, name: str | None) -> WebSocketClientRegistry:
         return WebSocketClientRegistry(
-            name="WEBSOCKET_CLIENT_REGISTRY",
+            name=name or "WEBSOCKET_CLIENT_REGISTRY",
         )
 
-    def _construct_ws_interface(self) -> WebSocketInterface:
+    def _construct_ws_interface(self, name: str | None = None) -> WebSocketInterface:
+        _name: str = name.upper() or "WEBSOCEKT_CLIENT_INTERFACE"
         wi: WebSocketInterface = WebSocketInterface(
-            name="WEBSOCEKT_CLIENT_INTERFACE",
-            client_registry=self._construct_ws_client_registry()
+            name=_name,
+            client_registry=self._construct_ws_client_registry(name=f"{_name}_REGISTRY")
         )
         wi.push_client(self._construct_binance_wsc())
         wi.push_client(self._construct_mexc_wsc())
