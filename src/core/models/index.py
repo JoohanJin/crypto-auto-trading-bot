@@ -1,3 +1,4 @@
+from dataclasses import dataclass, field
 from enum import IntFlag
 import time
 from typing import Dict
@@ -9,6 +10,7 @@ class IndexType(IntFlag):
     PRICE = 1 << 2  # 0100
 
 
+@dataclass
 class Index:
     '''
     data_struct = {
@@ -35,29 +37,10 @@ class Index:
         }
     }
     '''
+    index_type: IndexType
+    data: Dict[str, Dict[int, float]]
+    timestamp: int = field(default_factory=lambda: int(time.time() * 1_000))
+
     @classmethod
     def generate_timestamp(cls) -> int:
         return int(time.time() * 1_000)
-
-    def __init__(
-        self,
-        timestamp: int | None,
-        index_type: IndexType,
-        data: Dict[str, Dict[int, float]],
-    ) -> None:
-        self.__timestamp: int = timestamp if timestamp else self.generate_timestamp()
-        self.__index_type: IndexType = index_type
-        self.__data: Dict[str, Dict[int, float]] = data
-        return
-
-    @property
-    def timestamp(self):
-        return self.__timestamp
-
-    @property
-    def data(self):
-        return self.__data
-
-    @property
-    def index_type(self):
-        return self.__index_type
