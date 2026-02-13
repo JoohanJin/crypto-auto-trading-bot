@@ -3,8 +3,9 @@ import threading
 import pandas as pd
 from queue import Queue
 
-from src.brokers.mexc.http_client import FutureWebSocket
+from src.interfaces.websocket_interface import WebSocketInterface
 from src.infrastructure.logging.set_logger import get_logger, get_adapter
+from src.core.models.service_dto import Ticker
 
 logger = get_logger(__name__)
 
@@ -22,7 +23,7 @@ class DataCollector:
 
     def __init__(
         self,
-        websocket: FutureWebSocket,  # assume that only fetches the price data.
+        websocket_interface: WebSocketInterface,  # assume that only fetches the price data.
         price_data: pd.DataFrame,
         lock_price_data: threading.Lock,
         name: str | None = None,
@@ -30,10 +31,12 @@ class DataCollector:
         self.name: str = name if name else "DATA_COLLECTOR"
         self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
         
-        self.ws: FutureWebSocket = websocket  # make this into interface
+        self.wsi: WebSocketInterface = websocket_interface
         time.sleep(1)
 
+        # Initialize DataFrame with explicit schema to avoid FutureWarning
         self.price_data: pd.DataFrame = price_data
+        
         self.lock_price_data: threading.Lock = lock_price_data
 
         self.threads: list[threading.Thread] = []
@@ -42,7 +45,7 @@ class DataCollector:
         return
 
     def start(self) -> None:
-        self.ws.ticker(callback = self._put_ticker_data)
+        self.wsi.ticker(callback = self._put_ticker_data)
 
         self.__initialize_threads()
         self.__start_threads()
@@ -58,19 +61,9 @@ class DataCollector:
             )
             self.logger.info("Thread for price fetch has been set up!")
 
-            # thread_memory_save: threading.Thread = threading.Thread(
-            #     name = "resize_df",
-            #     target = self._resize_df,
-            #     daemon = True
-            # )
-            # self.logger.info(
-            #     "Thread for DataFrame size limit has been set up!"
-            # )
-
             self.threads.extend(
                 [
                     thread_price_fetch,
-                    # thread_memory_save,
                 ]
             )
         except (RuntimeError, TypeError, AttributeError, MemoryError) as e:
@@ -114,9 +107,10 @@ class DataCollector:
     # Data processor
     def _put_ticker_data(
         self,
-        msg: dict,
+        msg: Ticker,
     ) -> None:
         """
+        ;This function is a callback for ticker of the WebSocket
         func _put_ticker_data():
             - Put price data of the crypto into the buffer.
 
@@ -129,7 +123,7 @@ class DataCollector:
         """
         try:
             self.price_fetch_buffer.put(
-                msg.get("data"),
+                msg,
                 block = False,
                 timeout = None,
             )
@@ -145,7 +139,6 @@ class DataCollector:
     #                                   Get the Ticker Data from the Data Buffer                                         #
     ######################################################################################################################
     """
-
     # DataFetcher
     def _get_data_buffer(
         self,
@@ -180,24 +173,17 @@ class DataCollector:
         """
         while True:
             try:
-                response: dict | None = (
+                response: Ticker | None = (
                     self._get_data_buffer()
                 )  # data from the data buffer
-                if response:
-                    # TODO: store 'riseFallRates' and 'riseFallRatesTimezone'
-                    # timestamp = response["timestamp"]
 
-                    # make `the data, dictionary, into the pandas dataframe.
-                    tmp = pd.DataFrame(
-                        data = [response],
-                    )
-
-                    # set the timestamp as the index of the dataframe.
-                    tmp.set_index("timestamp", inplace = True)
-
-                    # merge the new dataframe to the existing dataframe.
+                if isinstance(response, Ticker):  # Type Checking
+                    # in-place modification to keep the same DataFrame reference
                     with self.lock_price_data:
-                        self.price_data = pd.concat([self.price_data, tmp], axis = 0)
+                        self.price_data.loc[response.timestamp] = {
+                            "symbol": f"{response.ticker.ticker}_{response.ticker.quote}",
+                            "price": response.price,
+                        }
 
             except Exception as e:
                 self.logger.critical(
