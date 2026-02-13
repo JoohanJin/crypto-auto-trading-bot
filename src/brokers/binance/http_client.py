@@ -15,6 +15,7 @@ from src.brokers.binance.http_gateway import BinanceFutureGateway
 # Data Structure
 from src.core.models.service_dto import (
     AccountInformation,
+    MarkPrice,
     Ping,
     Ticker,
     Position
@@ -482,15 +483,48 @@ class BinanceFutureHttpClient(HttpClient):
 
         return: The response from the server as a dictionary.
         """
+        def construct_mark_price_dto(data: dict) -> MarkPrice | list[MarkPrice]:
+            if isinstance(data, dict):
+                try:
+                    return MarkPrice(
+                        timestamp=data.get("time", self.generate_timestamp()),
+                        source=self.source,
+                        ticker=self._construct_trade_pair(symbol=data.get('symbol', "BTCUSDT")),
+                        mark_price=data.get("markPrice"),
+                    )
+                except Exception as e:
+                    self.logger.warning(
+                        f"Unexpected Error while constructing MarkPrice DTO: {str(e)}"
+                    )
+            elif isinstance(data, list):
+                res: list[MarkPrice] = []
+                for d in data:
+                    try:
+                        res.append(
+                            MarkPrice(
+                                timestamp=data.get("time", self.generate_timestamp()),
+                                source=self.source,
+                                ticker=self._construct_trade_pair(symbol=data.get('symbol', "BTCUSDT")),
+                                mark_price=data.get("markPrice"),
+                            )
+                        )
+                    except Exception as e:
+                        self.logger.warning(
+                            f"Unexpected Error while constructing MarkPrice DTO: {str(e)}"
+                        )
+                return res
+            return
         url: str = "/fapi/v1/premiumIndex"
         params: dict[str, str] = {
             "symbol": self._parse_trade_pair(symbol),
         }
 
-        return self.gateway.call(
-            method="GET",
-            url=url,
-            params=params,
+        return construct_mark_price_dto(
+            self.gateway.call(
+                method="GET",
+                url=url,
+                params=params,
+            )
         )
 
     def get_funding_rate_history(
@@ -1156,17 +1190,24 @@ class BinanceFutureHttpClient(HttpClient):
         asset: str | None = None,
         url: str = "/fapi/v3/balance",
         recv_window: int = 5_000,
-    ) -> list[AccountInformation] | AccountInformation | dict:
+    ) -> AccountInformation | None:
         def construct_account_information_dto(data: dict):
-            return AccountInformation(
-                timestamp=int(data.get('updateTime', None) or self.generate_timestamp()),
-                source=self.source,
-                id=data.get('accountAlias', None),
-                asset=data.get('asset'),
-                balance=float(data.get('balance', 0.0)),
-                unrealized_pnl=float(data.get('crossUnPnl', 0.0)),
-                available_balance=float(data.get('availableBalance', 0.0))
-            )
+            try:
+                return AccountInformation(
+                    timestamp=int(data.get('updateTime', None) or self.generate_timestamp()),
+                    source=self.source,
+                    id=data.get('accountAlias', None),
+                    asset=data.get('asset'),
+                    balance=float(data.get('balance', 0.0)),
+                    unrealized_pnl=float(data.get('crossUnPnl', 0.0)),
+                    available_balance=float(data.get('availableBalance', 0.0))
+                )
+            except Exception as e:
+                self.logger.warning(
+                    f"Unexpected error while constructing AccountInformation DTO: {str(e)}"
+                )
+                return
+            return
 
         params: dict[str, int] = {
             "recvWindow": recv_window,
@@ -1281,7 +1322,7 @@ if __name__ == "__main__":
         secret_key=os.getenv("BINANCE_HMAC_SECRET_KEY"),
     )
 
-    print(bfc.get_account_balance(asset = "USDT"))
+    print(bfc.get_mark_price())
     # response = bfc.get_all_orders()
     # for res in response:
     #     print(res)
