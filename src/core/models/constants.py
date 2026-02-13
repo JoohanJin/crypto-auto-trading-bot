@@ -4,13 +4,13 @@
 #
 '''
 MA_WRITE_PERIODS: tuple[int] = (
-    5,    # 10 sec
-    15,   # 30 sec
-    30,   # 60 sec, 1 min
-    150,  # 300 sec, 5 min
-    300,  # 600 sec, 10 min
-    600,  # 1200 sec, 20 min
-    900,  # 1800 sec, 30 min
+    10,    # 10 sec
+    20,   # 30 sec
+    60,   # 60 sec, 1 min
+    300,  # 300 sec, 5 min
+    600,  # 600 sec, 10 min
+    1_200,  # 1200 sec, 20 min
+    1_800,  # 1800 sec, 30 min
 )
 
 
