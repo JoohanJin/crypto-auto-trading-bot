@@ -7,7 +7,7 @@ import threading
 from queue import Queue
 
 # Custom Module
-from src.brokers.mexc.http_client import FutureWebSocket
+from src.interfaces.websocket_interface import WebSocketInterface
 from src.infrastructure.logging.set_logger import get_logger, get_adapter
 from src.data.data_saver import DataSaver
 from src.core.models.index import IndexType
@@ -34,7 +34,7 @@ class DataManager:
 
     def __init__(
         self,
-        websocket: FutureWebSocket,
+        websocket_interface: WebSocketInterface,
         pipeline_controller: PipelineController[dict[str, int | IndexType, dict[int, float]]],
         memory_count_limit: int = 2_000,
         name: str | None = None,
@@ -49,42 +49,25 @@ class DataManager:
         self.threads: list[threading.Thread] = []
 
         self.lock_price_data: threading.Lock = threading.Lock()
-        # default dataframe with the given columns
-        self.price_data: pd.DataFrame = pd.DataFrame(
-            columns=[
-                "symbol",
-                "lastPrice",
-                "riseFallRate",
-                "fairPrice",
-                "indexPrice",
-                "volume24",
-                "amount24",
-                "maxBidPrice",
-                "minAskPrice",
-                "lower24Price",
-                "high24Price",
-                "bid1",
-                "ask1",
-                "holdVol",
-                "riseFallValue",
-                "fundingRate",
-                "zone",
-                "riseFallRates",
-                "riseFallRatesOfTimezone",
-            ],
-            index = [self.generate_timestamp()],
+    
+        # default dataframe with the given columns and explicit dtypes
+        self.prices: pd.DataFrame = pd.DataFrame(
+            {
+                "symbol": pd.Series(dtype="object"),
+                "price": pd.Series(dtype="float64"),
+            },
         )
-        self.price_data.index.name = "timestamp"  # force the index name
+        self.prices.index.name = "timestamp"
 
         self.collector: DataCollector = DataCollector(
-            websocket = websocket,
-            price_data = self.price_data,
+            websocket_interface=websocket_interface,
+            price_data=self.prices,
             lock_price_data=self.lock_price_data,
         )
         self.processor: DataProcessor = DataProcessor(
-            price_data = self.price_data,
-            lock_price_data = self.lock_price_data,
-            pipeline_controller = pipeline_controller,
+            price_data=self.prices,
+            lock_price_data=self.lock_price_data,
+            pipeline_controller=pipeline_controller,
         )
 
         self.start()
@@ -135,7 +118,6 @@ class DataManager:
                 raise
         return
 
-    # Data Fetcher? -> let's make the separate class.
     def __resize_df(
         self,
         wait_time: int = 300,  # in seconds, 5 minutes by default

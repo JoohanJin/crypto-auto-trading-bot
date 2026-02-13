@@ -150,32 +150,36 @@ class DataProcessor:
         """
         try:
             current_ts = self.generate_timestamp()
-            cutoff_ts = current_ts - (periods[-1] * 2 * 1_000)
+            cutoff_ts = current_ts - (periods[-1] * 1_000)
 
             with self.lock_price_data:
                 if self.price_data.shape[0] == 0:
                     return None
-                mask = self.price_data.index >= cutoff_ts
-                tmp_dataframe = self.price_data.loc[mask, "fairPrice"].copy()
+                mask = (self.price_data.index >= cutoff_ts)
+                tmp_dataframe = self.price_data.loc[mask, "price"].copy()
 
-            sma:   Dict[int, float] = dict()  # oh.. make the dictionary object and put it.
-            ema:   Dict[int, float] = dict()
-            price: float = tmp_dataframe.iloc[-1]  # just last price data.
+            sma: Dict[int, float] = {}  # make the dictionary object and put it.
+            ema: Dict[int, float] = {}
+            price: float = float(tmp_dataframe.iloc[-1])  # just last price data.
 
             # TODO: this should be fast enough, but can be optimized further.
             for period in periods:
-                period_seconds = period * 2 * 1_000
-                period_cutoff_ts = current_ts - period_seconds
+                period_ms = period * 1_000
+                period_cutoff_ts = current_ts - period_ms
 
                 window = tmp_dataframe[tmp_dataframe.index >= period_cutoff_ts]
 
-                window = tmp_dataframe.tail(period)
+                # 최소 2개 데이터 필요
+                if len(window) < 2:
+                    continue
 
-                # if len(window) < min_data_points:  # The value of minimum data points needed?
-                #     break
+                # 실제 데이터 스팬 체크 (80% 이상 커버해야 함)
+                data_span = window.index.max() - window.index.min()
+                if data_span < period_ms * 0.8:
+                    continue
 
-                sma[period * 2] = float(window.mean())
-                ema[period * 2] = float(window.ewm(span = period, adjust = False).mean().iloc[-1])
+                sma[period] = float(window.mean())
+                ema[period] = float(window.ewm(span=period, adjust=False).mean().iloc[-1])
 
             timestamp: int = self.generate_timestamp()
 
