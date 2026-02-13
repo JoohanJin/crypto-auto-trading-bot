@@ -69,7 +69,8 @@ class MexcWebSocketClient(WebSocketClient):
         self,
         symbol: str,
     ) -> TradePair:
-        return symbol.split("_") if "_" in symbol else (symbol, "")
+        trade_pair: list[str] = symbol.split("_") if "_" in symbol else ["BTC", "USDT"]
+        return TradePair(ticker=trade_pair[0], quote=trade_pair[1])
 
     def _generate_param(
         self,
@@ -122,10 +123,10 @@ class MexcWebSocketClient(WebSocketClient):
             data = msg.get("data", {})
 
             # Parse symbol string back to TradePair (e.g., "BTC_USDT" -> "BTC", "USDT")
-            ticker_part, quote_part = self._construct_trade_pair(msg.get("symbol", data.get("symbol", "")))
+            trade_pair: TradePair = self._construct_trade_pair(msg.get("symbol", data.get("symbol", "")))
 
             ticker_dto: Ticker = Ticker(
-                ticker=TradePair(ticker=ticker_part, quote=quote_part),
+                ticker=trade_pair,
                 timestamp=data.get("timestamp", self.generate_timestamp()),
                 source="MEXC",
                 price=float(data.get("lastPrice", 0.0))
