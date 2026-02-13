@@ -35,6 +35,12 @@ class FairPrice(ServiceDTO):
 
 
 @dataclass(frozen=True)
+class MarkPrice(ServiceDTO):
+    ticker: TradePair
+    mark_price: float
+
+
+@dataclass(frozen=True)
 class Kline(ServiceDTO):
     ticker: TradePair
     interval: str  # Or define enum for this?
