@@ -21,8 +21,8 @@ class SignalGenerator:
     #                                               Static Method                                                        #
     ######################################################################################################################
     '''
-    @staticmethod
-    def generate_timestamp() -> int:
+    @classmethod
+    def generate_timestamp(cls) -> int:
         """
         static func generate_timestamp():
             - Generate the timestamp using the current time, in the form of epoch in ms.
