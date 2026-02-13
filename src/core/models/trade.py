@@ -9,11 +9,11 @@ class TradeState(IntFlag):
     '''
     - Data structure used in trade_manager (ENUM)
     '''
-    HOLD = 1 << 0
-    NEW_BUY = 1 << 1
-    NEW_SELL = 1 << 2
-    REVERSE_BUY = 1 << 3
-    REVERSE_SELL = 1 << 4
+    HOLD = 1 << 0  # 1
+    NEW_BUY = 1 << 1  # 2
+    NEW_SELL = 1 << 2  # 4
+    REVERSE_BUY = 1 << 3  # 8
+    REVERSE_SELL = 1 << 4  # 16
 
 
 class TimeInForce(IntFlag):
