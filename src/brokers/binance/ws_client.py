@@ -38,8 +38,8 @@ class BinanceWebSocketClient(WebSocketClient):
 
     def __init__(
         self,
-        api_key: str,  # Necessary
-        secret_key: str,  # Necessary
+        api_key: str | None = None,
+        secret_key: str | None = None,
         name: str = "BINANCE_WEBSOCKET_CLIENT",
         ping_interval: int = 20,
         default_callback: Callable | None = None,
@@ -79,6 +79,11 @@ class BinanceWebSocketClient(WebSocketClient):
         # self.wss["trade"]
 
         return
+
+    def _construct_trade_pair(self, symbol: str) -> TradePair:
+        symbol_ticker: str = symbol[:len(symbol) - 4] if symbol else "BTC"
+        symbol_quote: str = symbol[3:] if symbol else "USDT"
+        return TradePair(ticker=symbol_ticker, quote=symbol_quote)
 
     def start(self):
         for key in self.wss:
@@ -204,10 +209,9 @@ class BinanceWebSocketClient(WebSocketClient):
         '''
         def ticker_wrapper(msg: dict) -> None:
             symbol: str = msg.get("s", None)
-            symbol_ticker: str = symbol[3:]
-            symbol_quote: str = symbol[:len(symbol) - 4]
+            trade_pair: TradePair = self._construct_trade_pair(symbol)
             ticker = Ticker(
-                ticker=TradePair(ticker=symbol_ticker, quote=symbol_quote,),
+                ticker=trade_pair,
                 source="Binance",
                 price=float(msg.get('c', 0)),
                 timestamp=int(msg.get("E", self.generate_timestamp()))
