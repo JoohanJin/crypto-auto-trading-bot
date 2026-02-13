@@ -104,8 +104,7 @@ class SystemManager:
             # one more classs: trade_manager -> it will have the FutureMarket SDWK
             self.trade_manager: TradeManager = TradeManager(
                 signal_pipeline_controller = self.signal_pipeline_controller,
-                mexc_future = self.mexc_future,  # ! Need to remove this
-                binanace_future = self.binance_future,  # TODO: Need to replace this to to HttpInterface
+                http_interface=self.http_interface,
                 delta_mapper = self.mapper,
                 telegram_bot = self.telegram_bot,
             )
