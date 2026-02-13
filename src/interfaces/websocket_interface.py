@@ -31,6 +31,10 @@ class WebSocketInterface(BaseInterface[WebSocketClientRegistry, WebSocketClient]
             name=name if name else "WebSocketInterface"
         )
 
+        self.logger.info(
+            "It has been initialized and completed setup."
+        )
+
     def push_client(
         self,
         key: str,
