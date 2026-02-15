@@ -37,7 +37,7 @@ class PipelineController(Generic[T]):
         self.pipeline: BasePipeline = pipeline  # ! DataPipeline or SignalPipeline -> Unified Registry?
         self.time_window: int = time_window
 
-        self.logger.info("pipelineController has been generated.")
+        self.logger.info(f"[SERVICE_INIT] {self.name} initialized")
         return
 
     def push(
@@ -51,7 +51,7 @@ class PipelineController(Generic[T]):
             return True
         except Exception as e:
             self.logger.warning(
-                f"Unknown Error has been occured. Unsuccessful Push from the pipeline interface: {str(e)}"
+                f"[DATA_ERROR] push() | Error: {type(e).__name__}: {str(e)}"
             )
             return False
 
@@ -74,7 +74,7 @@ class PipelineController(Generic[T]):
             return None
         except Exception as e:
             # ! raise CustomException
-            self.logger.warning(f"Unknown Error has been occured. Unsuccessful Pop: {str(e)}")
+            self.logger.warning(f"[DATA_ERROR] pop() | Error: {type(e).__name__}: {str(e)}")
             raise  # ! raise the custom exception
 
     def check_data_validity(

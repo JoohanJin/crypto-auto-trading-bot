@@ -31,9 +31,7 @@ class WebSocketInterface(BaseInterface[WebSocketClientRegistry, WebSocketClient]
             name=name if name else "WebSocketInterface"
         )
 
-        self.logger.info(
-            "It has been initialized and completed setup."
-        )
+        self.logger.info(f"[SERVICE_INIT] {self.name} initialized")
 
     def push_client(
         self,
@@ -50,7 +48,7 @@ class WebSocketInterface(BaseInterface[WebSocketClientRegistry, WebSocketClient]
         try:
             self.client_registry.start()
         except Exception as e:
-            self.logger.info(f"Unexpected error while starting client: {str(e)}")
+            self.logger.info(f"[SERVICE_INIT_ERROR] {self.name} | Failed to start client | Error: {type(e).__name__}: {str(e)}")
         return
 
     def ticker(
@@ -64,7 +62,7 @@ class WebSocketInterface(BaseInterface[WebSocketClientRegistry, WebSocketClient]
                     trade_pair = self.trade_pair,
                 )
             except Exception as e:
-                self.logger.critical(f"Unexpected Error while subscribing to ticker: {str(e)}")
+                self.logger.critical(f"[WS_SUBSCRIBE] {self.name} | Error: {type(e).__name__}: {str(e)}")
         return
 
     def kline(
@@ -78,7 +76,7 @@ class WebSocketInterface(BaseInterface[WebSocketClientRegistry, WebSocketClient]
                     trade_pair=self.TradePair,
                 )
             except Exception as e:
-                self.logger.critical(f"Unexpected Error while subscribing to kline: {str(e)}")
+                self.logger.critical(f"[WS_SUBSCRIBE] {self.name} | Error: {type(e).__name__}: {str(e)}")
         return
 
     def depth(
@@ -92,5 +90,5 @@ class WebSocketInterface(BaseInterface[WebSocketClientRegistry, WebSocketClient]
                     trade_pair=self.TradePair,
                 )
             except Exception as e:
-                self.logger.critical(f"Unexpected Error while subscribing to depth/orderBook: {str(e)}")
+                self.logger.critical(f"[WS_SUBSCRIBE] {self.name} | Error: {type(e).__name__}: {str(e)}")
         return
