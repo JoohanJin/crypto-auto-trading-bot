@@ -39,4 +39,4 @@ class Order(ImmutableModel):
     ticker_size: float
     quote: str
     quote_size: float
-    meta_data: dict | None  # to keep the metadata in the form of json.
+    meta_data: dict  # to keep the metadata in the form of json.
