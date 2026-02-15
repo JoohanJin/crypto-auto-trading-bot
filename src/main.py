@@ -36,21 +36,28 @@ logger = get_logger(__name__)
 
 def main():
     try:
-        # ? Since __init__() for every class will activate them, no need to do anything here.
+        # Load environment variables
         load_dotenv()
+        logger.info("[APP_START] Application starting | Loading environment configuration")
 
-        main_system_manager: SystemManager = SystemManager()  # noqa: F841
+        # Initialize SystemManager
+        main_system_manager: SystemManager = SystemManager(name="MAIN_APP")  # noqa: F841
+        logger.info("[APP_INIT_COMPLETE] Application initialized | Status: ready")
 
-        # Start working
-        # TODO: change this approach to signal handling
+        # Start main event loop
+        logger.info("[APP_LOOP_START] Entering main event loop")
         while True:
-            time.sleep(0.5)  # Sleep to reduce the cpu usage.
+            time.sleep(0.5)  # Sleep to reduce CPU usage
+
+    except KeyboardInterrupt:
+        logger.warning("[APP_SHUTDOWN] User interrupt received | Action: graceful shutdown")
+        sys.exit(0)
     except RuntimeError as e:
-        logger.critical(f"function main() has raised an RuntimeError: {str(e)}")
+        logger.critical(f"[MAIN_RUNTIME_ERROR] RuntimeError | Error: RuntimeError: {str(e)}")
         sys.exit(1)
     except Exception as e:
         logger.critical(
-            f"function main() has raised an Unexpected error starting the system: {str(e)}"
+            f"[APP_STARTUP_ERROR] Unexpected error during startup | Error: {type(e).__name__}: {str(e)}"
         )
         sys.exit(1)
     return

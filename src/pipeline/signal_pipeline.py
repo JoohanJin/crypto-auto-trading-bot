@@ -33,6 +33,9 @@ class SignalPipeline(BasePipeline[Signal]):
         self.name: str = name if name else "SIGNAL_PIPELINE"
         self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
         self.signal_queue: Queue[Signal] = Queue()
+
+        self.logger.info(f"[COMPONENT_INIT] {self.name} | Status: active")
+
         return
 
     def push(
@@ -56,10 +59,10 @@ class SignalPipeline(BasePipeline[Signal]):
             )
             return True
         except Full:
-            self.logger.warning("Indicator Queue is full. Data cannot be added.")
+            self.logger.warning(f"[DATA_ERROR] push() | Error: Queue is full")
             return False
         except Exception as e:
-            self.logger.warning(f"Indicator Queue: Unknown exception has occurred: {str(e)}")
+            self.logger.warning(f"[DATA_ERROR] push() | Error: {type(e).__name__}: {str(e)}")
             return False
 
     def pop(
@@ -90,10 +93,10 @@ class SignalPipeline(BasePipeline[Signal]):
                 timeout=timeout,
             )
         except Empty:
-            self.logger.warning("Indicator Queue is empty. Data cannot be added.")
+            self.logger.warning(f"[DATA_ERROR] pop() | Error: Queue is empty")
             return None
         except Exception as e:
-            self.logger.warning(f"Indicator Queue: Unknown exception has occurred: {str(e)}")
+            self.logger.warning(f"[DATA_ERROR] pop() | Error: {type(e).__name__}: {str(e)}")
             return None
 
 

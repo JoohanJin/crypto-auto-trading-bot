@@ -48,6 +48,8 @@ class DataPipeline(BasePipeline[Index]):  # TODO: Make the object for th Data ob
         self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
         # data buffer, can be added in the future.
 
+        self.logger.info(f"[COMPONENT_INIT] {self.name} | Status: active")
+
         return
 
     def push(
@@ -84,10 +86,10 @@ class DataPipeline(BasePipeline[Index]):  # TODO: Make the object for th Data ob
             )
             return True
         except queue.Full:
-            self.logger.warning("Queue is full. Data cannot be added.")
+            self.logger.warning(f"[DATA_ERROR] push() | Error: Queue is full")
             return False
         except Exception as e:
-            self.logger.warning(f"self.queue: Unknown exception has occurred: {str(e)}")
+            self.logger.warning(f"[DATA_ERROR] push() | Error: {type(e).__name__}: {str(e)}")
             return False
 
     def pop(
@@ -115,8 +117,8 @@ class DataPipeline(BasePipeline[Index]):  # TODO: Make the object for th Data ob
         try:
             return self.queue.get(block=block, timeout=timeout)
         except queue.Empty:
-            self.logger.warning("self.queue is empty: Data cannot be retrieved.")
+            self.logger.warning(f"[DATA_ERROR] pop() | Error: Queue is empty")
             return None
         except Exception as e:
-            self.logger.warning(f"self.queue: Unknown exception has occurred: {str(e)}.")
+            self.logger.warning(f"[DATA_ERROR] pop() | Error: {type(e).__name__}: {str(e)}")
             return None
