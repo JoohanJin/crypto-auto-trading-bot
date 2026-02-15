@@ -22,7 +22,7 @@ class TimeInForce(IntFlag):
     IOC = 1 << 2  # Immediate or Cancel -> the order must be executed immedately, but can be partially filled.
 
 
-class OrderType(IntFlag):
+class PositionType(IntFlag):
     LIMIT_ORDER = 1 << 0
     MARKET_ORDER = 1 << 1
     STOP_LIMIT_ORDER = 1 << 2
@@ -49,3 +49,5 @@ class TradePair(ImmutableModel):
 
 if __name__ == "__main__":
     a = TradePair("BTC", "USDT")
+    print(a)
+    print(TradeState["NEW_BUY"])

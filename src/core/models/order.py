@@ -28,7 +28,7 @@ class Side(IntFlag):
 @dataclass(frozen=True)
 class Order(ImmutableModel):
     side: Side  # BUY or SELL
-    type_str: str  # "BUY" or "SELL"
+    side_str: str  # "BUY" or "SELL"
     leverage: int
     entry_price: float  # Entry price - current price
     tp_price: float  # Take Profit Price: + 20% for reverse ordering enabled broker

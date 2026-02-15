@@ -2,10 +2,11 @@
 from typing import Literal, Union
 
 # logger
+from src.core.models.order import Side
 from src.infrastructure.logging.set_logger import get_logger, get_adapter
 
 # Custom Library
-from src.core.models.trade import OrderType, TimeInForce, TradePair
+from src.core.models.trade import PositionType, TimeInForce, TradePair
 
 # RESTful Client
 from src.brokers.base.http_client import HttpClient
@@ -1072,6 +1073,9 @@ class BinanceFutureHttpClient(HttpClient):
                 if orig_qty == 0:
                     continue
 
+                # TODO: find better Exception Handling method
+                side: Side = Side[order.get("side", "BUY").upper()]
+
                 position = Position(
                     timestamp=self.generate_timestamp(),
                     source=self.source,
@@ -1079,8 +1083,8 @@ class BinanceFutureHttpClient(HttpClient):
                     ticker=self._construct_trade_pair(order.get("symbol")),
                     status=order.get("status", ""),
                     time_in_force=TimeInForce[order.get("timeInForce", "GTC")],
-                    order_type=OrderType[order.get("type", "MARKET")],
-                    side=order.get("side", ""),
+                    order_type=PositionType[order.get("type", "MARKET")],
+                    side=side,
                     position_side=order.get("positionSide", "BOTH"),
                     orig_qty=orig_qty,
                     executed_qty=float(order.get("executedQty", 0)),
