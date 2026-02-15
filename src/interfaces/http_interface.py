@@ -36,14 +36,14 @@ class HttpInterface(BaseInterface[HttpClientRegistry, HttpClient]):
         method_args: dict | None = None,
     ) -> dict[str, Any]:
         """
-        공통 헬퍼 메서드: 모든 클라이언트에서 메서드를 실행하고 결과를 수집
+        Common helper method: Execute method on all clients and collect results.
 
-        param method_name: 호출할 클라이언트 메서드 이름
-        param response_validator: 응답이 유효한지 검증하는 함수
-        param result_key_extractor: 결과 딕셔너리의 키를 추출하는 함수
-        param method_args: 메서드에 전달할 인자 (기본값: None)
+        param method_name: Name of the method to call on each client
+        param response_validator: Function to validate if response is valid
+        param result_key_extractor: Function to extract key for result dictionary
+        param method_args: Arguments to pass to method (default: None)
 
-        return: 클라이언트 키와 결과를 매핑한 딕셔너리
+        return: Dictionary mapping client key to results
         """
         results = {}
         method_args = method_args or {}
