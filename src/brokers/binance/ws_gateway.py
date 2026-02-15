@@ -76,7 +76,7 @@ class BinanceUserWebSocket(WebSocket):
             if (self.ws and self.ws.sock and self.ws.sock.connected):
                 return True
         except Exception as e:
-            self.logger.critical(f"Unexpected problem whic checking the connection state: {str(e)}")
+            self.logger.critical(f"[WS_PING_PONG] Binance | Error: {type(e).__name__}: {str(e)}")
         return False
 
     def start(self) -> None:
@@ -93,9 +93,9 @@ class BinanceUserWebSocket(WebSocket):
                 if self._is_connected():
                     self.ws.send(payload)
             except Exception as e:
-                self.logger.info(f"Unexpected error while authenticating: {str(e)}")
+                self.logger.info(f"[WS_AUTH_ERROR] Binance | Error: {type(e).__name__}: {str(e)}")
         else:
-            self.logger.critical("type of the data passed is not dictionary.")
+            self.logger.critical(f"[BROKER_ERROR] Binance | Error: Data must be a dictionary, got {type(data)}")
             raise
         return
 
@@ -136,16 +136,16 @@ class BinanceUserWebSocket(WebSocket):
             time.sleep(1)
             return
         except Exception as e:
-            self.logger.critical(f"Binance WebSocket has unexpected error: {str(e)}")
+            self.logger.critical(f"[WS_AUTH_ERROR] Binance | Error: {type(e).__name__}: {str(e)}")
         return
 
     def _update_authenticated(self, data: dict | list) -> None:
         if isinstance(data, dict):
             if data.get('status', None) == 200:
                 self._authenticated = True
-                self.logger.info(f"Authentication to {self.url} has been successful.")
+                self.logger.info(f"[WS_AUTH_SUCCESS] Binance | Status: authenticated")
         else:
-            self.logger.critical(f"Authentication to {self.url} has not been successful.")
+            self.logger.critical(f"[WS_AUTH_ERROR] Binance | Error: Authentication msg format is wrong.")
             raise TypeError("authentication msg format is wrong.")
         return
 
@@ -215,15 +215,15 @@ class BinanceUserWebSocket(WebSocket):
         for thread in self.threads:
             try:
                 thread.start()
-                self.logger.info(f"{thread.name} has been started successfully.")
+                self.logger.info(f"[THREAD_START] {thread.name} | Status: running")
                 time.sleep(1.0)
             except Exception as e:
-                self.logger.critical(f"{thread.name} has not been started successfully: {str(e)}")
+                self.logger.critical(f"[THREAD_ERROR] {thread.name} failed | Error: {type(e).__name__}: {str(e)}")
                 raise
         return
 
     def _clean_up_connections(self) -> None:
-        self.logger.info(f"Cleaning up {len(self.threads)} threads.")
+        self.logger.info(f"[SHUTDOWN] Cleaning up {len(self.threads)} threads.")
 
         self._thread_stop.set()
 
@@ -231,9 +231,9 @@ class BinanceUserWebSocket(WebSocket):
             if self._is_connected():
                 self.ws.close()
             else:
-                self.logger.critical("No need to close the WebSocket since the WebSocket already closed.")
+                self.logger.critical(f"[WS_CLOSE] Binance | Status: 0 | Reason: WebSocket already closed.")
         except Exception as e:
-            self.logger.critical(f"Unexpected Error during close: {str(e)}")
+            self.logger.critical(f"[WS_CLOSE] Binance | Error: {type(e).__name__}: {str(e)}")
 
         self.threads.clear()
         self._thread_stop.clear()
@@ -248,25 +248,25 @@ class BinanceUserWebSocket(WebSocket):
 
         while not self._is_connected():
             if self._intentional_close.is_set():
-                self.logger.info("Intentional close detected during reconnect, aborting.")
+                self.logger.info(f"[WS_CLOSE] Binance | Reason: Intentional close during reconnect")
                 return
 
             try:
-                self.logger.info("Attempting reconnection...")
+                self.logger.info(f"[WS_RECONNECT] Binance | Attempt: retrying...")
 
                 self._reconnect()
 
                 # Wait for connection to be ready
                 if self._connection_ready.wait(timeout=10.0):
                     self._resubscribe()
-                    self.logger.info("Reconnection completed successfully.")
+                    self.logger.info(f"[SUCCESS] Reconnection successful")
                     return
 
             except Exception as e:
-                self.logger.warning(f"Reconnection attempt failed: {str(e)}")
+                self.logger.warning(f"[WS_RECONNECT] Binance | Error: {type(e).__name__}: {str(e)}")
 
             # Wait before next attempt
-            self.logger.info(f"Waiting {retry_delay}s before next reconnect attempt...")
+            self.logger.info(f"[WS_RECONNECT] Binance | Next Retry: {retry_delay:.2f}s")
             time.sleep(retry_delay)
         return
 
@@ -320,11 +320,11 @@ class BinanceUserWebSocket(WebSocket):
     def _reconnect(self) -> None:
         # Prevent concurrent reconnection attempts
         if not self._reconnect_lock.acquire(blocking=False):
-            self.logger.info("Reconnection already in progress, skipping.")
+            self.logger.info(f"[WS_RECONNECT] Binance | Reason: Reconnection already in progress")
             return
 
         try:
-            self.logger.info("Starting reconnection process...")
+            self.logger.info(f"[WS_RECONNECT] Binance | Status: Starting process")
 
             # Signal threads to stop
             self._thread_stop.set()
@@ -354,7 +354,7 @@ class BinanceUserWebSocket(WebSocket):
         self,
         ws: websocket.WebSocketApp,
     ) -> None:
-        self.logger.info(f"WebSocket has been opened and made a connection to {ws.url} [v]")
+        self.logger.info(f"[WS_OPEN] Binance | URL: {ws.url} | Status: opened")
         return
 
     def on_message(
@@ -383,14 +383,14 @@ class BinanceUserWebSocket(WebSocket):
         status_code: int,
         close_msg: str,
     ) -> None:
-        self.logger.warning(f"has been closed with {status_code}: {close_msg}")
+        self.logger.warning(f"[WS_CLOSE] Binance | Status: {status_code} | Reason: {close_msg}")
 
         if self._intentional_close.is_set():
             self._intentional_close.clear()
             return
 
         else:
-            self.logger.info("Accidential Websocket closure Detected. Spawining a reconnection thread.")
+            self.logger.info(f"[WS_RECONNECT] Binance | Status: Accidental closure detected")
         # handle reconnection logic
             reconnection_thread: threading.Thread = threading.Thread(
                 name=f"{self.name}_reconnection_thread",
@@ -414,7 +414,7 @@ class BinanceUserWebSocket(WebSocket):
     ) -> None:
         # Send pong response via underlying socket
         ws.sock.pong(data)
-        self.logger.info(f"Sent pong response to {ws.url}")
+        self.logger.debug(f"[WS_PING_PONG] Binance | Type: PONG | Status: success")
         return
 
     '''
@@ -556,19 +556,19 @@ class BinanceMarketWebSocket(WebSocket):
             try:
                 thread.start()
                 self.logger.info(
-                    f"{thread.name} has been started successfully."
+                    f"[THREAD_START] {thread.name} | Status: running"
                 )
                 time.sleep(1.0)
             except Exception as e:
                 self.logger.critical(
-                    f"{thread.name} has not been started successfully: {str(e)}"
+                    f"[THREAD_ERROR] {thread.name} failed | Error: {type(e).__name__}: {str(e)}"
                 )
                 raise
         return
 
     def _clean_up_connections(self) -> None:
         self.logger.info(
-            f"Cleaning up {len(self.threads)} threads."
+            f"[SHUTDOWN] Cleaning up {len(self.threads)} threads."
         )
 
         self._thread_stop.set()
@@ -578,11 +578,11 @@ class BinanceMarketWebSocket(WebSocket):
                 self.ws.close()
             else:
                 self.logger.info(
-                    "No need to close the WebSocket since the WebSocket already closed."
+                    f"[WS_CLOSE] Binance | Reason: WebSocket already closed."
                 )
         except Exception as e:
             self.logger.critical(
-                f"Unexpected error during close: {str(e)}"
+                f"[WS_CLOSE] Binance | Error: {type(e).__name__}: {str(e)}"
             )
 
         self.threads.clear()
@@ -648,7 +648,7 @@ class BinanceMarketWebSocket(WebSocket):
         try:
             self.send(payload)
             self.logger.info(
-                f"sent request for subscriptions for: {streams}"
+                f"[WS_SUBSCRIBE] Binance | Topic: {streams} | Status: sent"
             )
 
             with self.callbacks_lock:
@@ -663,7 +663,7 @@ class BinanceMarketWebSocket(WebSocket):
                 self.streams[id] = streams
         except Exception as e:
             self.logger.warning(
-                f"Unexpected error while making a subscription: {str(e)}"
+                f"[WS_SUBSCRIBE] Binance | Error: {type(e).__name__}: {str(e)}"
             )
 
         return
@@ -699,7 +699,7 @@ class BinanceMarketWebSocket(WebSocket):
 
         self.send(payload)
         self.logger.info(
-            f"Unsubscribed from streams: {streams}"
+            f"[WS_UNSUBSCRIBE] Binance | Topic: {streams} | Status: unsubscribed"
         )
         return
 
@@ -791,7 +791,7 @@ class BinanceMarketWebSocket(WebSocket):
     '''
     def on_open(self, ws: websocket.WebSocketApp) -> None:
         self.logger.info(
-            f"WebSocket opened, connected to {ws.url} [v]"
+            f"[WS_OPEN] Binance | URL: {ws.url} | Status: opened"
         )
         return
 
@@ -840,7 +840,7 @@ class BinanceMarketWebSocket(WebSocket):
 
             if stream is not None:
                 self.logger.info(
-                    f"Successfully Subscribed to {str(stream)}"
+                    f"[WS_SUBSCRIBE] Binance | Topic: {stream} | Status: subscribed"
                 )
             return
 
@@ -870,7 +870,7 @@ class BinanceMarketWebSocket(WebSocket):
         close_msg: str,
     ) -> None:
         self.logger.warning(
-            f"WebSocket closed with {status_code}: {close_msg}"
+            f"[WS_CLOSE] Binance | Status: {status_code} | Reason: {close_msg}"
         )
 
         if self._intentional_close.is_set():
@@ -878,7 +878,7 @@ class BinanceMarketWebSocket(WebSocket):
             return
 
         self.logger.info(
-            "Accidental closure detected, spawning reconnection thread."
+            f"[WS_RECONNECT] Binance | Status: Accidental closure detected"
         )
 
         reconnection_thread = threading.Thread(
@@ -891,15 +891,15 @@ class BinanceMarketWebSocket(WebSocket):
 
     def on_error(self, ws: websocket.WebSocketApp, error: Exception) -> None:
         self.logger.error(
-            f"WebSocket error: {str(error)}"
+            f"[WS_PING_PONG] Binance | Error: {type(error).__name__}: {str(error)}"
         )
         return
 
     def on_ping(self, ws: websocket.WebSocketApp, data: str | bytes) -> None:
         """Respond to server ping with pong."""
         ws.sock.pong(data)
-        self.logger.info(
-            f"Sent pong response to {ws.url}"
+        self.logger.debug(
+            f"[WS_PING_PONG] Binance | Type: PONG | Status: success"
         )
         return
 

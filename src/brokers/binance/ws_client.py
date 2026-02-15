@@ -91,11 +91,11 @@ class BinanceWebSocketClient(WebSocketClient):
             try:
                 ws.start()
                 self.logger.info(
-                    f"Successfully started {ws.name if hasattr(ws, 'name') else f'{self.name}_{key.upper()}_WEBSOCKET'}."
+                    f"[WS_OPEN] Binance | URL: {ws.url} | Status: opened"
                 )
             except Exception as e:
                 self.logger.critical(
-                    f"Unexpected Error while starting {ws.name if hasattr(ws, 'name') else f'{self.name}_{key.upper()}_WEBSOCKET'}: {str(e)}"
+                    f"[WS_OPEN] Binance | Error: {type(e).__name__}: {str(e)}"
                 )
 
         self._authenticate()
@@ -275,8 +275,9 @@ class BinanceWebSocketClient(WebSocketClient):
 
         try:
             ws.subscribe(streams=stream, push_topic=push_topic, callback=callback)
+            self.logger.info(f"[WS_SUBSCRIBE] Binance | Topic: {stream} | Status: subscribed")
         except Exception as e:
-            self.logger.critical(f"Failed to subscribe to {stream}: {str(e)}")
+            self.logger.critical(f"[WS_SUBSCRIBE] Binance | Error: {type(e).__name__}: {str(e)}")
         return
 
     def _user_subscribe(
@@ -289,11 +290,11 @@ class BinanceWebSocketClient(WebSocketClient):
         symbol = self._parse_trade_pair(trade_pair, capitalize=True)
 
         if not isinstance(ws, BinanceUserWebSocket):
-            self.logger.error("UserWebSocketClient is not initialized.")
+            self.logger.error(f"[WS_SUBSCRIBE] Binance | Error: UserWebSocketClient is not initialized.")
             return
 
         if not callable(callback):
-            self.logger.error(f"The provided callback for {stream} is not callable.")
+            self.logger.error(f"[WS_SUBSCRIBE] Binance | Error: The provided callback for {stream} is not callable.")
             return
 
         try:
@@ -304,8 +305,9 @@ class BinanceWebSocketClient(WebSocketClient):
                     "symbol": symbol,
                 }
             )
+            self.logger.info(f"[WS_SUBSCRIBE] Binance | Topic: {stream} | Status: subscribed")
         except Exception as e:
-            self.logger.critical(f"Failed to subscribe to {stream}: {str(e)}")
+            self.logger.critical(f"[WS_SUBSCRIBE] Binance | Error: {type(e).__name__}: {str(e)}")
         return
 
 

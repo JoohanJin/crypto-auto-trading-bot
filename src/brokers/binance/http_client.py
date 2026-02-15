@@ -78,7 +78,7 @@ class BinanceFutureHttpClient(HttpClient):
             secret_key=secret_key,
         )
 
-        self.logger.info(f"{self.name} has been initialized.")
+        self.logger.info(f"[SERVICE_INIT] {self.name} initialized")
 
         return
 
@@ -490,11 +490,12 @@ class BinanceFutureHttpClient(HttpClient):
                         timestamp=data.get("time", self.generate_timestamp()),
                         source=self.source,
                         ticker=self._construct_trade_pair(symbol=data.get('symbol', "BTCUSDT")),
-                        mark_price=data.get("markPrice"),
+                        mark_price=round(float(data.get("markPrice", 0.0)), 2),
                     )
                 except Exception as e:
                     self.logger.warning(
-                        f"Unexpected Error while constructing MarkPrice DTO: {str(e)}"
+                        f"[INVALID_RESPONSE] construct_mark_price_dto() | "
+                        f"Error: {type(e).__name__}: {str(e)}"
                     )
             elif isinstance(data, list):
                 res: list[MarkPrice] = []
@@ -510,7 +511,8 @@ class BinanceFutureHttpClient(HttpClient):
                         )
                     except Exception as e:
                         self.logger.warning(
-                            f"Unexpected Error while constructing MarkPrice DTO: {str(e)}"
+                            f"[INVALID_RESPONSE] construct_mark_price_dto() | "
+                            f"Error: {type(e).__name__}: {str(e)}"
                         )
                 return res
             return
@@ -1198,13 +1200,14 @@ class BinanceFutureHttpClient(HttpClient):
                     source=self.source,
                     id=data.get('accountAlias', None),
                     asset=data.get('asset'),
-                    balance=float(data.get('balance', 0.0)),
-                    unrealized_pnl=float(data.get('crossUnPnl', 0.0)),
-                    available_balance=float(data.get('availableBalance', 0.0))
+                    balance=round(float(data.get('balance', 0.0)), 2),
+                    unrealized_pnl=round(float(data.get('crossUnPnl', 0.0)), 2),
+                    available_balance=round(float(data.get('availableBalance', 0.0)), 2)
                 )
             except Exception as e:
                 self.logger.warning(
-                    f"Unexpected error while constructing AccountInformation DTO: {str(e)}"
+                    f"[INVALID_RESPONSE] construct_account_information_dto() | "
+                    f"Error: {type(e).__name__}: {str(e)}"
                 )
                 return
             return
