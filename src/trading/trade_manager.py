@@ -267,7 +267,7 @@ class TradeManager:
         loop.run_until_complete(self._thread_decide_trade())
         return
 
-    def _decide_trade(  # TODO-Short-term: need to modify this pat
+    def _decide_trade(
             self,
             score: int,
     ) -> TradeState:
@@ -308,51 +308,6 @@ class TradeManager:
             if (score < (-1 * self.score_threshold)):
                 return TradeState.NEW_SELL
         return TradeState.HOLD  # by default it is not doing anything.
-
-    async def _thread_decide_trade(
-        self,
-    ) -> None:
-        """
-        func _thread_decide_trade():
-            - private method
-            - decide the trade based on the signal.
-            - This function should be run by the other function which is monitoring some schema.
-
-        param self:
-            - TradeManager object
-
-        return None:
-        """
-        while True:
-            try:
-                with self.trade_score_lock:
-                    score: int = self.trade_score
-
-                decision: TradeState = self._decide_trade(
-                    score = score,
-                )
-
-                if decision in (
-                    TradeState.NEW_BUY,
-                    TradeState.NEW_SELL,
-                    TradeState.REVERSE_BUY,
-                    TradeState.REVERSE_SELL
-                ):  # can be further improved in the future.
-                    # Trade
-                    await self._execute_trade(
-                        buy_or_sell = decision,
-                    )
-
-                    # reset the score, but based on the trend
-                    # TODO: need to implement more sophisticated one.
-                    with self.trade_score_lock:
-                        self.trade_score = self.trend_manager_score if decision in (2, 8) else -1 * (self.trend_manager_score)
-
-                await asyncio.sleep(0.25)
-
-            except Exception as e:
-                self.logger.error(f"[TRADE_DECISION_ERROR] Failed | Score: {score} | Error: {type(e).__name__}: {str(e)}")
-        return
 
     def _construct_new_order(
         self,
@@ -403,10 +358,11 @@ class TradeManager:
                 leverage=self.leverage,  # TODO: Need to dynamically decide the leverage
                 tp_price=tp_price,
                 sl_price=sl_price,
-                ticker=self.trade_pair.ticker,  # TODO: Need to dynamically decide the leverage
-                ticker_size=ticker_size,
-                quote=self.trade_pair.quote,  # TODO: Need to dynamically decide the leverage
-                quote_size=quote_size,
+                trade_pair=self.trade_pair,
+                ticker=self.trade_pair.ticker,
+                ticker_size=ticker_size,  # TODO: Need to dynamically decide the ticker size rather than fixed ratio
+                quote=self.trade_pair.quote,
+                quote_size=quote_size,  # TODO: Need to dynamically decide the quote size rather than fixed ratio
                 meta_data=meta_data,
             )
         except Exception as e:
@@ -444,8 +400,23 @@ class TradeManager:
             return base_message + "It is the new order."
         elif buy_or_sell in (8, 16):  # REVERSE_BUY or REVERSE_SELL
             return base_message + "It is the reverse order."
-        
-        return None
+        return
+
+    def _make_order(
+        self,
+        order: Order,
+    ) -> None:
+        try:
+            self.binance_client.order(order=order)
+        except Exception as e:
+            self.logger.critical(
+                f"[ORDER_REGISTRATION_ERROR] Type: {order.type_str} "
+                f"| Price: {order.entry_price} | Error: {type(e).__name__}: {str(e)}"
+            )
+            raise Exception(
+                f"{__name__} - {self.__class__.__name__} - Unexpected Error while ordering: {str(e)}"
+            ) from e
+        return
 
     async def _execute_trade(
         self,
@@ -468,9 +439,6 @@ class TradeManager:
 
             order: Order = self._construct_new_order(buy_or_sell)
             message: str | None = self._format_trade_message(order, buy_or_sell)
-            
-            if message is None:  # bitflip error (never know)
-                return
 
             # order trigger to the telegram bot
             self._make_order(order)
@@ -482,24 +450,50 @@ class TradeManager:
             )
             raise Exception
         return
-
-    def _make_order(
+    
+    async def _thread_decide_trade(
         self,
-        order: Order,
     ) -> None:
-        try:
-            # TODO: make an order to the given broker
+        """
+        func _thread_decide_trade():
+            - private method
+            - decide the trade based on the signal.
+            - This function should be run by the other function which is monitoring some schema.
 
-            with self.lock_previous_order:
-                self.previous_order = order
-        except Exception as e:
-            self.logger.critical(
-                f"[ORDER_REGISTRATION_ERROR] Type: {order.type_str} "
-                f"| Price: {order.entry_price} | Error: {type(e).__name__}: {str(e)}"
-            )
-            raise Exception(
-                f"{__name__} - {self.__class__.__name__} - Unexpected Error while ordering: {str(e)}"
-            ) from e
+        param self:
+            - TradeManager object
+
+        return None:
+        """
+        while True:
+            try:
+                with self.trade_score_lock:
+                    score: int = self.trade_score
+
+                decision: TradeState = self._decide_trade(
+                    score = score,
+                )
+
+                if decision in (
+                    TradeState.NEW_BUY,
+                    TradeState.NEW_SELL,
+                    TradeState.REVERSE_BUY,
+                    TradeState.REVERSE_SELL
+                ):  # can be further improved in the future.
+                    # Trade
+                    await self._execute_trade(
+                        buy_or_sell = decision,
+                    )
+
+                    # reset the score, but based on the trend
+                    # TODO: need to implement more sophisticated one.
+                    with self.trade_score_lock:
+                        self.trade_score = self.trend_manager_score if decision in (2, 8) else -1 * (self.trend_manager_score)
+
+                await asyncio.sleep(0.25)
+
+            except Exception as e:
+                self.logger.error(f"[TRADE_DECISION_ERROR] Failed | Score: {score} | Error: {type(e).__name__}: {str(e)}")
         return
 
     def _thread_get_signal(
