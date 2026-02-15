@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from enum import IntFlag
 
 from src.core.models.base import ImmutableModel
+from src.core.models.trade import TradePair
 
 
 class OrderHistory:
@@ -33,6 +34,7 @@ class Order(ImmutableModel):
     entry_price: float  # Entry price - current price
     tp_price: float  # Take Profit Price: + 20% for reverse ordering enabled broker
     sl_price: float  # Stop Loss Price: -20% for reverse ordering enblaed broker
+    trade_pair: TradePair
     ticker: str
     ticker_size: float
     quote: str
