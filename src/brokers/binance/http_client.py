@@ -834,50 +834,66 @@ class BinanceFutureHttpClient(HttpClient):
         '''
         # ORDER
 
+        res: list[dict] = []
+
         # TODO: decide the following:
         # Sequential manner or multi-threaded manner?
-        self.change_initial_leverage(
-            leverage=order.leverage,
-        )  # change the leverage to the default, 5 for now.
+        res.append(
+            self.change_initial_leverage(
+                leverage=order.leverage,
+            )  # change the leverage to the default, 5 for now.
+        )
 
         # MAIN ORDER
-        res = self.place_order(
+        response = self.place_order(
             order=order,
             recv_window=recv_window,
         )
-        if (res.get("status") == "NEW"):
+        if (response.get("status") == "NEW"):
             self.logger.info("The new order has been opened.")
+        else:
+            return
 
-        # STOP LOSS
-        self.place_order(
-            symbol=order.trade_pair,
-            stop_price=order.sl_price,
-            type="STOP_MARKET",
-            side="BUY" if order.side_str == "SELL" else "SELL",  # Opposite of the Main Order
-            close_position="true",
-            time_in_force="GTE_GTC",
-            recv_window=recv_window,
-        )
-        self.logger.info(f"The new order's STOP LOSS PRICE is at {order.sl_price}.")
+        res.append(response)
 
-        # TAKE PROFIT
-        self.place_order(
-            symbol=order.trade_pair,
-            stop_price=order.tp_price,
-            type="TAKE_PROFIT_MARKET",
-            side="BUY" if order.side_str == "SELL" else "SELL",  # Opposite of the Main Order
-            close_position="true",
-            time_in_force="GTE_GTC",
-            recv_window=recv_window,
-        )
-        self.logger.info(f"The new order's TAKE PROFIT PRICE is at {order.tp_price}.")
+        # ! SL and TP Support has been moved to Algo trading endpoint rather than the FutureEndPoint.
+        # ! What is the point lol
+        # # Opposite side for SL/TP (closing the position)
+        # opposite_side = "SELL" if order.side_str == "BUY" else "BUY"
 
-        return
+        # # STOP LOSS
+        # res.append(
+        #     self.place_order(
+        #         order=order,
+        #         side=opposite_side,
+        #         stop_price=order.sl_price,
+        #         type="STOP_MARKET",
+        #         close_position="true",
+        #         recv_window=recv_window,
+        #     )
+        # )
+        # self.logger.info(f"The new order's STOP LOSS PRICE is at {order.sl_price}.")
+
+        # # TAKE PROFIT
+        # res.append(
+        #     self.place_order(
+        #         order=order,
+        #         side=opposite_side,
+        #         stop_price=order.tp_price,
+        #         type="TAKE_PROFIT_MARKET",
+        #         close_position="true",
+        #         recv_window=recv_window,
+        #     )
+        # )
+        # self.logger.info(f"The new order's TAKE PROFIT PRICE is at {order.tp_price}.")
+
+        return res
 
     def place_order(
         self,
         order: Order,
         recv_window: int,  # 5_000 ms is the default value, i.e., 5 sec.
+        side: str | None = None,  # Override order.side_str (needed for SL/TP opposite side)
         position_side: str | None = None,  # "BOTH", "LONG", "SHORT", None
         type: Union[Literal["MARKET"], Literal["TAKE_PROFIT_MARKET"], Literal["STOP_MARKET"]] = "MARKET",
         reduce_only: str | None = None,
@@ -906,14 +922,19 @@ class BinanceFutureHttpClient(HttpClient):
             - to provide the USDT Amount to buy or sell. (NOT BTC AMT)
             - to set the leverage, 20 by default.
 
+        - NOTE: quantity and closePosition are mutually exclusive.
+            - When closePosition="true", quantity must NOT be sent.
+        - NOTE: timeInForce is NOT valid for STOP_MARKET / TAKE_PROFIT_MARKET.
         '''
+        # Use overridden side if provided, otherwise use order's side
+        order_side = side if side else order.side_str
+
         params: dict[str, int | float | str] = dict(
             symbol=self._parse_trade_pair(order.trade_pair),
-            side=order.side_str,
+            side=order_side,
             position_side=position_side,
             type=type,
             time_in_force=time_in_force,
-            quantity=max(order.ticker_size, 0.002),
             reduce_only=reduce_only,
             price=price,
             new_client_order_id=new_client_order_id,
@@ -930,6 +951,10 @@ class BinanceFutureHttpClient(HttpClient):
             recv_window=recv_window,
             timestamp=self.generate_timestamp(),
         )
+
+        # quantity and closePosition are mutually exclusive per Binance API
+        if close_position != "true":
+            params["quantity"] = max(order.ticker_size, 0.002)
 
         return self.gateway.call(
             method="POST",
