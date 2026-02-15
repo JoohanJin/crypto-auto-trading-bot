@@ -66,7 +66,8 @@ class HttpService(ABC):
                 return model.model_validate(payload)
         except ValidationError as e:  # pragma: no cover - pydantic detail
             self.logger.critical(
-                f"Failed to parse response into {model.__name__}: {str(e)}"
+                f"[INVALID_RESPONSE] parse_response() | Expected: {model.__name__} | "
+                f"Error: {type(e).__name__}: {str(e)}"
             )
 
             raise ValueError(
@@ -74,7 +75,8 @@ class HttpService(ABC):
             ) from e
 
         self.logger.critical(
-            f"Response body of type {type(payload).__name__} cannot be parsed using {model.__name__}."
+            f"[INVALID_RESPONSE] parse_response() | Expected: {model.__name__} | "
+            f"Got: {type(payload).__name__}"
         )
         raise ValueError(
             f"Response body of type {type(payload).__name__} cannot be parsed using {model.__name__}."
@@ -98,6 +100,8 @@ class HttpService(ABC):
 
         # Class-Level Logger
         self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
+        
+        self.logger.info(f"[SERVICE_INIT] {self.name} initialized")
         return
 
     def set_content_type(
@@ -131,7 +135,7 @@ class HttpService(ABC):
         """
         if not self.secret_key:
             # !: this api is not sigend.
-            self.logger.warning("Secret key is required for signature generation.")
+            self.logger.warning(f"[CREDENTIAL_ERROR] {self.name} | Missing: secret_key")
             raise ValueError("Secret key is required for signature generation.")
 
         return hmac.new(

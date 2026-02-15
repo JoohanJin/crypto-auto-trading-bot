@@ -39,6 +39,8 @@ class HttpClient(ABC):
     ) -> None:
         self.name: str = name or "HTTP_CLIENT"
         self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
+        
+        self.logger.info(f"[SERVICE_INIT] {self.name} initialized")
 
         return
 

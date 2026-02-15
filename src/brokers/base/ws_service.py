@@ -22,7 +22,7 @@ class WebSocket(ABC):
         log: str,
     ) -> None:
         log = str(log)
-        self.logger.info(log)
+        self.logger.info(f"[SUCCESS] _operation_logging() | Response Type: {type(log).__name__}")
 
     def generate_timestamp(self) -> int:
         return int(time.time() * 1_000)
@@ -42,6 +42,8 @@ class WebSocket(ABC):
         self._id: int = self._generate_id()
         self.name: str = name
         self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
+
+        self.logger.info(f"[SERVICE_INIT] {self.name} initialized")
 
         # api_key and secret_key
         self.api_key: str = api_key
