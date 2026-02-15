@@ -2,7 +2,7 @@
 from typing import Literal, Union
 
 # logger
-from src.core.models.order import Side
+from src.core.models.order import Order, Side
 from src.infrastructure.logging.set_logger import get_logger, get_adapter
 
 # Custom Library
@@ -821,12 +821,7 @@ class BinanceFutureHttpClient(HttpClient):
     """
     def order(
         self,
-        sl_price: float,
-        tp_price: float,
-        leverage: int,
-        symbol_curr_quantity: float,  # get it from the binance websocket possibly.
-        symbol: TradePair | None = None,
-        side: Literal["BUY", "SELL"] = "BUY",
+        order: Order,
         recv_window: int = 5_000,
     ) -> None:
         '''
@@ -842,15 +837,12 @@ class BinanceFutureHttpClient(HttpClient):
         # TODO: decide the following:
         # Sequential manner or multi-threaded manner?
         self.change_initial_leverage(
-            leverage=leverage,
+            leverage=order.leverage,
         )  # change the leverage to the default, 5 for now.
 
         # MAIN ORDER
         res = self.place_order(
-            symbol=symbol,
-            side=side,
-            type="MARKET",
-            quantity=symbol_curr_quantity,
+            order=order,
             recv_window=recv_window,
         )
         if (res.get("status") == "NEW"):
@@ -858,35 +850,36 @@ class BinanceFutureHttpClient(HttpClient):
 
         # STOP LOSS
         self.place_order(
-            symbol=symbol,
-            stop_price=sl_price,
+            symbol=order.trade_pair,
+            stop_price=order.sl_price,
             type="STOP_MARKET",
-            side="BUY" if side == "SELL" else "SELL",  # Opposite of the Main Order
+            side="BUY" if order.side_str == "SELL" else "SELL",  # Opposite of the Main Order
             close_position="true",
             time_in_force="GTE_GTC",
+            recv_window=recv_window,
         )
-        self.logger.info(f"The new order's STOP LOSS PRICE is at {sl_price}.")
+        self.logger.info(f"The new order's STOP LOSS PRICE is at {order.sl_price}.")
 
         # TAKE PROFIT
         self.place_order(
-            symbol=symbol,
-            stop_price=tp_price,
+            symbol=order.trade_pair,
+            stop_price=order.tp_price,
             type="TAKE_PROFIT_MARKET",
-            side="BUY" if side == "SELL" else "SELL",  # Opposite of the Main Order
+            side="BUY" if order.side_str == "SELL" else "SELL",  # Opposite of the Main Order
             close_position="true",
             time_in_force="GTE_GTC",
+            recv_window=recv_window,
         )
-        self.logger.info(f"The new order's TAKE PROFIT PRICE is at {tp_price}.")
+        self.logger.info(f"The new order's TAKE PROFIT PRICE is at {order.tp_price}.")
 
         return
 
     def place_order(
         self,
-        side: Union[Literal["BUY"], Literal["SELL"]],
-        symbol: TradePair | None = None,
+        order: Order,
+        recv_window: int,  # 5_000 ms is the default value, i.e., 5 sec.
         position_side: str | None = None,  # "BOTH", "LONG", "SHORT", None
         type: Union[Literal["MARKET"], Literal["TAKE_PROFIT_MARKET"], Literal["STOP_MARKET"]] = "MARKET",
-        quantity: float | None = None,
         reduce_only: str | None = None,
         time_in_force: str | None = None,
         price: float | None = None,
@@ -901,7 +894,6 @@ class BinanceFutureHttpClient(HttpClient):
         price_match: str | None = None,
         self_trade_prevention_mode: str | None = None,
         good_till_date: int | None = None,
-        recv_window: int | None = 5_000,  # 5_000 ms is the default value, i.e., 5 sec.
         url: str = "/fapi/v1/order",
     ) -> dict | None:
         '''
@@ -916,12 +908,12 @@ class BinanceFutureHttpClient(HttpClient):
 
         '''
         params: dict[str, int | float | str] = dict(
-            symbol=self._parse_trade_pair(symbol),
-            side=side,
+            symbol=self._parse_trade_pair(order.trade_pair),
+            side=order.side_str,
             position_side=position_side,
             type=type,
             time_in_force=time_in_force,
-            quantity=quantity,
+            quantity=max(order.ticker_size, 0.002),
             reduce_only=reduce_only,
             price=price,
             new_client_order_id=new_client_order_id,
