@@ -14,8 +14,8 @@ from src.interfaces.http_interface import HttpInterface
 
 # Core Models
 from src.core.models.signal import Signal, TradeSignal
-from src.core.models.trade import TradePair, TradeState, OrderType
-from src.core.models.order import Order
+from src.core.models.trade import TradePair, TradeState
+from src.core.models.order import Order, Side
 
 logger = get_logger(__name__)
 
@@ -118,7 +118,7 @@ class TradeManager:
         self.score_threshold: int = score_threashold
         self.trend_manager_score: int = score_trend_management  # keep the biased score to keep the current score.
 
-        # TODO: decide these variables dynamically
+        # TODO_LONG_TERM: decide these variables dynamically
         self.leverage: int = leverage
         self.trade_weight: float = trade_weight
         self.tp_rate: float = take_profit_rate
@@ -295,11 +295,11 @@ class TradeManager:
         if (previous_order is not None):  # there is a current order
             # Reverse
             if (
-                (score > (self.score_threshold // 2)) and (previous_order.type == OrderType.SELL)
+                (score > (self.score_threshold // 2)) and (previous_order.type == Side.SELL)
             ):
                 return TradeState.REVERSE_BUY
             if (
-                (score < (-1 * (self.score_threshold // 2))) and (previous_order.type == OrderType.BUY)
+                (score < (-1 * (self.score_threshold // 2))) and (previous_order.type == Side.BUY)
             ):
                 return TradeState.REVERSE_SELL
         else:  # there is no current order
@@ -359,12 +359,11 @@ class TradeManager:
         buy_or_sell: TradeState,
     ) -> Order:
         try:
-            with self.lock_previous_order:
-                previous_order = self.previous_order.copy() if self.previous_order else None
+            mark_price: MarkPrice = self._get_mark_price()   # market price
 
-            order_type: OrderType
-            order_type_str: str
-            entry_price: float = self._get_current_price()
+            order_side: Side
+            order_side_str: str
+            entry_price: float = mark_price.mark_price
             tp_price: float
             sl_price: float
             ticker_size: float
@@ -376,28 +375,30 @@ class TradeManager:
                 current_price = entry_price,
             )
 
-            if buy_or_sell in (2, 4):  # NEW
-                order_type = OrderType.BUY if buy_or_sell == 2 else OrderType.SELL
-                order_type_str = "BUY" if buy_or_sell == 2 else "SELL"
+            with self.lock_previous_order:
+                previous_order = self.previous_order.copy() if self.previous_order else None
 
-                quote_size = self.get_available_quote()
-                ticker_size = self.get_ticker_qty(entry_price, quote_size)
-            elif buy_or_sell in (8, 16):  # REVERSE
-                order_type = OrderType.BUY if buy_or_sell == 8 else OrderType.SELL
-                order_type_str = "BUY" if buy_or_sell == 8 else "SELL"
+            # Determine order side (same for NEW and REVERSE)
+            order_side = Side.BUY if buy_or_sell in (2, 8) else Side.SELL
+            order_side_str = "BUY" if buy_or_sell in (2, 8) else "SELL"
 
+            # Determine quantities: use REVERSE logic only if reversing AND active position exists
+            is_reverse = buy_or_sell in (8, 16) and previous_order is not None
+
+            if is_reverse:
                 ticker_size = previous_order.ticker_size * 2
                 quote_size = previous_order.quote_size * 2
-
-                meta_data = dict(
-                    reverse = True
-                )
-            else:  # HOLD or other flipped-bit signal
+                meta_data = dict(reverse=True)
+            elif buy_or_sell in (2, 4, 8, 16):
+                # NEW order (explicitly 2,4 or REVERSE with no active position)
+                quote_size = self._get_trade_quote_amt()
+                ticker_size = self._get_trade_ticker_amt(entry_price)
+            else:  # Invalid trade state
                 raise ValueError(f"Invalid TradeState: {buy_or_sell}")
 
             return Order(
-                type=order_type,
-                type_str=order_type_str,
+                side=order_side,
+                side_str=order_side_str,
                 entry_price=entry_price,
                 leverage=self.leverage,  # TODO: Need to dynamically decide the leverage
                 tp_price=tp_price,
@@ -409,8 +410,42 @@ class TradeManager:
                 meta_data=meta_data,
             )
         except Exception as e:
-            self.logger.critical(f"[ORDER_CONSTRUCTION_ERROR] Trade: {buy_or_sell.name if hasattr(buy_or_sell, 'name') else buy_or_sell} | Error: {type(e).__name__}: {str(e)}")
+            self.logger.critical(
+                f"[ORDER_CONSTRUCTION_ERROR] Trade: {buy_or_sell.name if hasattr(buy_or_sell, 'name') else buy_or_sell} | Error: {type(e).__name__}: {str(e)}"
+            )
         return
+
+    def _format_trade_message(
+        self,
+        order: Order,
+        buy_or_sell: TradeState,
+    ) -> str | None:
+        """
+        func _format_trade_message():
+            - Format trade execution message based on order type
+            
+        param order: Order
+            - The order object with trade details
+        param buy_or_sell: TradeState
+            - Trade state to determine message suffix
+            
+        return str | None:
+            - Formatted message or None if invalid state
+        """
+        base_message = (
+            f"Trade Signal: {order.type_str}\n"
+            f"Entry Price: {order.entry_price}\n"
+            f"Amount: {order.quote_size} {order.quote}\n"
+            f"Take Profit: {order.tp_price}\n"
+            f"Stop Loss: {order.sl_price}\n"
+        )
+        
+        if buy_or_sell in (2, 4):  # NEW_BUY or NEW_SELL
+            return base_message + "It is the new order."
+        elif buy_or_sell in (8, 16):  # REVERSE_BUY or REVERSE_SELL
+            return base_message + "It is the reverse order."
+        
+        return None
 
     async def _execute_trade(
         self,
@@ -432,34 +467,19 @@ class TradeManager:
                 return None
 
             order: Order = self._construct_new_order(buy_or_sell)
-
-            if buy_or_sell in (2, 4):  # make the trade
-                message = (
-                    f"Trade Signal: {order.type_str}\n"
-                    f"Entry Price: {order.entry_price}\n"
-                    f"Amount: {order.quote_size} {order.quote}\n"
-                    f"Take Profit: {order.tp_price}\n"
-                    f"Stop Loss: {order.sl_price}\n"
-                    f"It is the new order."
-                )
-            elif buy_or_sell in (8, 16):
-                message = (
-                    f"Trade Signal: {order.type_str}\n"
-                    f"Entry Price: {order.entry_price}\n"
-                    f"Amount: {order.quote_size} {order.quote}\n"
-                    f"Take Profit: {order.tp_price}\n"
-                    f"Stop Loss: {order.sl_price}\n"
-                    f"It is the reverse order."
-                )
-            else:  # bitflip error (never know)
+            message: str | None = self._format_trade_message(order, buy_or_sell)
+            
+            if message is None:  # bitflip error (never know)
                 return
 
-            # order trigger to the telgram bot
+            # order trigger to the telegram bot
             self._make_order(order)
             await self.telegram_bot.send_text(message)
             self.trading_logger.info(message)
         except Exception as e:
-            self.logger.error(f"[TRADE_EXECUTION_ERROR] Trade: {buy_or_sell.name if hasattr(buy_or_sell, 'name') else buy_or_sell} | Error: {type(e).__name__}: {str(e)}")
+            self.logger.error(
+                f"[TRADE_EXECUTION_ERROR] Trade: {buy_or_sell.name} | Error: {type(e).__name__}: {str(e)}"
+            )
             raise Exception
         return
 
@@ -473,11 +493,14 @@ class TradeManager:
             with self.lock_previous_order:
                 self.previous_order = order
         except Exception as e:
-            self.logger.critical(f"[ORDER_REGISTRATION_ERROR] Type: {order.type_str} | Price: {order.entry_price} | Error: {type(e).__name__}: {str(e)}")
+            self.logger.critical(
+                f"[ORDER_REGISTRATION_ERROR] Type: {order.type_str} "
+                f"| Price: {order.entry_price} | Error: {type(e).__name__}: {str(e)}"
+            )
             raise Exception(
                 f"{__name__} - {self.__class__.__name__} - Unexpected Error while ordering: {str(e)}"
             ) from e
-        return None
+        return
 
     def _thread_get_signal(
         self,
@@ -957,6 +980,11 @@ if __name__ == "__main__":
         print(tm._get_trade_ticker_amt(ticker_price=mark_price.mark_price))
 
         print(tm._get_trade_quote_amt())
-    
+
+        print(tm._construct_new_order(buy_or_sell=2))  # NEW_BUY
+        print(tm._construct_new_order(buy_or_sell=4))  # NEW_SELL
+        print(tm._construct_new_order(buy_or_sell=8))  # REVERSE_BUY
+        print(tm._construct_new_order(buy_or_sell=16))  # REVERSE_SELL
+
     # Replace the binance_client with our mock for get_available_quote()
     print("\n✓ TradeManager instantiated (threads NOT started)")
