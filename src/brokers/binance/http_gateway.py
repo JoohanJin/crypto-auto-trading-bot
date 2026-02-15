@@ -95,35 +95,35 @@ class BinanceFutureGateway(HttpService):
 
                 if status == 400:
                     self.logger.critical(
-                        f"BadRequest Error from Binance USDT-M Future API: {str(error_msg)}"
+                        f"[BROKER_ERROR] Binance | Status: {status} | Error: BadRequest: {str(error_msg)}"
                     )
                 elif status == 401:
                     self.logger.critical(
-                        f"Unauthorized Error from Binance USDT-M Future API: {str(error_msg)}"
+                        f"[BROKER_ERROR] Binance | Status: {status} | Error: Unauthorized: {str(error_msg)}"
                     )
                 elif status == 403:
                     self.logger.critical(
-                        f"Forbidden Error from Binance USDT-M Future API: {str(error_msg)}"
+                        f"[BROKER_ERROR] Binance | Status: {status} | Error: Forbidden: {str(error_msg)}"
                     )
                 elif status == 404:
                     self.logger.critical(
-                        f"NotFound Error from Binance USDT-M Future API: {str(error_msg)}"
+                        f"[BROKER_ERROR] Binance | Status: {status} | Error: NotFound: {str(error_msg)}"
                     )
                 elif status == 418:
                     self.logger.critical(
-                        f"RateLimitBan Error from Binance USDT-M Future API: {str(error_msg)}"
+                        f"[BROKER_ERROR] Binance | Status: {status} | Error: RateLimitBan: {str(error_msg)}"
                     )
                 elif status == 429:
                     self.logger.critical(
-                        f"ToomanyRequests Error from Binance USDT-M Future API: {str(error_msg)}"
+                        f"[BROKER_ERROR] Binance | Status: {status} | Error: TooManyRequests: {str(error_msg)}"
                     )
                 elif 500 <= status < 600:
                     self.logger.critical(
-                        f"Server Error from Binance USDT-M Future API: {str(error_msg)}"
+                        f"[BROKER_ERROR] Binance | Status: {status} | Error: ServerError: {str(error_msg)}"
                     )
                 else:
                     self.logger.critical(
-                        f"ClientError Error from Binance USDT-M Future API: {str(error_msg)}"
+                        f"[BROKER_ERROR] Binance | Status: {status} | Error: ClientError: {str(error_msg)}"
                     )
 
                 raise Exception(error_msg)
@@ -133,5 +133,5 @@ class BinanceFutureGateway(HttpService):
             response.raise_for_status()
             return None
         except Exception as e:
-            self.logger.critical(f"Unknown Error while communicating with broker: {str(e)}")
+            self.logger.critical(f"[BROKER_ERROR] Binance | Error: {type(e).__name__}: {str(e)}")
             return None

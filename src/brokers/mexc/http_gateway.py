@@ -101,43 +101,43 @@ class MexcFutureGateway(HttpService):
 
                 if status == 400:
                     self.logger.critical(
-                        f"BadRequest Error from MexC USDT-M Future API: {str(error_msg)}"
+                        f"[BROKER_ERROR] MexC | Status: {status} | Error: BadRequest: {str(error_msg)}"
                     )
                 elif status == 401:
                     self.logger.critical(
-                        f"Unauthorized Error from MexC USDT-M Future API: {str(error_msg)}"
+                        f"[BROKER_ERROR] MexC | Status: {status} | Error: Unauthorized: {str(error_msg)}"
                     )
                 elif status == 402:
                     self.logger.critical(
-                        f"ApiKeyExpired Error from MexC USDT-M Future API: {str(error_msg)}"
+                        f"[BROKER_ERROR] MexC | Status: {status} | Error: ApiKeyExpired: {str(error_msg)}"
                     )
                 elif status == 406:
                     self.logger.critical(
-                        f"AccessIPNotInWhiteList Error from MexC USDT-M Future API: {str(error_msg)}"
+                        f"[BROKER_ERROR] MexC | Status: {status} | Error: AccessIPNotInWhiteList: {str(error_msg)}"
                     )
                 elif status == 500:
                     self.logger.critical(
-                        f"ServerInternal Error from MexC USDT-M Future API: {str(error_msg)}"
+                        f"[BROKER_ERROR] MexC | Status: {status} | Error: ServerInternal: {str(error_msg)}"
                     )  # TODO: Implement retry logic
                 elif status == 506:
                     self.logger.critical(
-                        f"UnknownSourceOfRequest Error from MexC USDT-M Future API: {str(error_msg)}"
+                        f"[BROKER_ERROR] MexC | Status: {status} | Error: UnknownSourceOfRequest: {str(error_msg)}"
                     )
                 elif status == 510:
                     self.logger.critical(
-                        f"ExcessiveFrequencyOfRequest Error from MexC USDT-M Future API: {str(error_msg)}"
+                        f"[BROKER_ERROR] MexC | Status: {status} | Error: ExcessiveFrequencyOfRequest: {str(error_msg)}"
                     )  # TODO: implement retry logic
                 elif status == 511:
                     self.logger.critical(
-                        f"EndpointInaccurate Error from MexC USDT-M Future API: {str(error_msg)}"
+                        f"[BROKER_ERROR] MexC | Status: {status} | Error: EndpointInaccurate: {str(error_msg)}"
                     )
                 elif status == 513:
                     self.logger.critical(
-                        f"InvalidRequest Error from MexC USDT-M Future API: {str(error_msg)}"
+                        f"[BROKER_ERROR] MexC | Status: {status} | Error: InvalidRequest: {str(error_msg)}"
                     )
                 else:
                     self.logger.critical(
-                        f"ClientError Error from MexC USDT-M Future API: {str(error_msg)}"
+                        f"[BROKER_ERROR] MexC | Status: {status} | Error: ClientError: {str(error_msg)}"
                     )
 
                 raise Exception(error_msg)
@@ -147,5 +147,5 @@ class MexcFutureGateway(HttpService):
             response.raise_for_status()
             return None
         except Exception as e:
-            self.logger.critical(f"Unexpected Error while communicating to Mexc Rest API: {str(e)}")
+            self.logger.critical(f"[BROKER_ERROR] MexC | Error: {type(e).__name__}: {str(e)}")
             return None

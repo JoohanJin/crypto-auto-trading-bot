@@ -70,7 +70,7 @@ class MexcFutureHttpClient(HttpClient):
             secret_key=secret_key,
         )
 
-        self.logger.info(f"{self.name} has been initialized.")
+        self.logger.info(f"[SERVICE_INIT] {self.name} initialized")
 
         return
 

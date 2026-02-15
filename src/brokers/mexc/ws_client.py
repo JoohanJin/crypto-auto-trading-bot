@@ -48,11 +48,11 @@ class MexcWebSocketClient(WebSocketClient):
         try:
             self.ws.start()
             self.logger.info(
-                f"Successfully started {self.name if hasattr(self, 'name') else 'MEXC_FUTURE_WEBSOCKET_CLIENT'} "
+                f"[WS_OPEN] MexC | URL: {self.ws.url} | Status: opened"
             )
         except Exception as e:
             self.logger.info(
-                f"Unexpected Error while starting {self.name if hasattr(self, 'name') else 'MEXC_FUTURE_WEBSOCKET_CLIENT'}: {str(e)}"
+                f"[WS_OPEN] MexC | Error: {type(e).__name__}: {str(e)}"
             )
         return
 
