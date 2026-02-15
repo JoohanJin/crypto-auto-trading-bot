@@ -51,7 +51,7 @@ class CustomTelegramBot:
                 chat_id=self.__channel_id,
                 text=message,
             )
-            self.logger.info(f"[MSG_SEND] Platform: Telegram | Status: sent")
+            self.logger.info("[MSG_SEND] Platform: Telegram | Status: sent")
         except Exception as e:
             self.logger.error(f"[MSG_ERROR] Platform: Telegram | Error: {type(e).__name__}: {str(e)}")
         return
