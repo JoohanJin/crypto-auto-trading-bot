@@ -96,12 +96,8 @@ def get_adapter(logger: logging.Logger, prefix: str) -> logging.LoggerAdapter:
     return ContextAdapter(logger, {"prefix": prefix})
 
 
-operation_logger.info(
-    f"{__name__} - {operation_logger.name} - Operation Logger generation completed."
-)
-trading_logger.info(
-    f"{__name__} - {trading_logger.name} - Trading Logger generation completed."
-)
+operation_logger.info("[SERVICE_INIT] OperationLogger initialized")
+trading_logger.info("[SERVICE_INIT] TradingLogger initialized")
 
 
 def log_decorator(func):

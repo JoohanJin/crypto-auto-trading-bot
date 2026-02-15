@@ -3,6 +3,11 @@ from telegram import Bot
 import asyncio
 import json
 
+# Custom Module
+from src.infrastructure.logging.set_logger import get_logger, get_adapter
+
+logger = get_logger(__name__)
+
 
 class Test:
     def __init__(self) -> None:
@@ -23,7 +28,11 @@ class CustomTelegramBot:
         self,
         api_key: str,
         channel_id: str,
+        name: str | None = None,
     ) -> None:
+        self.name = name if name else "TELEGRAM_BOT"
+        self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
+
         # Get the credential from the json
         # will be considered as private attributes.
         self.__api_key = api_key
@@ -32,13 +41,19 @@ class CustomTelegramBot:
         # make the bot instance
         self._bot = Bot(self.__api_key)
 
+        self.logger.info(f"[INTEGRATION_INIT] {self.name} | Status: ready")
+
         return
 
     async def send_text(self, message: str) -> None:
-        await self._bot.send_message(
-            chat_id=self.__channel_id,
-            text=message,
-        )
+        try:
+            await self._bot.send_message(
+                chat_id=self.__channel_id,
+                text=message,
+            )
+            self.logger.info(f"[MSG_SEND] Platform: Telegram | Status: sent")
+        except Exception as e:
+            self.logger.error(f"[MSG_ERROR] Platform: Telegram | Error: {type(e).__name__}: {str(e)}")
         return
 
 
