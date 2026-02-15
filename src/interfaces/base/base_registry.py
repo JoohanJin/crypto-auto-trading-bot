@@ -10,6 +10,8 @@ class BaseClientRegistry(Generic[T]):
         self.name: str = name if name else self.__class__.__name__
         self._registry: dict[str, T] = {}
         self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
+        
+        self.logger.info(f"[COMPONENT_INIT] {self.name} initialized")
 
     def push(self, key: str, client: T) -> None:
         self._registry[key] = client

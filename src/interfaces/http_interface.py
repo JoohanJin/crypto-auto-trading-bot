@@ -57,7 +57,7 @@ class HttpInterface(BaseInterface[HttpClientRegistry, HttpClient]):
                     result_key = result_key_extractor(response)
                     results[result_key] = response
             except Exception as e:
-                self.logger.error(f"[{key}] Failed to execute {method_name}: {str(e)}")
+                self.logger.error(f"[SERVICE_INIT_ERROR] {key} | Failed to execute {method_name} | Error: {type(e).__name__}: {str(e)}")
 
         return results
     
