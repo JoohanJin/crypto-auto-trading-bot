@@ -47,9 +47,10 @@ class DataProcessor:
         try:
             self.__initialize_threads()
             self.__start_threads()
+            self.logger.info(f"[DATA_INIT] {self.name} | Status: ready")
         except Exception as e:
             self.logger.critical(
-                f"Error while starting {self.name}: {str(e)}"
+                f"[DATA_ERROR] start() | Error: {type(e).__name__}: {str(e)}"
             )
         return
 
@@ -75,13 +76,13 @@ class DataProcessor:
                 name = "index_thread",
                 daemon = True,
             )
-            self.logger.info(f"Thread '{index_thread.name}' (ID: {index_thread.ident}) has been created")
+            self.logger.info(f"[THREAD_START] {index_thread.name} | Status: running")
 
             self.threads.extend([index_thread])
         except (RuntimeError, TypeError, AttributeError, MemoryError) as e:
-            self.logger.error(f"fail to make instances for the thread: {str(e)}")
+            self.logger.error(f"[THREAD_ERROR] fail to make instances for the thread: {str(e)}")
         except Exception as e:
-            self.logger.error(f"Unexpected error starting thread: {str(e)}")
+            self.logger.error(f"[THREAD_ERROR] Unexpected error starting thread: {str(e)}")
 
         return
 
@@ -100,16 +101,16 @@ class DataProcessor:
             try:
                 thread.start()
                 self.logger.info(
-                    f"Thread '{thread.name}' (ID: {thread.ident}) has started"
+                    f"[THREAD_START] {thread.name} | Status: running"
                 )
             except RuntimeError as e:
                 self.logger.critical(
-                    f"Failed to start thread '{thread.name}': {str(e)}"
+                    f"[THREAD_ERROR] {thread.name} failed | Error: {type(e).__name__}: {str(e)}"
                 )
                 raise RuntimeError
             except Exception as e:
                 self.logger.critical(
-                    f"Unexpected error starting thread: '{thread.name}': {str(e)}"
+                    f"[THREAD_ERROR] Unexpected error starting thread: '{thread.name}': {str(e)}"
                 )
                 raise Exception
         return
@@ -125,9 +126,10 @@ class DataProcessor:
             for index in indexes:
                 if (index):
                     self.pipeline_controller.push(index)
+                    self.logger.info(f"[DATA_STATS] Type: {index.index_type.name} | Timestamp: {index.timestamp} | Status: pushed")
             return True
         except Exception as e:
-            self.logger.warning(f"Unexpected Exception Orccured: {str(e)}")
+            self.logger.warning(f"[DATA_ERROR] __push_indexes() | Error: {type(e).__name__}: {str(e)}")
         return
 
     # Data Processor
@@ -206,20 +208,20 @@ class DataProcessor:
         except KeyError as e:
             # Specific error handling for KeyError, i.e., missing collumn
             self.logger.error(
-                f"function {self.__class__.__name__}.__calculate_ema_sma_price has raised the KeyError: {e}"
+                f"[DATA_ERROR] __calculate_ema_sma_price() | Error: KeyError: {e}"
             )
             return None
 
         except IndexError as e:
             # Specific error handling for IndexError, i.e., out of range and slicing of the DataFrame.
             self.logger.error(
-                f"function {self.__class__.__name__}.__calculate_ema_sma_price has raised the IndexError: {e}"
+                f"[DATA_ERROR] __calculate_ema_sma_price() | Error: IndexError: {e}"
             )
             return None
 
         except Exception as e:
             self.logger.warning(
-                f"function {self.__class__.__name__}.__calculate_ema_sma_price has has raised the Unknown Exception - {str(e)}."
+                f"[DATA_ERROR] __calculate_ema_sma_price() | Error: {type(e).__name__}: {str(e)}."
             )
             return None
 
@@ -253,7 +255,7 @@ class DataProcessor:
             return
         except Exception as e:
             self.logger.critical(
-                f"Error in class {self.__class__.__name__} in method _put_ticker_data(): {e}"
+                f"[DATA_ERROR] _put_ticker_data() | Error: {type(e).__name__}: {str(e)}"
             )
         return
 

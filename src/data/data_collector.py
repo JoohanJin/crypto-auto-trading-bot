@@ -59,7 +59,7 @@ class DataCollector:
                 target = self._price_data_fetch,
                 daemon = True
             )
-            self.logger.info("Thread for price fetch has been set up!")
+            self.logger.info(f"[THREAD_START] {thread_price_fetch.name} | Status: running")
 
             self.threads.extend(
                 [
@@ -67,9 +67,9 @@ class DataCollector:
                 ]
             )
         except (RuntimeError, TypeError, AttributeError, MemoryError) as e:
-            self.logger.error(f"fail to make instances for the thread: {str(e)}")
+            self.logger.error(f"[THREAD_ERROR] fail to make instances for the thread: {str(e)}")
         except Exception as e:
-            self.logger.critical(f"Unexpected error constructing thread pool - {str(e)}")
+            self.logger.critical(f"[THREAD_ERROR] Unexpected error constructing thread pool - {str(e)}")
 
         return
 
@@ -87,13 +87,13 @@ class DataCollector:
         for thread in self.threads:
             try:
                 thread.start()
-                self.logger.info(f"Thread '{thread.name}' (ID: {thread.ident}) has started")
+                self.logger.info(f"[THREAD_START] {thread.name} | Status: running")
             except RuntimeError as e:
-                self.logger.critical(f"Failed to start thread '{thread.name}': {str(e)}")
+                self.logger.critical(f"[THREAD_ERROR] {thread.name} failed | Error: {type(e).__name__}: {str(e)}")
                 raise RuntimeError
             except Exception as e:
                 self.logger.critical(
-                    f"Unexpected error starting thread: '{thread.name}': {str(e)}"
+                    f"[THREAD_ERROR] Unexpected error starting thread: '{thread.name}': {str(e)}"
                 )
                 raise
         return
@@ -130,7 +130,7 @@ class DataCollector:
             return
         except Exception as e:
             self.logger.critical(
-                f"Error in class {self.__class__.__name__} in method _put_ticker_data(): {e}"
+                f"[DATA_ERROR] _put_ticker_data() | Error: {type(e).__name__}: {str(e)}"
             )
         return
 
@@ -155,7 +155,7 @@ class DataCollector:
 
             return result
         except Exception as e:
-            self.logger.critical(f"Error retreving data from queue: {e}")
+            self.logger.critical(f"[DATA_ERROR] _get_data_buffer() | Error: {type(e).__name__}: {str(e)}")
             return None
 
     # data fetcher
@@ -187,6 +187,6 @@ class DataCollector:
 
             except Exception as e:
                 self.logger.critical(
-                    f'Unexpected Error Occurred in function "_price_data_fetch": {e}'
+                    f'[DATA_ERROR] _price_data_fetch() | Error: {type(e).__name__}: {str(e)}'
                 )
         return

@@ -34,10 +34,10 @@ class DataSaver:
 
             # Validate the input data
             if data is None or not isinstance(data, pd.DataFrame):
-                self.logger.error("TypeError - DataSaver.write: Provided data is not a Pandas DataFrame.")
+                self.logger.error("[DATA_SAVE_ERROR] write() | Error: Provided data is not a Pandas DataFrame.")
                 return
             if data.empty:
-                self.logger.error("No Data in DataSaver.write: Provided data is empty after dropna.")
+                self.logger.error("[DATA_SAVE_ERROR] write() | Error: Provided data is empty after dropna.")
                 return
 
             # Drop NaN values
@@ -61,17 +61,18 @@ class DataSaver:
                     index_label = "timestamp",
                     encoding = "utf-8",
                 )
+            self.logger.info(f"[SUCCESS] DataSaver.write() | Response Type: CSV")
 
         except FileNotFoundError as e:
-            self.logger.error(f"FileNotFoundError in DataSaver.write: {str(e)}")
+            self.logger.error(f"[DATA_SAVE_ERROR] write() | Error: FileNotFoundError: {str(e)}")
         except PermissionError as e:
-            self.logger.error(f"PermissionError in DataSaver.write: {str(e)}")
+            self.logger.error(f"[DATA_SAVE_ERROR] write() | Error: PermissionError: {str(e)}")
         except AttributeError as e:
-            self.logger.error(f"AttributeError in DataSaver.write: {str(e)}")
+            self.logger.error(f"[DATA_SAVE_ERROR] write() | Error: AttributeError: {str(e)}")
         except OSError as e:
-            self.logger.error(f"OSError in DataSaver.write: {str(e)}")
+            self.logger.error(f"[DATA_SAVE_ERROR] write() | Error: OSError: {str(e)}")
         except Exception as e:
-            self.logger.error(f"Unexpected error in DataSaver.write: {str(e)}")
+            self.logger.error(f"[DATA_SAVE_ERROR] write() | Error: {type(e).__name__}: {str(e)}")
 
 
 # Test Code Run Zone
