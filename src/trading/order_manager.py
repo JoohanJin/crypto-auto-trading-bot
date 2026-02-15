@@ -35,9 +35,12 @@ class OrderManager:
         self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
         self.clients: HttpInterface = clients
         self.telegram_bot: CustomTelegramBot = telegram_bot
+        
+        self.logger.info(f"[COMPONENT_INIT] {self.name} | Status: ready")
         return
 
     def __del__(self) -> None:
+        self.logger.info(f"[SHUTDOWN] {self.name} cleanup initiated")
         return
 
     def order(
@@ -48,7 +51,7 @@ class OrderManager:
             # make an order through the client registry.
             self.clients  # TODO: implement the broker registry
         except Exception as e:
-            self.logger.critical(f"Error during the Order: {str(e)}")
+            self.logger.critical(f"[TRADE_EXECUTION_ERROR] Order failed | Error: {type(e).__name__}: {str(e)}")
         return
 
     def get_ticker_current_price(
@@ -97,7 +100,7 @@ class OrderManager:
         try:
             return round((sum(prices) / len(prices)), rounding)
         except Exception as e:
-            self.logger.error(f"Error while getting the average ticker price: {str(e)}")
+            self.logger.error(f"[TRADE_DECISION_ERROR] Average price calculation failed | Error: {type(e).__name__}: {str(e)}")
 
     def __get_ticker_current_prices(self) -> list[float]:
         '''

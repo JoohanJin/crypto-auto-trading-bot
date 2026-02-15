@@ -40,12 +40,12 @@ class SignalGenerator:
             try:
                 # start the thread.
                 thread.start()
-                logger.info(f"Thread '{thread.name}' (ID: {thread.ident}) has started")
+                logger.info(f"[THREAD_START] {thread.name} | Status: running")
             except RuntimeError as e:
-                logger.critical(f"Failed to start thread '{thread.name}': {str(e)}")
+                logger.critical(f"[THREAD_ERROR] {thread.name} failed | Error: {type(e).__name__}: {str(e)}")
                 raise RuntimeError(f"Failed to start thread '{thread.name}': {str(e)}")
             except Exception as e:
-                logger.critical(f"Unexpected error starting thread: '{thread.name}': {str(e)}")
+                logger.critical(f"[THREAD_ERROR] {thread.name} failed | Error: {type(e).__name__}: {str(e)}")
                 raise Exception(
                     f"Unexpected error starting thread: '{thread.name}': {str(e)}"
                 )
@@ -111,6 +111,8 @@ class SignalGenerator:
 
         # Start
         self.start()
+        
+        self.logger.info(f"[COMPONENT_INIT] {self.name} | Status: ready")
 
         return None
 
@@ -145,7 +147,7 @@ class SignalGenerator:
             target = self.get_data,
             daemon = True,
         )
-        self.logger.info("Thread for index data getter has been set up!")
+        self.logger.info(f"[THREAD_START] {index_thread.name} | Status: ready")
 
         self.threads.extend(
             [
@@ -170,7 +172,7 @@ class SignalGenerator:
                     with self.indicators_lock:
                         self.indicators[data.index_type] = data
             except Exception as e:
-                self.logger.critical(f"Unexpected Exeption occured - {str(e)}")
+                self.logger.critical(f"[SIGNAL_ERROR] get_data() | Error: {type(e).__name__}: {str(e)}")
 
         return
 
@@ -178,4 +180,4 @@ class SignalGenerator:
         try:
             self.signal_pipeline_controller.push(signal)
         except Exception as e:
-            self.logger.critical(f"Cannot put signal to the queue: {str(e)}")
+            self.logger.critical(f"[SIGNAL_ERROR] push_signal() | Error: {type(e).__name__}: {str(e)}")

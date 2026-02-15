@@ -2,28 +2,29 @@
 import threading
 import asyncio
 import time
-from typing import List, Tuple
 
 # Custom Library
+from src.core.models.service_dto import AccountInformation, MarkPrice, Position
 from src.integrations.telegram.telegram_bot_class import CustomTelegramBot
-from src.interfaces.http_interface import HttpInterface
 from src.infrastructure.logging.set_logger import get_logger, get_adapter
 from src.interfaces.pipeline_interface import PipelineController
 from src.core.models.score_mapping import ScoreMapper
+from src.brokers.binance.http_client import BinanceFutureHttpClient
+from src.interfaces.http_interface import HttpInterface
 
 # Core Models
 from src.core.models.signal import Signal, TradeSignal
-from src.core.models.trade import TradePair, TradeState
-from src.core.models.order import Order, OrderType
+from src.core.models.trade import TradePair, TradeState, OrderType
+from src.core.models.order import Order
 
 logger = get_logger(__name__)
 
 
 class TradeManager:
     """
-    ####################################################################################################################
-    #                                               Static Method                                                      #
-    ####################################################################################################################
+    ##########################
+    # Static Method
+    ##########################
     """
     @classmethod
     def generate_timestamp(cls) -> int:
@@ -57,22 +58,23 @@ class TradeManager:
         return (self.generate_timestamp() - signal_data.timestamp) < timestamp_window
 
     """
-    ####################################################################################################################
-    #                                                Class Method                                                      #
-    ####################################################################################################################
+    ######################
+    # Class Method
+    ######################
     """
 
     def __init__(
         self,
         signal_pipeline_controller: PipelineController[Signal],
-        http_interface: HttpInterface,
+        http_interface: HttpInterface,  # TODO: need to fully move from EachBroker to the Interface
+        binance_future_client: BinanceFutureHttpClient,
         delta_mapper: ScoreMapper,
         telegram_bot: CustomTelegramBot,
         trade_pair: TradePair | None = None,
         leverage: int = 10,
-        trade_amount: float = 0.1,  # 10% of the total asset
+        trade_weight: float = 0.1,  # 10% of the total asset
         take_profit_rate: float = 0.2,  # 20% -> to prevent the error
-        stop_loss_rate: float = 0.2,  # 20% -> to preven the error
+        stop_loss_rate: float = 0.2,  # 20% -> to prevent the error
         score_threashold: int = 2_000,  # 1_000,
         score_trend_management: int = 200,  # 200
         name: str | None = None,
@@ -105,7 +107,8 @@ class TradeManager:
         self.signal_pipeline_controller: PipelineController[Signal] = signal_pipeline_controller
 
         # For HTTP Communication (RESTful API)
-        self.http_interface: HttpInterface = http_interface
+        self.http_interface: HttpInterface = http_interface  # ! Need to use this in the future.
+        self.binance_client: BinanceFutureHttpClient = binance_future_client
 
         self.delta_mapper: ScoreMapper = delta_mapper
 
@@ -117,12 +120,12 @@ class TradeManager:
 
         # TODO: decide these variables dynamically
         self.leverage: int = leverage
-        self.trade_amount: float = trade_amount
+        self.trade_weight: float = trade_weight
         self.tp_rate: float = take_profit_rate
         self.sl_rate: float = stop_loss_rate
 
         # Set the thread pool as a member function.
-        self.threads: List[threading.Thread] = []
+        self.threads: list[threading.Thread] = []
 
         # Set the trade score as a member variable.
         self.trade_score_lock: threading.Lock = threading.Lock()
@@ -134,8 +137,11 @@ class TradeManager:
         # Start the TradeManager
         self.start()
 
-        self.logger.info("TradeManager has been intialized and ready to get the signal")
-        return None
+        self.logger.info(
+            f"[INIT_COMPLETE] Ready | Pair: {self.trade_pair.ticker}/{self.trade_pair.quote} | "
+            f"Leverage: {self.leverage} | Threshold: {self.score_threshold}"
+        )
+        return
 
     def __del__(
         self,
@@ -146,13 +152,15 @@ class TradeManager:
             - delete the TradeManager object.
             - need to remove all the threads and possibly dynamic objects as well.
         """
-        self.logger.info("TradeManager has been deleted")
+        self.logger.info(
+            "[SHUTDOWN] Cleanup initiated | Threads: %d | Score: %d", len(self.threads), self.trade_score
+        )
         return
 
     """
-    ####################################################################################################################
-    #                                             Multi-Thread Management                                              #
-    ####################################################################################################################
+    #########################
+    # Multi-Thread Management
+    #########################
     """
 
     def start(
@@ -176,7 +184,7 @@ class TradeManager:
         # Start the threads
         self._start_threads()
 
-        return None
+        return
 
     def stop(
         self,
@@ -211,7 +219,7 @@ class TradeManager:
 
         # initialize the threads for the operations
         self.threads.extend([thread_get_signal, thread_decide_trade])
-        return None
+        return
 
     def _start_threads(
         self,
@@ -230,28 +238,28 @@ class TradeManager:
         for thread in self.threads:
             try:  # try this first
                 thread.start()
-                self.logger.info(f"Thread {thread.name} has been started")
+                self.logger.info(f"[THREAD_START] {thread.name} | Status: running")
 
             except RuntimeError as e:  # If there is an error during the runtime
                 self.logger.critical(
-                    f"Failed to start thread '{thread.name}': {str(e)}"
+                    f"[THREAD_ERROR] {thread.name} failed | Error: RuntimeError: {str(e)}"
                 )
                 raise RuntimeError(
                     f"{__name__}: Failed to start thread '{thread.name}': {str(e)}"
                 )
 
             except Exception as e:  # Unknown Exception
-                self.logger.error(f"Unknown Error while starting the threads: {e}")
+                self.logger.error(f"[THREAD_ERROR] {thread.name} failed | Error: {type(e).__name__}: {str(e)}")
                 raise Exception(
                     f"{__name__}: Failed to start thread '{thread.name}': {str(e)}"
                 )
 
-        return None
+        return
 
     """
-    ####################################################################################################################
-    #                                             Signal Management Method                                             #
-    ####################################################################################################################
+    ##########################
+    # Signal Management Method
+    ##########################
     """
     def thread_handle_async_trade_execution(self, loop) -> None:
         """ """
@@ -259,7 +267,7 @@ class TradeManager:
         loop.run_until_complete(self._thread_decide_trade())
         return
 
-    def _decide_trade(
+    def _decide_trade(  # TODO-Short-term: need to modify this pat
             self,
             score: int,
     ) -> TradeState:
@@ -343,7 +351,7 @@ class TradeManager:
                 await asyncio.sleep(0.25)
 
             except Exception as e:
-                self.logger.error(f"Error while deciding the trade: {str(e)}")
+                self.logger.error(f"[TRADE_DECISION_ERROR] Failed | Score: {score} | Error: {type(e).__name__}: {str(e)}")
         return
 
     def _construct_new_order(
@@ -401,7 +409,7 @@ class TradeManager:
                 meta_data=meta_data,
             )
         except Exception as e:
-            self.logger.critical(f"Error while building the order object: {str(e)}")
+            self.logger.critical(f"[ORDER_CONSTRUCTION_ERROR] Trade: {buy_or_sell.name if hasattr(buy_or_sell, 'name') else buy_or_sell} | Error: {type(e).__name__}: {str(e)}")
         return
 
     async def _execute_trade(
@@ -444,16 +452,16 @@ class TradeManager:
                     f"It is the reverse order."
                 )
             else:  # bitflip error (never know)
-                return None
+                return
 
             # order trigger to the telgram bot
             self._make_order(order)
             await self.telegram_bot.send_text(message)
             self.trading_logger.info(message)
         except Exception as e:
-            self.logger.error(f"Error while executing the trade: {str(e)}")
+            self.logger.error(f"[TRADE_EXECUTION_ERROR] Trade: {buy_or_sell.name if hasattr(buy_or_sell, 'name') else buy_or_sell} | Error: {type(e).__name__}: {str(e)}")
             raise Exception
-        return None
+        return
 
     def _make_order(
         self,
@@ -465,7 +473,7 @@ class TradeManager:
             with self.lock_previous_order:
                 self.previous_order = order
         except Exception as e:
-            self.logger.critical(f"Unexpected Error while ordering: {str(e)}")
+            self.logger.critical(f"[ORDER_REGISTRATION_ERROR] Type: {order.type_str} | Price: {order.entry_price} | Error: {type(e).__name__}: {str(e)}")
             raise Exception(
                 f"{__name__} - {self.__class__.__name__} - Unexpected Error while ordering: {str(e)}"
             ) from e
@@ -498,10 +506,10 @@ class TradeManager:
                             signal_data = signal,
                         )
                         if (self.generate_timestamp() - curr_timestamp > 300_000):
-                            self.logger.info(f"The current score is {self.trade_score}")
+                            self.logger.info(f"[SIGNAL_STATS] Score: {self.trade_score} | Signal Processed")
                             curr_timestamp = self.generate_timestamp()
             except Exception as e:
-                self.logger.error(f"Error while getting the signal: {str(e)}")
+                self.logger.error(f"[SIGNAL_ERROR] Failed to fetch | Error: {type(e).__name__}: {str(e)}")
         return None
 
     def _get_signal(
@@ -568,16 +576,16 @@ class TradeManager:
             - current price of the asset
         """
         try:
-            return  # TODO: get the BTC currenct price
+            return self._get_mark_price().mark_price
         except Exception as e:
-            self.logger.critical(f"Unknown Exception Invoked during fetching the current price: {str(e)}")
+            self.logger.critical(f"[PRICE_FETCH_ERROR] Mark price unavailable | Error: {type(e).__name__}: {str(e)}")
             raise Exception
 
     def _get_target_prices(
         self,
         buy_or_sell: TradeState,
         current_price: float,
-    ) -> Tuple[float, float]:
+    ) -> tuple[float, float]:
         """
         func _get_target_prices():
             - private method
@@ -612,27 +620,6 @@ class TradeManager:
                 2,
             )
 
-    def _get_trade_amount(
-        self,
-    ) -> float:
-        '''
-        obsolete function but wil be use din the future.
-        '''
-
-        open_amount_response: dict = self.mexc_future_market_sdk.asset(
-            currency = "USDT",
-        )
-
-        if open_amount_response.get("success"):
-            return (
-                open_amount_response.get("data").get("availableOpen") * self.trade_amount
-            )
-        else:
-            raise Exception(
-                f"{__name__} - Error while getting the trade amount: {open_amount_response}"
-            )
-        return
-
     def _decide_to_make_trade(
         self,
     ) -> bool:
@@ -653,16 +640,28 @@ class TradeManager:
                 - return False
         """
         try:
-            # TODO: get the order -> and then realize if there is a currently holding order or not.
+            # positions: list[Position] = self._get_open_orders()  # TODO: need to check with it.
+            account_info: AccountInformation = self._get_account_info()
+
+            if (account_info.balance == account_info.available_balance):
+                return True
             return False
         except Exception as e:
-            self.logger.error(f"Error while deciding to make trade: {str(e)}")
+            self.logger.error(f"[TRADE_DECISION_CHECK_ERROR] Position check failed | Error: {type(e).__name__}: {str(e)}")
             return False
 
-    def get_ticker_qty(
+    def _get_trade_quote_amt(
+        self,
+    ) -> float:
+        '''
+        ;func _get_trade_amount() -> float
+            - return the amt of the money
+        '''
+        return self._get_available_quote() * self.trade_weight
+
+    def _get_trade_ticker_amt(
         self,
         ticker_price: float,
-        available_quote: float,
     ) -> float | None:
         # ! need to be moved to the broker logic.
         '''
@@ -698,13 +697,13 @@ class TradeManager:
                 - from the broker
         '''
         try:
-            margin_amt: float = self.leverage * self.trade_amount * available_quote  # we need the current
-            return round((margin_amt) / (ticker_price), 3)  # upto three significant digits for the BTC quantity
+            quote_trade_amt: float = self._get_trade_quote_amt()
+            return round((self.leverage * quote_trade_amt) / ticker_price, 3)  # we need the current
         except Exception as e:
-            self.logger.critical(f"Unknown Exception for Calculating the BTC Amount: {str(e)}")
-            return None
+            self.logger.critical(f"[QUANTITY_CALC_ERROR] Ticker: {self.trade_pair.ticker} | Price: {ticker_price} | Error: {type(e).__name__}: {str(e)}")
+            raise
 
-    def get_available_quote(self) -> float | None:
+    def _get_available_quote(self) -> float | None:
         # ! generalization: need to be moved to the broker logic.
         '''
         ;func get_available_quote():
@@ -719,8 +718,245 @@ class TradeManager:
         try:
             # TODO: get the available data.
             # What are we going to do here ? -> get the average from different source of data?
-            return 0.0
-
+            account_info: AccountInformation = self._get_account_info()
+            return round(account_info.available_balance, 4)
         except Exception as e:
-            self.logger.critical(f"Unexpected Error: {str(e)}")
-            return None
+            self.logger.critical(f"[BALANCE_FETCH_ERROR] Quote: {self.trade_pair.quote} | Error: {type(e).__name__}: {str(e)}")
+            raise
+
+    def _fetch_with_retry(
+        self,
+        network_call,
+        expected_type,
+        call_name: str,
+        initial_delay: float = 1.0,
+    ):
+        """
+        func _fetch_with_retry():
+            - Generic wrapper for network I/O calls with infinite retry logic.
+            - Retries indefinitely with exponential backoff until expected type is received.
+            - Can be used for any network-based data fetching.
+
+        param self: TradeManager object
+        param network_call: Callable
+            - Function to call for network I/O (e.g., self.binance_client.get_account_balance)
+        param expected_type: type or Callable
+            - Expected return type or validation function.
+            - If type: checks isinstance(response, expected_type)
+            - If callable: calls validation function with response
+        param call_name: str
+            - Name of the network call for logging purposes
+        param initial_delay: float
+            - Initial delay in seconds before first retry (default: 1.0)
+
+        return: Object of expected_type or None if never succeeds
+        """
+        attempt = 0
+        delay = initial_delay
+
+        while True:
+            try:
+                response = network_call()
+                
+                # Validate response against expected type
+                if isinstance(expected_type, type):
+                    is_valid = isinstance(response, expected_type)
+                else:
+                    # expected_type is a callable validation function
+                    is_valid = expected_type(response)
+                
+                if is_valid:
+                    if attempt > 0:
+                        self.logger.info(
+                            f"[SUCCESS] {call_name}() | Attempt: {attempt + 1} | "
+                            f"Response Type: {type(response).__name__}"
+                        )
+                    return response
+                
+                # Response received but invalid type
+                self.logger.warning(
+                    f"[INVALID_RESPONSE] {call_name}() | Attempt: {attempt + 1} | "
+                    f"Expected: {expected_type.__name__ if hasattr(expected_type, '__name__') else 'callable'} | "
+                    f"Got: {type(response).__name__} | "
+                    f"Next Retry: {delay:.2f}s"
+                )
+                time.sleep(delay)
+                delay *= 2  # Exponential backoff
+                attempt += 1
+
+            except Exception as e:
+                self.logger.warning(
+                    f"[RETRY] {call_name}() | Attempt: {attempt + 1} | "
+                    f"Error: {type(e).__name__}: {str(e)} | "
+                    f"Next Retry: {delay:.2f}s"
+                )
+                time.sleep(delay)
+                delay *= 2  # Exponential backoff
+                attempt += 1
+
+    def _get_account_info(
+        self,
+        initial_delay: float = 1.0,
+    ) -> AccountInformation:
+        """
+        func _get_account_info():
+            - Fetch account information with infinite retry logic.
+            - Uses _fetch_with_retry() for consistent error handling.
+
+        param self: TradeManager object
+        param initial_delay: float
+            - Initial delay in seconds before first retry (default: 1.0)
+
+        return AccountInformation:
+            - Returns AccountInformation once successfully received
+        """
+        return self._fetch_with_retry(
+            network_call=lambda: self.binance_client.get_account_balance(asset=self.trade_pair.quote),
+            expected_type=AccountInformation,
+            call_name="_get_account_info",
+            initial_delay=initial_delay,
+        )
+    
+    def _get_open_orders(
+        self,
+        initial_delay: float = 1.0,
+    ) -> list[Position]:
+        """
+        func _get_open_orders():
+            - Fetch open orders with infinite retry logic.
+            - Uses _fetch_with_retry() for consistent error handling.
+
+        param self: TradeManager object
+        param initial_delay: float
+            - Initial delay in seconds before first retry (default: 1.0)
+
+        return list[Position] | None:
+            - Returns list of open orders once successfully received
+        """
+        return self._fetch_with_retry(
+            network_call=lambda: self.binance_client.get_open_orders(symbol=self.trade_pair),
+            expected_type=list,
+            call_name="_get_open_orders",
+            initial_delay=initial_delay,
+        )
+
+    def _get_mark_price(
+        self,
+        initial_delay: float = 1.0,
+    ) -> MarkPrice:
+        """
+        func _get_mark_price():
+            - Fetch mark price with infinite retry logic.
+            - Uses _fetch_with_retry() for consistent error handling.
+
+        param self: TradeManager object
+        param initial_delay: float
+            - Initial delay in seconds before first retry (default: 1.0)
+
+        return MarkPrice | None:
+            - Returns MarkPrice once successfully received
+        """
+        return self._fetch_with_retry(
+            network_call=lambda: self.binance_client.get_mark_price(symbol=self.trade_pair),
+            expected_type=MarkPrice,
+            call_name="_get_mark_price",
+            initial_delay=initial_delay,
+        )
+
+
+if __name__ == "__main__":
+    """
+    ####################################################################################################################
+    #                          Build TradeManager with all dependencies (no start)                                     #
+    #                                                                                                                  #
+    # Mimics how SystemManager wires TradeManager. All components are initialized but threads are NOT started.         #
+    # User can manually call functions to test if they work.                                                           #
+    ####################################################################################################################
+    """
+    from src.brokers.binance.http_client import BinanceFutureHttpClient
+    from unittest.mock import MagicMock, patch
+    from dotenv import load_dotenv
+    import os
+
+    print("\n" + "="*80)
+    print("BUILDING BinanceFutureHttpClient")
+    print("="*80 + "\n")
+
+    load_dotenv()
+
+    bak = os.getenv("BINANCE_HMAC_API_KEY")
+    bsk = os.getenv("BINANCE_HMAC_SECRET_KEY")
+
+    bfhc = BinanceFutureHttpClient(api_key=bak, secret_key=bsk)
+
+    # =========================================================================
+    # 1. Create Pipelines
+    # =========================================================================
+    print("[1/8] Creating pipelines...")
+    from src.pipeline.data_pipeline import DataPipeline
+    from src.pipeline.signal_pipeline import SignalPipeline
+    
+    data_pipeline = DataPipeline()
+    signal_pipeline = SignalPipeline()
+    print("     ✓ DataPipeline created")
+    print("     ✓ SignalPipeline created")
+
+    # =========================================================================
+    # 2. Create PipelineControllers
+    # =========================================================================
+    print("\n[2/8] Creating pipeline controllers...")
+    
+    signal_pipeline_controller = PipelineController(pipeline=signal_pipeline, name="TEST_SIGNAL_PC")
+    print("     ✓ PipelineController[Signal] created")
+
+    # =========================================================================
+    # 3. Create ScoreMapper
+    # =========================================================================
+    print("\n[3/8] Creating score mapper...")
+    
+    delta_mapper = ScoreMapper()
+    print("\n✓ ScoreMapper created")
+
+    # =========================================================================
+    # 4. Mock Telegram Bot (avoid env var dependency)
+    # =========================================================================
+    print("\n[4/8] Setting up telegram bot (mocked)...")
+    
+    telegram_bot = MagicMock(spec=CustomTelegramBot)
+    telegram_bot.send_text = MagicMock(return_value=None)
+    print("✓ CustomTelegramBot mocked")
+
+    # =========================================================================
+    # 6. Build TradeManager with patched start()
+    # =========================================================================
+    print("\n[6/8] Building TradeManager...\n")
+    
+    with patch.object(TradeManager, 'start', return_value=None):
+        tm = TradeManager(
+            signal_pipeline_controller=signal_pipeline_controller,
+            http_interface=None,
+            binance_future_client=bfhc,
+            delta_mapper=delta_mapper,
+            telegram_bot=telegram_bot,
+            trade_pair=TradePair(ticker="BTC", quote="USDT"),
+            leverage=10,
+            trade_weight=0.1,
+            take_profit_rate=0.2,
+            stop_loss_rate=0.2,
+            score_threashold=2_000,
+            score_trend_management=200,
+            name="TEST_TM",
+        )
+        print(tm._get_account_info())
+
+        print(tm._get_open_orders())
+        
+        mark_price: MarkPrice = tm._get_mark_price()
+        print(mark_price)
+
+        print(tm._get_trade_ticker_amt(ticker_price=mark_price.mark_price))
+
+        print(tm._get_trade_quote_amt())
+    
+    # Replace the binance_client with our mock for get_available_quote()
+    print("\n✓ TradeManager instantiated (threads NOT started)")

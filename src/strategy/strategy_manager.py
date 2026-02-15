@@ -42,12 +42,12 @@ class StrategyManager:
             try:
                 # start the thread.
                 thread.start()
-                logger.info(f"Thread '{thread.name}' (ID: {thread.ident}) has started")
+                logger.info(f"[THREAD_START] {thread.name} | Status: running")
             except RuntimeError as e:
-                logger.critical(f"Failed to start thread '{thread.name}': {str(e)}")
+                logger.critical(f"[THREAD_ERROR] {thread.name} failed | Error: {type(e).__name__}: {str(e)}")
                 raise RuntimeError(f"Failed to start thread '{thread.name}': {str(e)}")
             except Exception as e:
-                logger.critical(f"Unexpected error starting thread: '{thread.name}': {str(e)}")
+                logger.critical(f"[THREAD_ERROR] {thread.name} failed | Error: {type(e).__name__}: {str(e)}")
                 raise Exception(
                     f"Unexpected error starting thread: '{thread.name}': {str(e)}"
                 )
@@ -78,6 +78,8 @@ class StrategyManager:
         self.strategy_configs: list[StrategyConfig] = []
 
         self.start()
+        
+        self.logger.info(f"[STRATEGY_INIT] {self.name} | Status: ready")
         return
 
     def start(self) -> None:
@@ -89,9 +91,9 @@ class StrategyManager:
     def push_signal(self, signal: Signal, details: str) -> None:
         try:
             self._push_signal_callback(signal)
-            self.trading_logger.info(f"{details} Signal has been generated.")
+            self.trading_logger.info(f"[SIGNAL_GEN] Strategy: {details} | Signal: {signal.signal.name} | Status: success")
         except Exception as e:
-            self.logger.critical(f"Cannot push signal '{signal.signal.name}': {str(e)}")
+            self.logger.critical(f"[STRATEGY_ERROR] push_signal() | Error: {type(e).__name__}: {str(e)}")
 
     def _load_strategies(self) -> None:
         fetcher = StrategyFetcher(self.STRATEGY_CONFIG_PATH)
@@ -118,7 +120,7 @@ class StrategyManager:
         Initialize strategy execution threads based on loaded configurations.
         """
         if not self.strategy_executor:
-            self.logger.critical("StrategyExecutor is not initialized.")
+            self.logger.critical("[STRATEGY_ERROR] StrategyExecutor not initialized")
             return
 
         for strategy in self.strategy_configs:
@@ -131,7 +133,7 @@ class StrategyManager:
                 daemon=True,
             )
             self.threads.append(thread)
-            self.logger.info(f"Thread for {name} has been set up!")
+            self.logger.info(f"[THREAD_START] {name} | Status: ready")
 
     def __verify_index(
         self,
@@ -175,7 +177,7 @@ class StrategyManager:
         try:
             idx_type = IndexType[indicator_name]
         except KeyError:
-            self.logger.critical(f"Unknown indicator '{indicator_name}' in strategy config.")
+            self.logger.critical(f"[STRATEGY_ERROR] _resolve_indicator_value() | Error: Unknown indicator: {indicator_name}")
             return None
 
         indicator_obj = indicators.get(idx_type)
