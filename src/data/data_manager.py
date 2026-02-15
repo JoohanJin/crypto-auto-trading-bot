@@ -71,6 +71,8 @@ class DataManager:
         )
 
         self.start()
+        
+        self.logger.info(f"[DATA_INIT] {self.name} | Status: ready")
 
         return
 
@@ -91,13 +93,13 @@ class DataManager:
                 target = self.__resize_df,
                 daemon = True
             )
-            self.logger.info("Thread for DataFrame size limit has been set up!")
+            self.logger.info(f"[THREAD_START] {thread_memory_save.name} | Status: running")
 
             self.threads.append(thread_memory_save,)
         except (RuntimeError, TypeError, AttributeError, MemoryError) as e:
-            self.logger.error(f"fail to make instances for the thread: {str(e)}")
+            self.logger.error(f"[THREAD_ERROR] fail to make instances for the thread: {str(e)}")
         except Exception as e:
-            self.logger.critical(f"Unexpected error constructing thread pool - {str(e)}")
+            self.logger.critical(f"[THREAD_ERROR] Unexpected error constructing thread pool - {str(e)}")
 
         return
 
@@ -105,15 +107,15 @@ class DataManager:
         for thread in self.threads:
             try:
                 thread.start()
-                self.logger.info(f"Thread '{thread.name}' (ID: {thread.ident}) has started")
+                self.logger.info(f"[THREAD_START] {thread.name} | Status: running")
             except RuntimeError as e:
                 self.logger.critical(
-                    f"Failed to start thread - '{thread.name}' (ID: {thread.ident}): {str(e)}"
+                    f"[THREAD_ERROR] Failed to start thread - '{thread.name}': {str(e)}"
                 )
                 raise RuntimeError
             except Exception as e:
                 self.logger.critical(
-                    f"Unexpected error starting thread - '{thread.name}' (ID: {thread.ident}): {str(e)}"
+                    f"[THREAD_ERROR] Unexpected error starting thread - '{thread.name}': {str(e)}"
                 )
                 raise
         return
@@ -138,23 +140,23 @@ class DataManager:
             data = None
             try:
                 if (self.generate_timestamp() - curr_timestamp > (wait_time * 1_000)):  # Five minutes
-                    with self.df_lock:
-                        if self.price_data.shape[0] > self._df_size_limit:
-                            data = self.price_data.iloc[: -self._df_size_limit]
-                            self.price_data = self.price_data.iloc[-self._df_size_limit :]
+                    with self.lock_price_data:
+                        if self.prices.shape[0] > self._df_size_limit:
+                            data = self.prices.iloc[: -self._df_size_limit]
+                            self.prices = self.prices.iloc[-self._df_size_limit :]
                             self.logger.info(
-                                f"Data Saver resized price DataFrame to "
-                                f"{self.price_data.shape[0]} rows and {self.price_data.shape[1]} columns - "
-                                f"cleaned {data.shape[0]} rows and {data.shape[1]} columns"
+                                f"[DATA_CLEANUP] Action: resized | Rows: {self.prices.shape[0]} | "
+                                f"Cleaned: {data.shape[0]}"
                             )
                         else:
                             self.logger.info(
-                                f"Data Saver skipped cleanup - size below threshold: {self.price_data.shape[0]} rows"
+                                f"[DATA_CLEANUP] Action: skipped | Rows: {self.prices.shape[0]} | "
+                                f"Threshold: {self._df_size_limit}"
                             )
 
                     # TODO: store the data to the database -> possibly just resize it and put the new data into the db.
                     curr_timestamp = self.generate_timestamp()
             except Exception as e:
-                self.logger.warning(f"func _resize_df(): Exception caused: {str(e)}")
+                self.logger.warning(f"[DATA_ERROR] __resize_df() | Error: {type(e).__name__}: {str(e)}")
 
         return None
