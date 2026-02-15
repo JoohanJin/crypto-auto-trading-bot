@@ -3,7 +3,8 @@ from dataclasses import dataclass
 
 # Custom Library
 from src.core.models.base import ImmutableModel
-from src.core.models.trade import OrderType, TimeInForce, TradePair
+from src.core.models.trade import TimeInForce, TradePair, PositionType
+from src.core.models.order import Side
 
 
 @dataclass(frozen=True)
@@ -64,8 +65,8 @@ class Position(ServiceDTO):
     ticker: TradePair  # symbol converted to TradePair
     status: str  # NEW, FILLED, CANCELED, etc.
     time_in_force: TimeInForce  # GTC, GTE_GTC, etc.
-    order_type: OrderType  # MARKET, STOP_MARKET, TRAILING_STOP_MARKET, etc.
-    side: str  # BUY or SELL
+    order_type: PositionType  # MARKET, STOP_MARKET, TRAILING_STOP_MARKET, etc.
+    side: Side  # BUY or SELL
     position_side: str  # LONG, SHORT, or BOTH
     orig_qty: float  # Original quantity
     executed_qty: float  # Executed quantity
