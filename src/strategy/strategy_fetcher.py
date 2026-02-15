@@ -24,17 +24,17 @@ class StrategyFetcher:
                 config = json.load(file)
                 strategies: List[Dict[str, Any]] = config.get("strategies", [])
                 self.logger.info(
-                    f"Loaded {len(strategies)} strategies from {self.config_path}"
+                    f"[STRATEGY_LOAD] Count: {len(strategies)} | Source: {self.config_path}"
                 )
                 return config
         except FileNotFoundError:
-            self.logger.critical(f"Strategy config not found: {self.config_path}")
+            self.logger.critical(f"[STRATEGY_ERROR] load_strategies() | Error: FileNotFoundError: {self.config_path}")
             return {"strategies": []}
         except json.JSONDecodeError as e:
             self.logger.critical(
-                f"Failed to decode strategy config {self.config_path}: {str(e)}"
+                f"[STRATEGY_ERROR] load_strategies() | Error: JSONDecodeError: {str(e)}"
             )
             return {"strategies": []}
         except Exception as e:
-            self.logger.critical(f"Unexpected error loading strategies: {str(e)}")
+            self.logger.critical(f"[STRATEGY_ERROR] load_strategies() | Error: {type(e).__name__}: {str(e)}")
             return {"strategies": []}

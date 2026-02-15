@@ -59,7 +59,7 @@ class StrategyExecutor:
             if should_process and self._should_generate(strategy.name, strategy.signal_window):
                 signal_type = logic(indicators, strategy)
                 if signal_type:
-                    self.trading_logger.info(f"{strategy.name} Signal generated.")
+                    self.trading_logger.info(f"[SIGNAL_GEN] Strategy: {strategy.name} | Signal: {signal_type.name} | Status: success")
                     self._emit_signal(signal_type, strategy.name)
                 self._update_timestamp(strategy.name)
 
