@@ -89,8 +89,11 @@ class SystemManager:
             # Websocket
             self.websocket_interface: WebSocketInterface = self._construct_ws_interface()
             self.logger.info("[SERVICE_INIT] WebSocketInterface initialized")
-            self.http_interface: HttpInterface = self._construct_http_interface()
-            self.logger.info("[SERVICE_INIT] HttpInterface initialized")
+            # self.http_interface: HttpInterface = self._construct_http_interface()
+            self.http_interface: HttpInterface | None = None
+            # self.logger.info("[SERVICE_INIT] HttpInterface initialized")
+            self.binance_http_client: BinanceFutureHttpClient = self._construct_binance_future()
+            self.logger.info("[SERVICE_INIT] BinanceFutureHttpInterface initialized")
 
             '''
             # Main Components
@@ -110,6 +113,7 @@ class SystemManager:
             self.trade_manager: TradeManager = TradeManager(
                 signal_pipeline_controller = self.signal_pipeline_controller,
                 http_interface=self.http_interface,
+                binance_future_client=self.binance_http_client,
                 delta_mapper = self.mapper,
                 telegram_bot = self.telegram_bot,
             )
@@ -329,7 +333,7 @@ class SystemManager:
             binance_client = self._construct_binance_future()
             if binance_client:
                 hi.push_client(binance_client)
-                self.logger.info(f"[SERVICE_INTERFACE] HTTP Interface | Clients registered: 1")
+                self.logger.info("[SERVICE_INTERFACE] HTTP Interface | Clients registered: 1")
             return hi
         except Exception as e:
             self.logger.critical(
@@ -359,6 +363,7 @@ class SystemManager:
                 wi.push_client(mexc_wsc)
                 clients_count += 1
             self.logger.info(f"[SERVICE_INTERFACE] WebSocket Interface | Clients registered: {clients_count}")
+            wi.start()
             return wi
         except Exception as e:
             self.logger.critical(
