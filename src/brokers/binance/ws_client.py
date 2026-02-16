@@ -290,7 +290,7 @@ class BinanceWebSocketClient(WebSocketClient):
         symbol = self._parse_trade_pair(trade_pair, capitalize=True)
 
         if not isinstance(ws, BinanceUserWebSocket):
-            self.logger.error(f"[WS_SUBSCRIBE] Binance | Error: UserWebSocketClient is not initialized.")
+            self.logger.error("[WS_SUBSCRIBE] Binance | Error: UserWebSocketClient is not initialized.")
             return
 
         if not callable(callback):
