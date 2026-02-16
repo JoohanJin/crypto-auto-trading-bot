@@ -348,6 +348,7 @@ class TradeManager:
                 # NEW order (explicitly 2,4 or REVERSE with no active position)
                 quote_size = self._get_trade_quote_amt()
                 ticker_size = self._get_trade_ticker_amt(entry_price)
+                meta_data = dict()
             else:  # Invalid trade state
                 raise ValueError(f"Invalid TradeState: {buy_or_sell}")
 
@@ -389,16 +390,16 @@ class TradeManager:
             - Formatted message or None if invalid state
         """
         base_message = (
-            f"Trade Signal: {order.type_str}\n"
+            f"Trade Signal: {order.side_str}\n"
             f"Entry Price: {order.entry_price}\n"
-            f"Amount: {order.quote_size} {order.quote}\n"
+            f"Amount: {order.quote_size} {order.quote} or {order.ticker_size} {order.ticker}\n"
             f"Take Profit: {order.tp_price}\n"
             f"Stop Loss: {order.sl_price}\n"
         )
         
-        if buy_or_sell in (2, 4):  # NEW_BUY or NEW_SELL
+        if not order.meta_data.get("reverse", False):  # NEW_BUY or NEW_SELL
             return base_message + "It is the new order."
-        elif buy_or_sell in (8, 16):  # REVERSE_BUY or REVERSE_SELL
+        else:  # REVERSE_BUY or REVERSE_SELL
             return base_message + "It is the reverse order."
         return
 
@@ -407,10 +408,10 @@ class TradeManager:
         order: Order,
     ) -> None:
         try:
-            self.binance_client.order(order=order)
+            return self.binance_client.order(order=order)
         except Exception as e:
             self.logger.critical(
-                f"[ORDER_REGISTRATION_ERROR] Type: {order.type_str} "
+                f"[ORDER_REGISTRATION_ERROR] Type: {order.side_str } "
                 f"| Price: {order.entry_price} | Error: {type(e).__name__}: {str(e)}"
             )
             raise Exception(
@@ -674,7 +675,7 @@ class TradeManager:
         ;func _get_trade_amount() -> float
             - return the amt of the money
         '''
-        return self._get_available_quote() * self.trade_weight
+        return round(self._get_available_quote() * self.trade_weight, 2)
 
     def _get_trade_ticker_amt(
         self,
@@ -941,6 +942,13 @@ if __name__ == "__main__":
     
     telegram_bot = MagicMock(spec=CustomTelegramBot)
     telegram_bot.send_text = MagicMock(return_value=None)
+
+    api_key = os.getenv("TELEGRAM_API_KEY")
+    channel_id = os.getenv("TELEGRAM_CHANNEL_ID")
+    telegram_bot = CustomTelegramBot(
+        api_key=api_key,
+        channel_id=channel_id,
+    )
     print("✓ CustomTelegramBot mocked")
 
     # =========================================================================
@@ -958,11 +966,11 @@ if __name__ == "__main__":
             trade_pair=TradePair(ticker="BTC", quote="USDT"),
             leverage=10,
             trade_weight=0.1,
-            take_profit_rate=0.2,
-            stop_loss_rate=0.2,
+            take_profit_rate=0.10,
+            stop_loss_rate=0.05,
             score_threashold=2_000,
             score_trend_management=200,
-            name="TEST_TM",
+            name="TEST_TRADE_MANAGER",
         )
         print(tm._get_account_info())
 
@@ -979,6 +987,47 @@ if __name__ == "__main__":
         print(tm._construct_new_order(buy_or_sell=4))  # NEW_SELL
         print(tm._construct_new_order(buy_or_sell=8))  # REVERSE_BUY
         print(tm._construct_new_order(buy_or_sell=16))  # REVERSE_SELL
+
+        print("\n===================== construct order test =========================")
+        buy_or_sell: TradeState = TradeState.NEW_BUY
+        order: Order = tm._construct_new_order(buy_or_sell)
+        print(order, "\n")
+
+        message: str | None = tm._format_trade_message(order, buy_or_sell)
+        print(message)
+
+        res = tm._make_order(order)
+        print(res)
+
+        # buy_or_sell: TradeState = TradeState.REVERSE_BUY
+        # order: Order = tm._construct_new_order(buy_or_sell)
+        # print(order, "\n")
+
+        buy_or_sell: TradeState = TradeState.NEW_SELL
+        order: Order = tm._construct_new_order(buy_or_sell)
+        print(order, "\n")
+
+        # buy_or_sell: TradeState = TradeState.REVERSE_SELL
+        # order: Order = tm._construct_new_order(buy_or_sell)
+        # print(order, "\n")
+        time.sleep(2.0)
+
+        print("\n===================== trade message test =========================")
+        message: str | None = tm._format_trade_message(order, buy_or_sell)
+        print(message)
+
+        # order trigger to the telegram bot
+        # async def test_telegram_send_text(msg: str):
+        #     await tm.telegram_bot.send_text(message)
+        
+        # asyncio.run(test_telegram_send_text(message))
+
+        print("\n===================== make order test =========================")
+        res = tm._make_order(order)
+        print(res)
+        # for r in res:
+        #     print(r)
+        #     print()
 
     # Replace the binance_client with our mock for get_available_quote()
     print("\n✓ TradeManager instantiated (threads NOT started)")
