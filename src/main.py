@@ -25,7 +25,6 @@ SOFTWARE.
 # Standard Library
 import sys
 import time
-from dotenv import load_dotenv
 
 # Custom Library
 from src.infrastructure.system_manager import SystemManager
@@ -37,7 +36,6 @@ logger = get_logger(__name__)
 def main():
     try:
         # Load environment variables
-        load_dotenv()
         logger.info("[APP_START] Application starting | Loading environment configuration")
 
         # Initialize SystemManager
