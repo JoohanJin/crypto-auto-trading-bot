@@ -143,12 +143,61 @@ class TestDecideTrade(unittest.TestCase):
         self.assertEqual(result, TradeState.REVERSE_SELL)
 
     def test_position_held_score_in_deadzone_returns_hold(self):
-        """Score within half-threshold → HOLD regardless of position."""
+        """Score within exit_threshold (threshold//4) → HOLD regardless of position."""
         pos = _make_position(side=Side.BUY)
         with self.tm.lock_current_position:
             self.tm.current_position = pos
-        result = self.tm._decide_trade(score=500)
+        # exit_threshold = 2000 // 4 = 500, score=-499 is within deadzone
+        result = self.tm._decide_trade(score=-499)
         self.assertEqual(result, TradeState.HOLD)
+
+    # --- EXIT tests ---
+
+    def test_buy_position_moderate_negative_score_returns_exit(self):
+        """
+        LONG position + score below -exit_threshold but above -reverse_threshold → EXIT.
+        exit_threshold = 2000 // 4 = 500, reverse_threshold = 2000 // 2 = 1000
+        """
+        pos = _make_position(side=Side.BUY)
+        with self.tm.lock_current_position:
+            self.tm.current_position = pos
+        result = self.tm._decide_trade(score=-501)
+        self.assertEqual(result, TradeState.EXIT)
+
+    def test_sell_position_moderate_positive_score_returns_exit(self):
+        """
+        SHORT position + score above exit_threshold but below reverse_threshold → EXIT.
+        """
+        pos = _make_position(side=Side.SELL)
+        with self.tm.lock_current_position:
+            self.tm.current_position = pos
+        result = self.tm._decide_trade(score=501)
+        self.assertEqual(result, TradeState.EXIT)
+
+    def test_buy_position_at_exit_threshold_returns_hold(self):
+        """score == -exit_threshold (exact boundary) → HOLD (strict inequality)."""
+        pos = _make_position(side=Side.BUY)
+        with self.tm.lock_current_position:
+            self.tm.current_position = pos
+        result = self.tm._decide_trade(score=-500)  # -exit_threshold exactly
+        self.assertEqual(result, TradeState.HOLD)
+
+    def test_exit_does_not_trigger_without_position(self):
+        """No position → score in exit range does nothing (needs NEW threshold)."""
+        self.tm.current_position = None
+        result = self.tm._decide_trade(score=-501)
+        self.assertEqual(result, TradeState.HOLD)
+
+    def test_reverse_takes_priority_over_exit(self):
+        """
+        Score crosses both exit and reverse thresholds → REVERSE wins
+        (REVERSE is checked first in the code).
+        """
+        pos = _make_position(side=Side.BUY)
+        with self.tm.lock_current_position:
+            self.tm.current_position = pos
+        result = self.tm._decide_trade(score=-1_001)
+        self.assertEqual(result, TradeState.REVERSE_SELL)  # not EXIT
 
 
 # =============================================================================
@@ -378,6 +427,63 @@ class TestConstructNewOrder(unittest.TestCase):
         self.assertLess(order.tp_price, order.entry_price)
         self.assertGreater(order.sl_price, order.entry_price)
 
+    # --- EXIT order construction ---
+
+    def test_exit_order_closes_long_with_sell(self):
+        """EXIT with LONG position → SELL to close, size = position size."""
+        pos = _make_position(side=Side.BUY, ticker_size=0.05, quote_size=500.0, entry_price=95_000.0)
+        with self.tm.lock_current_position:
+            self.tm.current_position = pos
+
+        order = self.tm._construct_new_order(TradeState.EXIT)
+        self.assertIsNotNone(order)
+        self.assertEqual(order.side, Side.SELL)
+        self.assertEqual(order.side_str, "SELL")
+        self.assertEqual(order.ticker_size, 0.05)
+        self.assertEqual(order.quote_size, 500.0)
+        self.assertEqual(order.tp_price, 0.0)
+        self.assertEqual(order.sl_price, 0.0)
+        self.assertTrue(order.meta_data.get("exit"))
+
+    def test_exit_order_closes_short_with_buy(self):
+        """EXIT with SHORT position → BUY to close."""
+        pos = _make_position(side=Side.SELL, ticker_size=0.02, quote_size=200.0, entry_price=105_000.0)
+        with self.tm.lock_current_position:
+            self.tm.current_position = pos
+
+        order = self.tm._construct_new_order(TradeState.EXIT)
+        self.assertIsNotNone(order)
+        self.assertEqual(order.side, Side.BUY)
+        self.assertEqual(order.side_str, "BUY")
+        self.assertEqual(order.ticker_size, 0.02)
+        self.assertEqual(order.quote_size, 200.0)
+
+    def test_exit_order_pnl_rate_positive_for_profit(self):
+        """EXIT long at a higher price → positive pnl_rate."""
+        pos = _make_position(side=Side.BUY, entry_price=95_000.0)
+        with self.tm.lock_current_position:
+            self.tm.current_position = pos
+        # mark_price is 100_000 → profit for long
+        order = self.tm._construct_new_order(TradeState.EXIT)
+        pnl_rate = order.meta_data.get("pnl_rate", 0.0)
+        self.assertGreater(pnl_rate, 0)  # (100000 - 95000) / 95000 ≈ 0.0526
+
+    def test_exit_order_pnl_rate_negative_for_loss(self):
+        """EXIT long at a lower price → negative pnl_rate."""
+        pos = _make_position(side=Side.BUY, entry_price=105_000.0)
+        with self.tm.lock_current_position:
+            self.tm.current_position = pos
+        # mark_price is 100_000 → loss for long
+        order = self.tm._construct_new_order(TradeState.EXIT)
+        pnl_rate = order.meta_data.get("pnl_rate", 0.0)
+        self.assertLess(pnl_rate, 0)  # (100000 - 105000) / 105000 ≈ -0.0476
+
+    def test_exit_without_position_returns_none(self):
+        """EXIT with no position → raises internally, returns None."""
+        self.tm.current_position = None
+        order = self.tm._construct_new_order(TradeState.EXIT)
+        self.assertIsNone(order)
+
 
 # =============================================================================
 # 6. _format_trade_message() Tests
@@ -406,6 +512,36 @@ class TestFormatTradeMessage(unittest.TestCase):
         self.assertIn("50000.0", msg)
         self.assertIn("51000.0", msg)
         self.assertIn("49000.0", msg)
+
+    def test_exit_message_contains_pnl_and_exit_label(self):
+        """EXIT message shows P/L percentage and 'EXIT' label."""
+        order = _make_order(
+            side=Side.SELL,
+            side_str="SELL",
+            tp_price=0.0,
+            sl_price=0.0,
+            meta_data={"exit": True, "pnl_rate": 0.05},  # 5% profit
+        )
+        msg = self.tm._format_trade_message(order)
+        self.assertIn("EXIT", msg)
+        self.assertIn("5.0%", msg)
+        self.assertIn("Profit", msg)
+
+    def test_exit_message_shows_loss(self):
+        """EXIT message shows loss when pnl_rate is negative."""
+        order = _make_order(
+            side=Side.BUY,
+            side_str="BUY",
+            tp_price=0.0,
+            sl_price=0.0,
+            meta_data={"exit": True, "pnl_rate": -0.03},  # 3% loss
+        )
+        msg = self.tm._format_trade_message(order)
+        self.assertIn("EXIT", msg)
+        self.assertIn("Loss", msg)
+        self.assertIn("-3.0%", msg)
+        # Leveraged P/L with 10x
+        self.assertIn("-30.0%", msg)
 
 
 # =============================================================================
@@ -482,6 +618,17 @@ class TestExecuteTrade(unittest.TestCase):
         self.assertIsNotNone(self.tm.current_position)
         self.assertEqual(self.tm.current_position.side, Side.BUY)
         self.assertEqual(self.tm.current_position.ticker_size, 0.01)
+
+    def test_exit_clears_position(self):
+        """After _execute_trade(EXIT), current_position is None."""
+        pos = _make_position(side=Side.BUY, ticker_size=0.01, quote_size=100.0)
+        with self.tm.lock_current_position:
+            self.tm.current_position = pos
+
+        self.tm._execute_trade(TradeState.EXIT)
+        self.assertIsNone(self.tm.current_position)
+        self.tm.binance_client.order.assert_called_once()
+        self.tm.telegram_bot.send_text.assert_called_once()
 
 
 # =============================================================================
@@ -644,6 +791,98 @@ class TestEdgeCases(unittest.TestCase):
         """Timestamp should be in milliseconds (13 digits approximately)."""
         ts = TradeManager.generate_timestamp()
         self.assertGreater(ts, 1_000_000_000_000)  # > 2001 in ms
+
+
+# =============================================================================
+# 13. Score Decay Tests
+# =============================================================================
+class TestScoreDecay(unittest.TestCase):
+    """Test that trade_score decays over time via decay_rate."""
+
+    def test_decay_reduces_positive_score(self):
+        """Positive score should shrink after decay is applied."""
+        tm = _make_trade_manager(score_decay_rate=0.9)
+        tm.trade_score = 1000
+        # Simulate one decay tick (what _thread_decide_trade does each loop)
+        with tm.trade_score_lock:
+            tm.trade_score = int(tm.trade_score * tm.score_decay_rate)
+        self.assertEqual(tm.trade_score, 900)
+
+    def test_decay_reduces_negative_score(self):
+        """Negative score should shrink toward zero after decay."""
+        tm = _make_trade_manager(score_decay_rate=0.9)
+        tm.trade_score = -1000
+        with tm.trade_score_lock:
+            tm.trade_score = int(tm.trade_score * tm.score_decay_rate)
+        self.assertEqual(tm.trade_score, -900)
+
+    def test_decay_zero_stays_zero(self):
+        """Score of 0 stays 0 after decay."""
+        tm = _make_trade_manager(score_decay_rate=0.995)
+        tm.trade_score = 0
+        with tm.trade_score_lock:
+            tm.trade_score = int(tm.trade_score * tm.score_decay_rate)
+        self.assertEqual(tm.trade_score, 0)
+
+    def test_decay_eventually_reaches_zero(self):
+        """Repeated decay should bring score to 0."""
+        tm = _make_trade_manager(score_decay_rate=0.5)
+        tm.trade_score = 100
+        for _ in range(20):
+            tm.trade_score = int(tm.trade_score * tm.score_decay_rate)
+        self.assertEqual(tm.trade_score, 0)
+
+    def test_decay_rate_1_no_decay(self):
+        """decay_rate=1.0 means no decay at all."""
+        tm = _make_trade_manager(score_decay_rate=1.0)
+        tm.trade_score = 500
+        for _ in range(100):
+            tm.trade_score = int(tm.trade_score * tm.score_decay_rate)
+        self.assertEqual(tm.trade_score, 500)
+
+    def test_default_decay_rate(self):
+        """Default decay_rate should be 0.995."""
+        tm = _make_trade_manager()
+        self.assertEqual(tm.score_decay_rate, 0.995)
+
+
+# =============================================================================
+# 14. Trade Cooldown Tests
+# =============================================================================
+class TestTradeCooldown(unittest.TestCase):
+    """Test the trade cooldown mechanism."""
+
+    def test_default_cooldown_is_30s(self):
+        """Default trade_cooldown_ms should be 30000."""
+        tm = _make_trade_manager()
+        self.assertEqual(tm.trade_cooldown_ms, 30_000)
+
+    def test_last_trade_timestamp_starts_at_zero(self):
+        """last_trade_timestamp should be 0 on init (no previous trade)."""
+        tm = _make_trade_manager()
+        self.assertEqual(tm.last_trade_timestamp, 0)
+
+    def test_cooldown_allows_first_trade(self):
+        """First trade should always pass cooldown check (last_trade_timestamp=0)."""
+        tm = _make_trade_manager(trade_cooldown_ms=60_000)
+        now = TradeManager.generate_timestamp()
+        # Cooldown check: now - 0 > 60_000 → True (always, since now is ~epoch ms)
+        self.assertGreater(now - tm.last_trade_timestamp, tm.trade_cooldown_ms)
+
+    def test_cooldown_blocks_within_window(self):
+        """Trade within cooldown window should be blocked."""
+        tm = _make_trade_manager(trade_cooldown_ms=60_000)
+        tm.last_trade_timestamp = TradeManager.generate_timestamp()  # just traded
+        now = TradeManager.generate_timestamp()
+        # now - last_trade should be < 60_000 (we just set it)
+        self.assertLess(now - tm.last_trade_timestamp, tm.trade_cooldown_ms)
+
+    def test_cooldown_allows_after_window(self):
+        """Trade after cooldown window should be allowed."""
+        tm = _make_trade_manager(trade_cooldown_ms=5_000)
+        tm.last_trade_timestamp = TradeManager.generate_timestamp() - 10_000  # 10s ago
+        now = TradeManager.generate_timestamp()
+        self.assertGreater(now - tm.last_trade_timestamp, tm.trade_cooldown_ms)
 
 
 if __name__ == "__main__":
