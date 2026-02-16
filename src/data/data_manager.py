@@ -36,7 +36,6 @@ class DataManager:
         self,
         websocket_interface: WebSocketInterface,
         pipeline_controller: PipelineController[dict[str, int | IndexType, dict[int, float]]],
-        memory_count_limit: int = 2_000,
         name: str | None = None,
     ):
         self.name: str = name if name else "DATA_MANAGER"
@@ -44,7 +43,6 @@ class DataManager:
         
         self._memory_saver: DataSaver = DataSaver()  # can be here.
         self.price_fetch_buffer: Queue[Dict[str, Any]] = Queue()
-        self._df_size_limit: int = memory_count_limit
 
         self.threads: list[threading.Thread] = []
 
@@ -136,22 +134,27 @@ class DataManager:
         return None
         """
         curr_timestamp = self.generate_timestamp()
+        retention_ms = 60 * 60 * 1_000  # 1 hour in milliseconds
         while True:
             data = None
             try:
                 if (self.generate_timestamp() - curr_timestamp > (wait_time * 1_000)):  # Five minutes
                     with self.lock_price_data:
-                        if self.prices.shape[0] > self._df_size_limit:
-                            data = self.prices.iloc[: -self._df_size_limit]
-                            self.prices = self.prices.iloc[-self._df_size_limit :]
+                        cutoff_ts = self.generate_timestamp() - retention_ms
+                        # Index is timestamp (epoch ms) — drop rows older than 1 hour
+                        old_mask = self.prices.index < cutoff_ts
+                        old_count = old_mask.sum()
+                        if old_count > 0:
+                            data = self.prices.loc[old_mask]
+                            self.prices = self.prices.loc[~old_mask]
                             self.logger.info(
                                 f"[DATA_CLEANUP] Action: resized | Rows: {self.prices.shape[0]} | "
-                                f"Cleaned: {data.shape[0]}"
+                                f"Cleaned: {old_count} | Retention: 1h"
                             )
                         else:
                             self.logger.info(
                                 f"[DATA_CLEANUP] Action: skipped | Rows: {self.prices.shape[0]} | "
-                                f"Threshold: {self._df_size_limit}"
+                                f"All within 1h retention window"
                             )
 
                     # TODO: store the data to the database -> possibly just resize it and put the new data into the db.
