@@ -375,7 +375,6 @@ class TradeManager:
     def _format_trade_message(
         self,
         order: Order,
-        buy_or_sell: TradeState,
     ) -> str | None:
         """
         func _format_trade_message():
@@ -408,6 +407,8 @@ class TradeManager:
         order: Order,
     ) -> None:
         try:
+            with self.lock_previous_order:
+                self.previous_order = order
             return self.binance_client.order(order=order)
         except Exception as e:
             self.logger.critical(
