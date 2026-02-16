@@ -275,7 +275,7 @@ All broker API calls (`_get_account_info`, `_get_open_orders`, `_get_mark_price`
 | `take_profit_rate`           | `float`                      | `0.2`             | TP distance from entry (20%)                       |
 | `stop_loss_rate`             | `float`                      | `0.2`             | SL distance from entry (20%)                       |
 | `score_threashold`           | `int`                        | `2000`            | Score required for NEW trade                       |
-| `score_trend_management`     | `int`                        | `200`             | Legacy bias score (unused after reset-to-0 change) |
+| `score_trend_management`     | `int`                        | `0`               | Legacy bias score (unused after reset-to-0 change) |
 | `score_decay_rate`           | `float`                      | `0.995`           | Per-tick decay factor                              |
 | `trade_cooldown_ms`          | `int`                        | `30000`           | Minimum ms between trades                          |
 | `name`                       | `str`                        | `"TRADE_MANAGER"` | Instance identifier for logging                    |

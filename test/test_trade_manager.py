@@ -34,8 +34,8 @@ def _make_trade_manager(**overrides) -> TradeManager:
         trade_weight=0.1,
         take_profit_rate=0.2,
         stop_loss_rate=0.2,
-        score_threashold=2_000,
-        score_trend_management=200,
+        score_threashold=50,
+        score_trend_management=0,
         name="TEST",
     )
     defaults.update(overrides)
