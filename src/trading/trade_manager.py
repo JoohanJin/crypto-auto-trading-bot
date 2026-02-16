@@ -13,7 +13,7 @@ from src.interfaces.http_interface import HttpInterface
 
 # Core Models
 from src.core.models.signal import Signal, TradeSignal
-from src.core.models.trade import TradePair, TradeState
+from src.core.models.trade import TradePair, TradeState, PositionState
 from src.core.models.order import Order, Side
 
 logger = get_logger(__name__)
@@ -129,8 +129,8 @@ class TradeManager:
         self.trade_score_lock: threading.Lock = threading.Lock()
         self.trade_score: int = 0
 
-        self.lock_previous_order = threading.Lock()
-        self.previous_order: Order | None = None
+        self.lock_current_position: threading.Lock = threading.Lock()
+        self.current_position: PositionState | None = None
 
         # Start the TradeManager
         self.start()
@@ -279,20 +279,20 @@ class TradeManager:
             - REVERSE_BUY = 8
             - REVERSE_SELL = 16
         """
-        with self.lock_previous_order:
-            previous_order = self.previous_order.copy() if self.previous_order else None
+        with self.lock_current_position:
+            current_pos = self.current_position.copy() if self.current_position else None
 
-        if (previous_order is not None):  # there is a current order
+        if (current_pos is not None):  # there is a current position
             # Reverse
             if (
-                (score > (self.score_threshold // 2)) and (previous_order.type == Side.SELL)
+                (score > (self.score_threshold // 2)) and (current_pos.side == Side.SELL)
             ):
                 return TradeState.REVERSE_BUY
             if (
-                (score < (-1 * (self.score_threshold // 2))) and (previous_order.type == Side.BUY)
+                (score < (-1 * (self.score_threshold // 2))) and (current_pos.side == Side.BUY)
             ):
                 return TradeState.REVERSE_SELL
-        else:  # there is no current order
+        else:  # there is no current position
             if (score > self.score_threshold):
                 return TradeState.NEW_BUY
             if (score < (-1 * self.score_threshold)):
@@ -320,20 +320,25 @@ class TradeManager:
                 current_price = entry_price,
             )
 
-            with self.lock_previous_order:
-                previous_order = self.previous_order.copy() if self.previous_order else None
+            with self.lock_current_position:
+                current_pos = self.current_position.copy() if self.current_position else None
 
             # Determine order side (same for NEW and REVERSE)
             order_side = Side.BUY if buy_or_sell in (2, 8) else Side.SELL
             order_side_str = "BUY" if buy_or_sell in (2, 8) else "SELL"
 
-            # Determine quantities: use REVERSE logic only if reversing AND active position exists
-            is_reverse = buy_or_sell in (8, 16) and previous_order is not None
+            # Determine quantities
+            is_reverse = buy_or_sell in (8, 16) and current_pos is not None
 
             if is_reverse:
-                ticker_size = previous_order.ticker_size * 2
-                quote_size = previous_order.quote_size * 2
-                meta_data = dict(reverse=True)
+                # REVERSE order = close current position + open new base position
+                # Order size sent to exchange = position_size (close) + base_size (open) = 2x
+                # But the actual new position will be base_size (tracked by PositionState)
+                base_quote = self._get_trade_quote_amt()
+                base_ticker = self._get_trade_ticker_amt(entry_price)
+                ticker_size = current_pos.ticker_size + base_ticker
+                quote_size = current_pos.quote_size + base_quote
+                meta_data = dict(reverse=True, base_ticker_size=base_ticker, base_quote_size=base_quote)
             elif buy_or_sell in (2, 4, 8, 16):
                 # NEW order (explicitly 2,4 or REVERSE with no active position)
                 quote_size = self._get_trade_quote_amt()
@@ -346,12 +351,12 @@ class TradeManager:
                 side=order_side,
                 side_str=order_side_str,
                 entry_price=entry_price,
-                leverage=self.leverage,  # TODO: Need to dynamically decide the leverage
+                leverage=self.leverage,
                 tp_price=tp_price,
                 sl_price=sl_price,
                 trade_pair=self.trade_pair,
                 ticker=self.trade_pair.ticker,
-                ticker_size=ticker_size,  # TODO: Need to dynamically decide the ticker size rather than fixed ratio
+                ticker_size=ticker_size,
                 quote=self.trade_pair.quote,
                 quote_size=quote_size,  # TODO: Need to dynamically decide the quote size rather than fixed ratio
                 meta_data=meta_data,
@@ -392,13 +397,47 @@ class TradeManager:
             return base_message + "It is the reverse order."
         return
 
+    def _update_position(
+        self,
+        order: Order,
+        trade_action: TradeState,
+    ) -> None:
+        """
+        Update current_position based on the order that was just placed.
+        Stores the BASE position size, not the exchange order size.
+        This prevents size explosion on consecutive REVERSE operations.
+        """
+        if trade_action == TradeState.EXIT:
+            with self.lock_current_position:
+                self.current_position = None
+            return
+
+        if trade_action in (TradeState.REVERSE_BUY, TradeState.REVERSE_SELL):
+            # For REVERSE, the actual new position is base_size (not the 2x order sent to exchange)
+            base_ticker = order.meta_data.get("base_ticker_size", order.ticker_size)
+            base_quote = order.meta_data.get("base_quote_size", order.quote_size)
+        else:
+            # NEW_BUY or NEW_SELL: order size == position size
+            base_ticker = order.ticker_size
+            base_quote = order.quote_size
+
+        new_position = PositionState(
+            side=order.side,
+            ticker_size=base_ticker,
+            quote_size=base_quote,
+            entry_price=order.entry_price,
+            timestamp=self.generate_timestamp(),
+        )
+        with self.lock_current_position:
+            self.current_position = new_position
+
     def _make_order(
         self,
         order: Order,
+        trade_action: TradeState = TradeState.NEW_BUY,
     ) -> None:
         try:
-            with self.lock_previous_order:
-                self.previous_order = order
+            self._update_position(order, trade_action)
             return self.binance_client.order(order=order)
         except Exception as e:
             self.logger.critical(
@@ -433,7 +472,7 @@ class TradeManager:
             message: str | None = self._format_trade_message(order)
 
             # order trigger to the telegram bot
-            self._make_order(order)
+            self._make_order(order, trade_action=buy_or_sell)
             self.telegram_bot.send_text(message)
             self.trading_logger.info(message)
         except Exception as e:
