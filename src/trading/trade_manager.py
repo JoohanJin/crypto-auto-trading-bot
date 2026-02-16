@@ -74,8 +74,8 @@ class TradeManager:
         trade_weight: float = 0.1,  # 10% of the total asset
         take_profit_rate: float = 0.2,  # 20% -> to prevent the error
         stop_loss_rate: float = 0.2,  # 20% -> to prevent the error
-        score_threashold: int = 2_000,  # 1_000,
-        score_trend_management: int = 200,  # 200
+        score_threashold: int = 50,
+        score_trend_management: int = 0,  # unused after reset-to-0 change
         score_decay_rate: float = 0.995,  # per-tick decay factor (applied every 250ms in _thread_decide_trade)
         trade_cooldown_ms: int = 30_000,  # minimum milliseconds between consecutive trades
         name: str | None = None,
@@ -116,7 +116,7 @@ class TradeManager:
         self.telegram_bot: CustomTelegramBot = telegram_bot
 
         self.score_threshold: int = score_threashold
-        self.trend_manager_score: int = score_trend_management  # keep the biased score to keep the current score.
+        self.trend_manager_score: int = score_trend_management  # legacy; score now always resets to 0 after trade
         self.score_decay_rate: float = score_decay_rate
         self.trade_cooldown_ms: int = trade_cooldown_ms
         self.last_trade_timestamp: int = 0  # epoch ms of the last executed trade
@@ -1073,7 +1073,7 @@ if __name__ == "__main__":
             take_profit_rate=0.10,
             stop_loss_rate=0.05,
             score_threashold=2_000,
-            score_trend_management=200,
+            score_trend_management=0,
             name="TEST_TRADE_MANAGER",
         )
         print(tm._get_account_info())
