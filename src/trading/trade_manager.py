@@ -76,6 +76,8 @@ class TradeManager:
         stop_loss_rate: float = 0.2,  # 20% -> to prevent the error
         score_threashold: int = 2_000,  # 1_000,
         score_trend_management: int = 200,  # 200
+        score_decay_rate: float = 0.995,  # per-tick decay factor (applied every 250ms in _thread_decide_trade)
+        trade_cooldown_ms: int = 30_000,  # minimum milliseconds between consecutive trades
         name: str | None = None,
     ) -> None:
         """
@@ -115,6 +117,9 @@ class TradeManager:
 
         self.score_threshold: int = score_threashold
         self.trend_manager_score: int = score_trend_management  # keep the biased score to keep the current score.
+        self.score_decay_rate: float = score_decay_rate
+        self.trade_cooldown_ms: int = trade_cooldown_ms
+        self.last_trade_timestamp: int = 0  # epoch ms of the last executed trade
 
         # TODO_LONG_TERM: decide these variables dynamically
         self.leverage: int = leverage
@@ -283,7 +288,7 @@ class TradeManager:
             current_pos = self.current_position.copy() if self.current_position else None
 
         if (current_pos is not None):  # there is a current position
-            # Reverse
+            # Reverse — strong signal against current position
             if (
                 (score > (self.score_threshold // 2)) and (current_pos.side == Side.SELL)
             ):
@@ -292,6 +297,15 @@ class TradeManager:
                 (score < (-1 * (self.score_threshold // 2))) and (current_pos.side == Side.BUY)
             ):
                 return TradeState.REVERSE_SELL
+
+            # EXIT — moderate signal against current position (not strong enough for REVERSE)
+            # Sits between HOLD and REVERSE: score moves against position past exit_threshold
+            # but hasn't crossed the reverse_threshold (threshold // 2).
+            exit_threshold = self.score_threshold // 4
+            if (current_pos.side == Side.BUY) and (score < -exit_threshold):
+                return TradeState.EXIT
+            if (current_pos.side == Side.SELL) and (score > exit_threshold):
+                return TradeState.EXIT
         else:  # there is no current position
             if (score > self.score_threshold):
                 return TradeState.NEW_BUY
@@ -309,19 +323,53 @@ class TradeManager:
             order_side: Side
             order_side_str: str
             entry_price: float = mark_price.mark_price
-            tp_price: float
-            sl_price: float
             ticker_size: float
             quote_size: float
             meta_data: dict[str, bool | str] = None
 
-            tp_price, sl_price = self._get_target_prices(
-                buy_or_sell = buy_or_sell,
-                current_price = entry_price,
-            )
-
             with self.lock_current_position:
                 current_pos = self.current_position.copy() if self.current_position else None
+
+            # EXIT — close-only order: sell to close LONG, buy to close SHORT.
+            # Size = current position size. No TP/SL needed (flat after close).
+            if buy_or_sell == TradeState.EXIT:
+                if current_pos is None:
+                    raise ValueError("EXIT requested but no position to close")
+                # Opposite side to close: if we're LONG (BUY), we SELL to close, and vice versa.
+                order_side = Side.SELL if current_pos.side == Side.BUY else Side.BUY
+                order_side_str = "SELL" if current_pos.side == Side.BUY else "BUY"
+                ticker_size = current_pos.ticker_size
+                quote_size = current_pos.quote_size
+
+                # Approximate P/L for logging/messaging.
+                # Positive = profit, negative = loss.
+                if current_pos.side == Side.BUY:  # long
+                    pnl_rate = (entry_price - current_pos.entry_price) / current_pos.entry_price
+                else:  # short
+                    pnl_rate = (current_pos.entry_price - entry_price) / current_pos.entry_price
+
+                meta_data = dict(exit=True, pnl_rate=round(pnl_rate, 6))
+
+                return Order(
+                    side=order_side,
+                    side_str=order_side_str,
+                    entry_price=entry_price,
+                    leverage=self.leverage,
+                    tp_price=0.0,   # no TP for exit — we're going flat
+                    sl_price=0.0,   # no SL for exit — we're going flat
+                    trade_pair=self.trade_pair,
+                    ticker=self.trade_pair.ticker,
+                    ticker_size=ticker_size,
+                    quote=self.trade_pair.quote,
+                    quote_size=quote_size,
+                    meta_data=meta_data,
+                )
+
+            # TP/SL only needed for NEW and REVERSE orders (not EXIT)
+            tp_price, sl_price = self._get_target_prices(
+                buy_or_sell=buy_or_sell,
+                current_price=entry_price,
+            )
 
             # Determine order side (same for NEW and REVERSE)
             order_side = Side.BUY if buy_or_sell in (2, 8) else Side.SELL
@@ -383,6 +431,21 @@ class TradeManager:
         return str | None:
             - Formatted message or None if invalid state
         """
+        # EXIT has no TP/SL — show P/L instead
+        if order.meta_data.get("exit", False):
+            pnl_rate = order.meta_data.get("pnl_rate", 0.0)
+            pnl_pct = round(pnl_rate * 100, 2)
+            # Leveraged P/L = raw P/L * leverage (reflects actual account impact)
+            leveraged_pnl_pct = round(pnl_rate * self.leverage * 100, 2)
+            pnl_label = "Profit" if pnl_rate >= 0 else "Loss"
+            return (
+                f"Trade Signal: EXIT ({order.side_str} to close)\n"
+                f"Close Price: {order.entry_price}\n"
+                f"Amount: {order.quote_size} {order.quote} or {order.ticker_size} {order.ticker}\n"
+                f"Approx {pnl_label}: {pnl_pct}% (x{self.leverage} leverage: {leveraged_pnl_pct}%)\n"
+                f"It is an EXIT order."
+            )
+
         base_message = (
             f"Trade Signal: {order.side_str}\n"
             f"Entry Price: {order.entry_price}\n"
@@ -395,7 +458,6 @@ class TradeManager:
             return base_message + "It is the new order."
         else:  # REVERSE_BUY or REVERSE_SELL
             return base_message + "It is the reverse order."
-        return
 
     def _update_position(
         self,
@@ -499,6 +561,9 @@ class TradeManager:
         while True:
             try:
                 with self.trade_score_lock:
+                    # Decay: older signals lose influence over time.
+                    # At 0.995 per 250ms tick, score halves in ~35 seconds of no new signals.
+                    self.trade_score = int(self.trade_score * self.score_decay_rate)
                     score: int = self.trade_score
 
                 decision: TradeState = self._decide_trade(
@@ -509,17 +574,26 @@ class TradeManager:
                     TradeState.NEW_BUY,
                     TradeState.NEW_SELL,
                     TradeState.REVERSE_BUY,
-                    TradeState.REVERSE_SELL
-                ):  # can be further improved in the future.
+                    TradeState.REVERSE_SELL,
+                    TradeState.EXIT,
+                ):
+                    # Cooldown: skip trade if too soon after the last one.
+                    # Prevents rapid cycling (NEW → EXIT → NEW → EXIT) that bleeds fees.
+                    if self.generate_timestamp() - self.last_trade_timestamp < self.trade_cooldown_ms:
+                        time.sleep(0.25)
+                        continue
+
                     # Trade
                     self._execute_trade(
                         buy_or_sell = decision,
                     )
+                    self.last_trade_timestamp = self.generate_timestamp()
 
-                    # reset the score, but based on the trend
-                    # TODO: need to implement more sophisticated one.
+                    # Reset score to 0 after any trade.
+                    # Let signals naturally rebuild conviction rather than injecting
+                    # artificial directional bias that can cause immediate re-entry.
                     with self.trade_score_lock:
-                        self.trade_score = self.trend_manager_score if decision in (2, 8) else -1 * (self.trend_manager_score)
+                        self.trade_score = 0
 
                 time.sleep(0.25)
 
@@ -1023,11 +1097,11 @@ if __name__ == "__main__":
         order: Order = tm._construct_new_order(buy_or_sell)
         print(order, "\n")
 
-        message: str | None = tm._format_trade_message(order)
-        print(message)
+        # message: str | None = tm._format_trade_message(order)
+        # print(message)
 
-        res = tm._make_order(order)
-        print(res)
+        # res = tm._make_order(order)
+        # print(res)
 
         # buy_or_sell: TradeState = TradeState.REVERSE_BUY
         # order: Order = tm._construct_new_order(buy_or_sell)
@@ -1042,15 +1116,15 @@ if __name__ == "__main__":
         # print(order, "\n")
 
         print("\n===================== trade message test =========================")
-        message: str | None = tm._format_trade_message(order)
-        print(message)
+        # message: str | None = tm._format_trade_message(order)
+        # print(message)
 
         # order trigger to the telegram bot
         # async def test_telegram_send_text(msg: str):
         #     await tm.telegram_bot.send_text(message)
         
         # asyncio.run(test_telegram_send_text(message))
-        tm.telegram_bot.send_text(message)
+        tm.telegram_bot.send_text("사랑해")
 
         # print("\n===================== make order test =========================")
         # res = tm._make_order(order)
