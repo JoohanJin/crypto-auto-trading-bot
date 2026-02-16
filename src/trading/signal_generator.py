@@ -34,18 +34,17 @@ class SignalGenerator:
         """
         return int(time.time() * 1_000)
 
-    @staticmethod
-    def start_threads(threads: list[threading.Thread]) -> None:
+    def start_threads(self, threads: list[threading.Thread]) -> None:
         for thread in threads:
             try:
                 # start the thread.
                 thread.start()
-                logger.info(f"[THREAD_START] {thread.name} | Status: running")
+                self.logger.info(f"[THREAD_START] {thread.name} | Status: running")
             except RuntimeError as e:
-                logger.critical(f"[THREAD_ERROR] {thread.name} failed | Error: {type(e).__name__}: {str(e)}")
+                self.logger.critical(f"[THREAD_ERROR] {thread.name} failed | Error: {type(e).__name__}: {str(e)}")
                 raise RuntimeError(f"Failed to start thread '{thread.name}': {str(e)}")
             except Exception as e:
-                logger.critical(f"[THREAD_ERROR] {thread.name} failed | Error: {type(e).__name__}: {str(e)}")
+                self.logger.critical(f"[THREAD_ERROR] {thread.name} failed | Error: {type(e).__name__}: {str(e)}")
                 raise Exception(
                     f"Unexpected error starting thread: '{thread.name}': {str(e)}"
                 )
@@ -82,8 +81,8 @@ class SignalGenerator:
         self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
         
         # data pipeline to get the indicators
-        self.data_pipeline_controller:   PipelineController[dict[str, int | IndexType, dict[int, float]]] = data_pipeline_controller
-        self.signal_pipeline_controller:          PipelineController[dict[str, int | object.TradeSignal]] = signal_pipeline_controller
+        self.data_pipeline_controller: PipelineController[dict[str, int | IndexType, dict[int, float]]] = data_pipeline_controller
+        self.signal_pipeline_controller: PipelineController[dict[str, int | object.TradeSignal]] = signal_pipeline_controller
 
         # telegram bot manager to send the notification.
         self.__telegram_bot: CustomTelegramBot = custom_telegram_bot
@@ -120,7 +119,7 @@ class SignalGenerator:
         # initialize the threads
         self._init_threads()
         # start each thread, which is in the threads pool.
-        SignalGenerator.start_threads(self.threads)
+        self.start_threads(self.threads)
         return
 
     """
@@ -179,5 +178,6 @@ class SignalGenerator:
     def push_signal(self, signal: Signal) -> None:
         try:
             self.signal_pipeline_controller.push(signal)
+            self.logger.debug(f"[SIGNAL_GEN] Signal: {signal.signal.name} | Status: success")
         except Exception as e:
             self.logger.critical(f"[SIGNAL_ERROR] push_signal() | Error: {type(e).__name__}: {str(e)}")
