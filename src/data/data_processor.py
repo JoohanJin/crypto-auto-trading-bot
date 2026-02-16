@@ -126,7 +126,7 @@ class DataProcessor:
             for index in indexes:
                 if (index):
                     self.pipeline_controller.push(index)
-                    self.logger.info(f"[DATA_STATS] Type: {index.index_type.name} | Timestamp: {index.timestamp} | Status: pushed")
+                    self.logger.debug(f"[DATA_STATS] Type: {index.index_type.name} | Timestamp: {index.timestamp} | Status: pushed")
             return True
         except Exception as e:
             self.logger.warning(f"[DATA_ERROR] __push_indexes() | Error: {type(e).__name__}: {str(e)}")
@@ -160,9 +160,11 @@ class DataProcessor:
                 mask = (self.price_data.index >= cutoff_ts)
                 tmp_dataframe = self.price_data.loc[mask, "price"].copy()
 
-            sma: Dict[int, float] = {}  # make the dictionary object and put it.
-            ema: Dict[int, float] = {}
-            price: float = float(tmp_dataframe.iloc[-1])  # just last price data.
+            sma: dict[int, float] = {}  # make the dictionary object and put it.
+            ema: dict[int, float] = {}
+            price: dict[int, float] = {
+                0: float(tmp_dataframe.iloc[-1])
+            }  # just last price data.
 
             # TODO: this should be fast enough, but can be optimized further.
             for period in periods:
