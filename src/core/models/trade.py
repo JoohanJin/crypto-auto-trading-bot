@@ -14,6 +14,7 @@ class TradeState(IntFlag):
     NEW_SELL = 1 << 2  # 4
     REVERSE_BUY = 1 << 3  # 8
     REVERSE_SELL = 1 << 4  # 16
+    EXIT = 1 << 5  # 32
 
 
 class TimeInForce(IntFlag):
