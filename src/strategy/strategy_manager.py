@@ -21,7 +21,7 @@ logger = get_logger(__name__)
 
 class StrategyManager:
     SLEEP_INTERVAL: float = 1.5
-    STRATEGY_CONFIG_PATH: Path = Path(__file__).resolve().parent.parent / "config" / "strategies.json"
+    STRATEGY_CONFIG_PATH: Path = Path("config/strategies.json")
 
     @staticmethod
     def generate_timestamp() -> int:
@@ -36,8 +36,7 @@ class StrategyManager:
         """
         return int(time.time() * 1_000)
 
-    @staticmethod
-    def start_threads(threads: list[threading.Thread]) -> None:
+    def start_threads(self, threads: list[threading.Thread]) -> None:
         for thread in threads:
             try:
                 # start the thread.
@@ -86,7 +85,7 @@ class StrategyManager:
         # if this is the thread-based class
         self._load_strategies()
         self.__init_threads()
-        StrategyManager.start_threads(self.threads)
+        self.start_threads(self.threads)
 
     def push_signal(self, signal: Signal, details: str) -> None:
         try:
@@ -230,7 +229,7 @@ class StrategyManager:
         elif condition.type == "price_comparison":
             price_indicator = payload.get("price_indicator", "")
             compare_to = payload.get("compare_to", {})
-            price_val = self._resolve_indicator_value(indicators, price_indicator)
+            price_val = self._resolve_indicator_value(indicators, price_indicator, 0)
             compare_val = self._resolve_indicator_value(
                 indicators,
                 compare_to.get("indicator", ""),
