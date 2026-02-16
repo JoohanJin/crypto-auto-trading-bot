@@ -48,6 +48,44 @@ class TradePair(ImmutableModel):
     quote: str  # = "USDT"
 
 
+@dataclass
+class PositionState:
+    """
+    Represents the current position held by the TradeManager.
+
+    Separates "position" (what we actually hold) from "order" (what we send to the exchange).
+    This prevents size explosion during REVERSE operations:
+        - Order size for REVERSE = position_size (close) + base_size (new) = 2x
+        - But the actual new position is still base_size, not 2x.
+
+    Fields:
+        side: int
+            - Side.BUY (1, long) or Side.SELL (2, short). Uses int to avoid circular import with order.py.
+        ticker_size: float
+            - The actual position quantity in ticker (e.g., BTC). Always base size.
+        quote_size: float
+            - The actual position value in quote (e.g., USDT). Always base size.
+        entry_price: float
+            - The price at which the position was entered.
+        timestamp: int
+            - The timestamp (ms) when the position was opened.
+    """
+    side: int  # Side.BUY or Side.SELL (IntFlag, int-compatible)
+    ticker_size: float
+    quote_size: float
+    entry_price: float
+    timestamp: int
+
+    def copy(self) -> PositionState:
+        return PositionState(
+            side=self.side,
+            ticker_size=self.ticker_size,
+            quote_size=self.quote_size,
+            entry_price=self.entry_price,
+            timestamp=self.timestamp,
+        )
+
+
 if __name__ == "__main__":
     a = TradePair("BTC", "USDT")
     print(a)
