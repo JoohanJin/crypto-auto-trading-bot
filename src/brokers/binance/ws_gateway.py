@@ -188,9 +188,9 @@ class BinanceUserWebSocket(WebSocket):
         params["signature"] = self._generate_signature(params)
 
     '''
-    ####################################################################################
-    #                                    Threads                                     #
-    ####################################################################################
+    #######################
+    # Threads
+    #######################
     '''
     def _initialize_threads(self) -> None:
         self.threads.append(
@@ -207,6 +207,14 @@ class BinanceUserWebSocket(WebSocket):
                 name=f"{self.name}_custom_stream_thread",
                 target=self._thread_sending_requests,
                 daemon=True,
+            )
+        )
+
+        self.threads.append(
+            threading.Thread(
+                name="websocket_hb",
+                target=self._heartbeat,
+                daemon=True
             )
         )
         return
@@ -268,6 +276,26 @@ class BinanceUserWebSocket(WebSocket):
             # Wait before next attempt
             self.logger.info(f"[WS_RECONNECT] Binance | Next Retry: {retry_delay:.2f}s")
             time.sleep(retry_delay)
+        return
+    
+    # Override: previously ping method
+    def _heartbeat(
+        self,
+    ) -> None:
+        prev_timestamp: int = 0
+
+        while (not (self._thread_stop.is_set()) and (self._is_connected())):
+            # self._thread_pause.wait()
+            if (self.generate_timestamp() - prev_timestamp > (self.ping_interval * 1_000)):
+                try:
+                    # ! WebSocketApp.send() requires str or bytes -> needs to dump it using json, i.e., json.dump(dict)
+                    self.ws.sock.pong()
+                    self.logger.debug("[WS_PING_PONG] Binance | Type: PONG | Status: success")
+                    prev_timestamp = self.generate_timestamp()
+                except Exception as e:
+                    self.logger.warning(f"[WS_PING_PONG] MexC | Error: {type(e).__name__}: {str(e)}")
+            else:
+                continue
         return
 
     '''
