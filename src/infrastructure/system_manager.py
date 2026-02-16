@@ -3,6 +3,7 @@ import os
 import time
 import sys
 import threading
+from dotenv import load_dotenv
 
 # CUSTOM LIBRARY
 from src.infrastructure.logging.set_logger import get_logger, get_adapter
@@ -25,7 +26,7 @@ from src.interfaces.http_interface import HttpInterface
 from src.interfaces.websocket_interface import WebSocketInterface
 
 # MEXC
-from src.brokers.mexc.http_client import FutureMarket as MexcFutureHttpClient
+from src.brokers.mexc.http_client import MexcFutureHttpClient
 from src.brokers.mexc.ws_client import MexcWebSocketClient
 
 # BINANCE
@@ -57,6 +58,8 @@ class SystemManager:
         self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
 
         self._stop = threading.Event()
+
+        load_dotenv()
 
         try:
             '''
@@ -332,7 +335,7 @@ class SystemManager:
             )
             binance_client = self._construct_binance_future()
             if binance_client:
-                hi.push_client(binance_client)
+                hi.push_client("binance", binance_client)
                 self.logger.info("[SERVICE_INTERFACE] HTTP Interface | Clients registered: 1")
             return hi
         except Exception as e:
@@ -357,10 +360,10 @@ class SystemManager:
             mexc_wsc = self._construct_mexc_wsc()
             clients_count = 0
             if binance_wsc:
-                wi.push_client(binance_wsc)
+                wi.push_client("binance", binance_wsc)
                 clients_count += 1
             if mexc_wsc:
-                wi.push_client(mexc_wsc)
+                wi.push_client("mexc", mexc_wsc)
                 clients_count += 1
             self.logger.info(f"[SERVICE_INTERFACE] WebSocket Interface | Clients registered: {clients_count}")
             wi.start()
