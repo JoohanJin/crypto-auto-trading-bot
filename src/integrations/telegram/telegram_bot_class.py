@@ -45,13 +45,20 @@ class CustomTelegramBot:
 
         return
 
-    async def send_text(self, message: str) -> None:
+    def send_text(self, message: str) -> None:
         try:
-            await self._bot.send_message(
+            asyncio.run(self._bot.send_message(
                 chat_id=self.__channel_id,
                 text=message,
-            )
+            ))
             self.logger.info("[MSG_SEND] Platform: Telegram | Status: sent")
+        except Exception as e:
+            self.logger.error(f"[MSG_ERROR] Platform: Telegram | Error: {type(e).__name__}: {str(e)}")
+        return
+
+    async def async_send_test(self, msg: str) -> None:
+        try:
+            await self._bot.send_message(text=msg, chat_id=self.__channel_id,)
         except Exception as e:
             self.logger.error(f"[MSG_ERROR] Platform: Telegram | Error: {type(e).__name__}: {str(e)}")
         return
@@ -63,24 +70,20 @@ class CustomTelegramBot:
 ###################################################################################################
 """
 
-
-def get_credentials() -> Tuple[str, str]:
-    with open("../credentials/telegram_key.json", "r") as file:
-        data = json.load(file)
-        return data["api_key"], data["channel_id"]
-
-
-async def main():
-    api_key, channel_id = get_credentials()
-    test = CustomTelegramBot(
-        api_key=api_key,
-        channel_id=channel_id,
-    )
-
-    await test.send_text("test messaging")
-
-    return
-
-
 if __name__ == "__main__":
+    def get_credentials() -> Tuple[str, str]:
+        with open("../credentials/telegram_key.json", "r") as file:
+            data = json.load(file)
+            return data["api_key"], data["channel_id"]
+
+    async def main():
+        api_key, channel_id = get_credentials()
+        test = CustomTelegramBot(
+            api_key=api_key,
+            channel_id=channel_id,
+        )
+
+        await test.send_text("test messaging")
+
+        return
     asyncio.run(main())

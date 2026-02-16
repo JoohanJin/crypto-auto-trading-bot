@@ -1,6 +1,5 @@
 # Standard Library
 import threading
-import asyncio
 import time
 
 # Custom Library
@@ -113,7 +112,6 @@ class TradeManager:
         self.delta_mapper: ScoreMapper = delta_mapper
 
         self.telegram_bot: CustomTelegramBot = telegram_bot
-        self.async_loop: asyncio.new_event_loop = asyncio.new_event_loop()  # only for Telegram Client
 
         self.score_threshold: int = score_threashold
         self.trend_manager_score: int = score_trend_management  # keep the biased score to keep the current score.
@@ -176,7 +174,6 @@ class TradeManager:
             - TradeManager object
 
         return None:
-            - it is a void function.
         """
         # Initialize the threads
         self._initialize_threads()
@@ -212,9 +209,8 @@ class TradeManager:
         )
 
         thread_decide_trade: threading.Thread = threading.Thread(
-            target = self.thread_handle_async_trade_execution,
+            target = self._thread_decide_trade,
             name = "Thread-Decide-Trade",
-            args = (self.async_loop,),
         )
 
         # initialize the threads for the operations
@@ -261,12 +257,6 @@ class TradeManager:
     # Signal Management Method
     ##########################
     """
-    def thread_handle_async_trade_execution(self, loop) -> None:
-        """ """
-        asyncio.set_event_loop(loop)
-        loop.run_until_complete(self._thread_decide_trade())
-        return
-
     def _decide_trade(
             self,
             score: int,
@@ -420,7 +410,7 @@ class TradeManager:
             ) from e
         return
 
-    async def _execute_trade(
+    def _execute_trade(
         self,
         buy_or_sell: TradeState,
     ) -> None:
@@ -440,11 +430,11 @@ class TradeManager:
                 return None
 
             order: Order = self._construct_new_order(buy_or_sell)
-            message: str | None = self._format_trade_message(order, buy_or_sell)
+            message: str | None = self._format_trade_message(order)
 
             # order trigger to the telegram bot
             self._make_order(order)
-            await self.telegram_bot.send_text(message)
+            self.telegram_bot.send_text(message)
             self.trading_logger.info(message)
         except Exception as e:
             self.logger.error(
@@ -453,7 +443,7 @@ class TradeManager:
             raise Exception
         return
     
-    async def _thread_decide_trade(
+    def _thread_decide_trade(
         self,
     ) -> None:
         """
@@ -483,7 +473,7 @@ class TradeManager:
                     TradeState.REVERSE_SELL
                 ):  # can be further improved in the future.
                     # Trade
-                    await self._execute_trade(
+                    self._execute_trade(
                         buy_or_sell = decision,
                     )
 
@@ -492,7 +482,7 @@ class TradeManager:
                     with self.trade_score_lock:
                         self.trade_score = self.trend_manager_score if decision in (2, 8) else -1 * (self.trend_manager_score)
 
-                await asyncio.sleep(0.25)
+                time.sleep(0.25)
 
             except Exception as e:
                 self.logger.error(f"[TRADE_DECISION_ERROR] Failed | Score: {score} | Error: {type(e).__name__}: {str(e)}")
@@ -994,7 +984,7 @@ if __name__ == "__main__":
         order: Order = tm._construct_new_order(buy_or_sell)
         print(order, "\n")
 
-        message: str | None = tm._format_trade_message(order, buy_or_sell)
+        message: str | None = tm._format_trade_message(order)
         print(message)
 
         res = tm._make_order(order)
@@ -1011,10 +1001,9 @@ if __name__ == "__main__":
         # buy_or_sell: TradeState = TradeState.REVERSE_SELL
         # order: Order = tm._construct_new_order(buy_or_sell)
         # print(order, "\n")
-        time.sleep(2.0)
 
         print("\n===================== trade message test =========================")
-        message: str | None = tm._format_trade_message(order, buy_or_sell)
+        message: str | None = tm._format_trade_message(order)
         print(message)
 
         # order trigger to the telegram bot
@@ -1022,10 +1011,11 @@ if __name__ == "__main__":
         #     await tm.telegram_bot.send_text(message)
         
         # asyncio.run(test_telegram_send_text(message))
+        tm.telegram_bot.send_text(message)
 
-        print("\n===================== make order test =========================")
-        res = tm._make_order(order)
-        print(res)
+        # print("\n===================== make order test =========================")
+        # res = tm._make_order(order)
+        # print(res)
         # for r in res:
         #     print(r)
         #     print()
