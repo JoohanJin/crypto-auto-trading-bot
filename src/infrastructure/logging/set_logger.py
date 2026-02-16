@@ -31,7 +31,7 @@ def setup_logger(
     logger.setLevel(getattr(logging, level))
 
     # Formatter for log messages
-    formatter = logging.Formatter("%(name)s - %(asctime)s - %(levelname)s - %(message)s")
+    formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(name)s - %(message)s")
 
     # Prevent adding handlers multiple times if the module is re-imported
     if not logger.handlers:
