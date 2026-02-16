@@ -216,7 +216,7 @@ class MexcWebSocket(WebSocket):
         # Only try to close if socket exists and is actually connected
         try:
             if self._is_connected():
-                self.logger.info(f"[WS_CLOSE] MexC | Reason: cleanup")
+                self.logger.info("[WS_CLOSE] MexC | Reason: cleanup")
                 self.ws.close()  # force the run_forever function to return.
         except Exception as e:
             self.logger.warning(f"[WS_CLOSE] MexC | Error: {type(e).__name__}: {str(e)}")
@@ -251,7 +251,7 @@ class MexcWebSocket(WebSocket):
         self.threads.clear()
         self._thread_stop.clear()
         self.ws = None
-        self.logger.info(f"[SHUTDOWN] All threads cleaned up and removed.")
+        self.logger.info("[SHUTDOWN] All threads cleaned up and removed.")
         return
 
     def _push_callback_func(
@@ -285,11 +285,11 @@ class MexcWebSocket(WebSocket):
     def _reconnect(self) -> None:
         # Prevent concurrent reconnection attempts
         if not self._reconnect_lock.acquire(blocking=False):
-            self.logger.info(f"[WS_RECONNECT] MexC | Reason: Reconnection already in progress")
+            self.logger.info("[WS_RECONNECT] MexC | Reason: Reconnection already in progress")
             return
 
         try:
-            self.logger.info(f"[WS_RECONNECT] MexC | Status: Starting process")
+            self.logger.info("[WS_RECONNECT] MexC | Status: Starting process")
 
             # Reset state - old threads will exit naturally when websocket closed
             self._thread_stop.clear()  # Clear stop signal for new threads
@@ -316,7 +316,7 @@ class MexcWebSocket(WebSocket):
                 try:
                     # ! WebSocketApp.send() requires str or bytes -> needs to dump it using json, i.e., json.dump(dict)
                     self.send(hb_payload)
-                    self.logger.debug(f"[WS_PING_PONG] MexC | Type: PING | Status: success")
+                    self.logger.debug("[WS_PING_PONG] MexC | Type: PING | Status: success")
                     prev_timestamp = self.generate_timestamp()
                 except Exception as e:
                     self.logger.warning(f"[WS_PING_PONG] MexC | Error: {type(e).__name__}: {str(e)}")
@@ -365,14 +365,14 @@ class MexcWebSocket(WebSocket):
 
         # Check if this was an intentional close
         if self._intentional_close.is_set():
-            self.logger.info(f"[WS_CLOSE] MexC | Reason: Intentional close")
+            self.logger.info("[WS_CLOSE] MexC | Reason: Intentional close")
             self._intentional_close.clear()  # Reset the flag
             return
 
         # Only reconnect for accidental closes
         # Status 1000 = normal closure, 1006 = abnormal closure (no close frame), None = network issue
         else:
-            self.logger.info(f"[WS_RECONNECT] MexC | Status: Accidental closure detected")
+            self.logger.info("[WS_RECONNECT] MexC | Status: Accidental closure detected")
             # Spawn a separate thread for reconnection to avoid deadlock
             # (on_close runs inside the websocket_connection thread)
             reconnect_thread = threading.Thread(
@@ -399,18 +399,18 @@ class MexcWebSocket(WebSocket):
         while True:
             # Check if intentional close happened during retry
             if self._intentional_close.is_set():
-                self.logger.info(f"[WS_CLOSE] MexC | Reason: Intentional close during reconnect")
+                self.logger.info("[WS_CLOSE] MexC | Reason: Intentional close during reconnect")
                 return
 
             try:
-                self.logger.info(f"[WS_RECONNECT] MexC | Attempt: retrying...")
+                self.logger.info("[WS_RECONNECT] MexC | Attempt: retrying...")
 
                 self._reconnect()
 
                 # Wait for connection to be ready
                 if self._connection_ready.wait(timeout=10.0):
                     self._resubscribe()
-                    self.logger.info(f"[SUCCESS] Reconnection completed successfully")
+                    self.logger.info("[SUCCESS] Reconnection completed successfully")
                     return  # Success!
 
             except Exception as e:
@@ -538,10 +538,10 @@ class MexcWebSocket(WebSocket):
         '''
         def deal_with_auth_msg(msg):
             if (msg.get("data") == "success"):
-                self.logger.info(f"[WS_AUTH_SUCCESS] MexC | Status: authenticated")
+                self.logger.info("[WS_AUTH_SUCCESS] MexC | Status: authenticated")
                 self.authenticated = True
             else:
-                self.logger.info(f"[WS_AUTH_ERROR] MexC | Status: failed")
+                self.logger.info("[WS_AUTH_ERROR] MexC | Status: failed")
                 self.authenticated = False  # overwrite
             return
 
