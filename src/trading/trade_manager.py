@@ -74,9 +74,9 @@ class TradeManager:
         trade_weight: float = 0.1,  # 10% of the total asset
         take_profit_rate: float = 0.2,  # 20% -> to prevent the error
         stop_loss_rate: float = 0.2,  # 20% -> to prevent the error
-        score_threashold: int = 50,
-        score_trend_management: int = 0,  # unused after reset-to-0 change
-        score_decay_rate: float = 0.995,  # per-tick decay factor (applied every 250ms in _thread_decide_trade)
+        score_threashold: int = 1_000,
+        score_trend_management: int = 100,  # unused after reset-to-0 change
+        score_decay_rate: float = 0.99995,  # per-tick decay factor (applied every 250ms in _thread_decide_trade)
         trade_cooldown_ms: int = 30_000,  # minimum milliseconds between consecutive trades
         name: str | None = None,
     ) -> None:
@@ -563,7 +563,7 @@ class TradeManager:
                 with self.trade_score_lock:
                     # Decay: older signals lose influence over time.
                     # At 0.995 per 250ms tick, score halves in ~35 seconds of no new signals.
-                    self.trade_score = int(self.trade_score * self.score_decay_rate)
+                    # self.trade_score = int(self.trade_score * self.score_decay_rate)  # TODO: Need to apply this
                     score: int = self.trade_score
 
                 decision: TradeState = self._decide_trade(
@@ -624,12 +624,15 @@ class TradeManager:
                 signal: TradeSignal = self._get_signal(timestamp_window = timestamp_window,)
                 if signal:
                     with self.trade_score_lock:
-                        self.trade_score += self._calculate_signal_score_delta(
-                            signal_data = signal,
-                        )
+                        prev_score: int = self.trade_score
+                        delta: int = self._calculate_signal_score_delta(signal_data = signal)
+                        self.trade_score += delta
+
+                        # print(f"{signal} - prev_score: {prev_score} - delta: {delta} - after_score: {self.trade_score}")
                         if (self.generate_timestamp() - curr_timestamp > 300_000):
                             self.logger.info(f"[SIGNAL_STATS] Score: {self.trade_score} | Signal Processed")
                             curr_timestamp = self.generate_timestamp()
+                            
             except Exception as e:
                 self.logger.error(f"[SIGNAL_ERROR] Failed to fetch | Error: {type(e).__name__}: {str(e)}")
         return None
