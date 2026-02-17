@@ -125,7 +125,7 @@ class DataManager:
         """
         func __resize_df():
             - using _data_saver to move the dataframe storing the price movement to the csv file in data
-
+`
         make a use of data saver, i.e., custom class using the df.to_csv()
 
         params self: DataCollectorAndProcessor
@@ -145,8 +145,8 @@ class DataManager:
                         old_mask = self.prices.index < cutoff_ts
                         old_count = old_mask.sum()
                         if old_count > 0:
-                            data = self.prices.loc[old_mask]
-                            self.prices = self.prices.loc[~old_mask]
+                            # Drop in-place to preserve DataFrame reference for other components
+                            self.prices.drop(self.prices.index[old_mask], inplace=True)
                             self.logger.info(
                                 f"[DATA_CLEANUP] Action: resized | Rows: {self.prices.shape[0]} | "
                                 f"Cleaned: {old_count} | Retention: 1h"
