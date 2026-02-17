@@ -1,5 +1,6 @@
 from typing import Tuple
 from telegram import Bot
+from telegram.request import HTTPXRequest
 import asyncio
 import json
 
@@ -38,8 +39,16 @@ class CustomTelegramBot:
         self.__api_key = api_key
         self.__channel_id = channel_id
 
+        # Create request object with larger connection pool
+        request = HTTPXRequest(
+            http_version="2",
+            pool_connections=100,
+            pool_maxsize=100,
+            read_timeout=30.0,
+        )
+
         # make the bot instance
-        self._bot = Bot(self.__api_key)
+        self._bot = Bot(self.__api_key, request=request)
 
         self.logger.info(f"[INTEGRATION_INIT] {self.name} | Status: ready")
 
