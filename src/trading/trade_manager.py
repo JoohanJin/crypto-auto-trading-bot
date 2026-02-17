@@ -500,6 +500,8 @@ class TradeManager:
     ) -> None:
         try:
             self._update_position(order, trade_action)
+            with self.trade_score_lock:
+                self.trade_score = self.trend_manager_score
             return self.binance_client.order(order=order)
         except Exception as e:
             self.logger.critical(
