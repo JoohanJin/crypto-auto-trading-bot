@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from enum import IntFlag
 
 from src.core.models.base import ImmutableModel
+from src.core.models.order import Side
 
 
 class TradeState(IntFlag):
@@ -70,7 +71,7 @@ class PositionState:
         timestamp: int
             - The timestamp (ms) when the position was opened.
     """
-    side: int  # Side.BUY or Side.SELL (IntFlag, int-compatible)
+    side: int | Side  # Side.BUY or Side.SELL (IntFlag, int-compatible)
     ticker_size: float
     quote_size: float
     entry_price: float
