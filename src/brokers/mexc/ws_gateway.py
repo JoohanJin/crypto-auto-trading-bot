@@ -82,8 +82,10 @@ class MexcWebSocket(WebSocket):
             self.ws = self._construct_websocket()
 
         # Threads-related
+        # Clear existing thread references before re-initializing
+        self.threads = [t for t in self.threads if t.is_alive() and t.name != "websocket_hb"]
+        
         self._initialize_threads()
-
         self._start_threads()
         return
 
@@ -310,18 +312,21 @@ class MexcWebSocket(WebSocket):
     ) -> None:
         prev_timestamp: int = 0
 
-        while (not (self._thread_stop.is_set()) and (self._is_connected())):
-            # self._thread_pause.wait()
-            if (self.generate_timestamp() - prev_timestamp > (self.ping_interval * 1_000)):
-                try:
-                    # ! WebSocketApp.send() requires str or bytes -> needs to dump it using json, i.e., json.dump(dict)
-                    self.send(hb_payload)
-                    self.logger.debug("[WS_PING_PONG] MexC | Type: PING | Status: success")
-                    prev_timestamp = self.generate_timestamp()
-                except Exception as e:
-                    self.logger.warning(f"[WS_PING_PONG] MexC | Error: {type(e).__name__}: {str(e)}")
-            else:
+        while not self._thread_stop.is_set():
+            if self._thread_pause.is_set():
+                time.sleep(1)
                 continue
+
+            if self._is_connected():
+                if (self.generate_timestamp() - prev_timestamp > (self.ping_interval * 1_000)):
+                    try:
+                        self.send(hb_payload)
+                        self.logger.debug("[WS_PING_PONG] MexC | Type: PING | Status: success")
+                        prev_timestamp = self.generate_timestamp()
+                    except Exception as e:
+                        self.logger.warning(f"[WS_PING_PONG] MexC | Error: {type(e).__name__}: {str(e)}")
+            
+            time.sleep(1) # Check every second to prevent high CPU usage
         return
 
     # Override
@@ -437,14 +442,13 @@ class MexcWebSocket(WebSocket):
         ws: websocket.WebSocketApp,
         data: bytes,
     ) -> None:
-        # need to send pong -> let's see what I can do with this on mexc.
-        payload: str = "{'method':'pong'}"
-        if isinstance(data, bytes):
-            data = data.encode("utf-8")
-            if (data.get("channel", "") == 'ping' or data.get('method', "") == 'ping'):
-                ws.send(payload)
-        else:
-            return
+        # Standard MEXC pong response
+        payload: str = json.dumps({"method": "pong"})
+        try:
+            ws.send(payload)
+            self.logger.debug("[WS_PING_PONG] MexC | Type: PONG | Status: success")
+        except Exception as e:
+            self.logger.warning(f"[WS_PING_PONG] MexC | Error sending PONG: {str(e)}")
         return
 
     def authenticate(self) -> None:
