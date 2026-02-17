@@ -58,7 +58,7 @@ def setup_logger(
 
 # Initialize Loggers
 operation_logger = setup_logger("OperationLogger", "system-logging.log", add_console=True)
-trading_logger = setup_logger("TradingLogger", "trading-logging.log", add_console=False)
+trading_logger = setup_logger("TradingLogger", "trading-logging.log", add_console=True)
 
 
 def get_logger(module_name: str, logger_type: str = "operation") -> logging.Logger:
