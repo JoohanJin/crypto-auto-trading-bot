@@ -11,7 +11,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 try:
-    from mexc.websocket_base import _FutureWebSocketManager  # type: ignore
+    from brokers.mexc.websocket_base import _FutureWebSocketManager  # type: ignore
 except ModuleNotFoundError:  # pragma: no cover - optional dependency chain
     _FutureWebSocketManager = None  # type: ignore[misc]
 

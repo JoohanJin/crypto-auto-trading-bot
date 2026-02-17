@@ -2,13 +2,15 @@
 from queue import Queue, Full, Empty
 
 # Custom Library
-from logger.set_logger import operation_logger
-from object.signal import Signal
-from .base_pipeline import BasePipeline  # TODO: Need to define this class in another class
+from src.infrastructure.logging.set_logger import get_logger, get_adapter
+from src.core.models.signal import Signal
+from src.pipeline.base_pipeline import BasePipeline  # TODO: Need to define this class in another class
+
+logger = get_logger(__name__)
 
 
 class SignalPipeline(BasePipeline[Signal]):
-    def __init__(self: "SignalPipeline"):
+    def __init__(self, name: str | None = None):
         '''
         func __init__:
             - create a Queue of Dict to store indicator
@@ -28,11 +30,16 @@ class SignalPipeline(BasePipeline[Signal]):
                 }
             }
         '''
+        self.name: str = name if name else "SIGNAL_PIPELINE"
+        self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
         self.signal_queue: Queue[Signal] = Queue()
+
+        self.logger.info(f"[COMPONENT_INIT] {self.name} | Status: active")
+
         return
 
     def push(
-        self: "SignalPipeline",
+        self,
         signal: Signal,
     ) -> bool:
         '''
@@ -52,18 +59,14 @@ class SignalPipeline(BasePipeline[Signal]):
             )
             return True
         except Full:
-            operation_logger.warning(
-                f"{__name__} - Indicator Queue is full. Data cannot be added."
-            )
+            self.logger.warning(f"[DATA_ERROR] push() | Error: Queue is full")
             return False
         except Exception as e:
-            operation_logger.warning(
-                f"{__name__} - Indicator Queue: Unknown exception has occurred: {str(e)}"
-            )
+            self.logger.warning(f"[DATA_ERROR] push() | Error: {type(e).__name__}: {str(e)}")
             return False
 
     def pop(
-        self: "SignalPipeline",
+        self,
         timeout: int | None = None,
         block: bool = True,  # Default is to be blocked
     ) -> Signal | None:
@@ -90,14 +93,10 @@ class SignalPipeline(BasePipeline[Signal]):
                 timeout=timeout,
             )
         except Empty:
-            operation_logger.warning(
-                f"{__name__} -  Indicator Queue is empty. Data cannot be added."
-            )
+            self.logger.warning(f"[DATA_ERROR] pop() | Error: Queue is empty")
             return None
         except Exception as e:
-            operation_logger.warning(
-                f"{__name__} - Indicator Queue: Unknown exception has occurred: {str(e)}"
-            )
+            self.logger.warning(f"[DATA_ERROR] pop() | Error: {type(e).__name__}: {str(e)}")
             return None
 
 

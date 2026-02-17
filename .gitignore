@@ -1,43 +1,144 @@
-# ignore auto-generated files
+# =============================================================================
+# Custom
+# =============================================================================
+# Test File
+test/test.py
+
+
+# =============================================================================
+# Python
+# =============================================================================
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# Translations
+*.mo
+*.pot
+
+# =============================================================================
+# Virtual Environments
+# =============================================================================
+.venv/
+venv/
+ENV/
+env/
+.env.local
+
+# =============================================================================
+# IDE / Editor
+# =============================================================================
 .vscode/
+.idea/
+*.swp
+*.swo
+*~
 
-# virtual environment directory
-gazua/
-
-# ignore every tmp files
+# =============================================================================
+# Project Specific
+# =============================================================================
+# Temporary files
 *tmp*
 tmp/
 *foo*
 foo/
 
-test.py
-
-# ignore market data directory
+# Market data (large files)
 market_data/
 
-# ignore archieve data
+# Archive data
 *archieve*
 
+# Jupyter notebooks
+.ipynb_checkpoints/
 
-# auto-generated directories
-*__pycache__*
-__pycache__/
-src/.ipynb_checkpoints/
-.ipynb_checkpoints
-src/pipeline/__pycache__/
+# Logging
+log/*.log*
 
-# logging
-*.log*
-
-# environment variables
+# Environment variables (secrets)
 .env
+.env.*
+!.env.example
 
-# MacOS Specfiic
-.DS_Store*
-
-# DATA
+# Data files
 *.csv
 
-# Docker Config
-DockerFile
+# =============================================================================
+# OS Specific
+# =============================================================================
+# MacOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Linux
+*~
+
+# =============================================================================
+# Docker
+# =============================================================================
 .dockerignore
+
+# =============================================================================
+# Type Checking / Linting
+# =============================================================================
+.mypy_cache/
+.ruff_cache/
+.dmypy.json
+dmypy.json
+
+# =============================================================================
+# Documentation
+# =============================================================================
+site/
+docs/_build/

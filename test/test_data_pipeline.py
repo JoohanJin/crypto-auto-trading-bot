@@ -1,19 +1,8 @@
 from __future__ import annotations
-
-import sys
-from pathlib import Path
 import unittest
 
-# NOTE: Replaced earlier integration-heavy tests with lightweight queue checks that
-# confirm the data pipeline accepts and returns payloads as expected.
-
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-SRC_DIR = PROJECT_ROOT / "src"
-if str(SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(SRC_DIR))
-
-from object.constants import IndexType  # type: ignore
-from pipeline.data_pipeline import DataPipeline  # type: ignore
+from src.core.models.constants import IndexType  # type: ignore
+from src.pipeline.data_pipeline import DataPipeline  # type: ignore
 
 
 class DataPipelineTest(unittest.TestCase):

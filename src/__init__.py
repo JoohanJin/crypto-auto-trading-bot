@@ -1,2 +1,2 @@
 # this file can be empty
-VERSION = "1.2.2"
+VERSION = "2.0.0"

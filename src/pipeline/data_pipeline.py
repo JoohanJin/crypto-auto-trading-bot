@@ -3,14 +3,17 @@ import queue
 from typing import Dict
 
 # CUSTOM LIBRARY
-from logger.set_logger import operation_logger
-from object.index import Index
-from .base_pipeline import BasePipeline
+from src.infrastructure.logging.set_logger import get_logger, get_adapter
+from src.core.models.index import Index
+from src.pipeline.base_pipeline import BasePipeline
+
+logger = get_logger(__name__)
 
 
 class DataPipeline(BasePipeline[Index]):  # TODO: Make the object for th Data object.
     def __init__(
         self,
+        name: str | None = None,
     ) -> None:
         '''
         so each of them is just a data object pushed to the queue, not a group of data.
@@ -41,7 +44,11 @@ class DataPipeline(BasePipeline[Index]):  # TODO: Make the object for th Data ob
         '''
         # inherit the queue and data type in the queue from the base class.
         super().__init__()
+        self.name: str = name if name else "DATA_PIPELINE"
+        self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
         # data buffer, can be added in the future.
+
+        self.logger.info(f"[COMPONENT_INIT] {self.name} | Status: active")
 
         return
 
@@ -79,10 +86,10 @@ class DataPipeline(BasePipeline[Index]):  # TODO: Make the object for th Data ob
             )
             return True
         except queue.Full:
-            operation_logger.warning(f"{__name__} - Queue is full. Data cannot be added.")
+            self.logger.warning(f"[DATA_ERROR] push() | Error: Queue is full")
             return False
         except Exception as e:
-            operation_logger.warning(f"{__name__} - self.queue: Unknown exception has occurred: {str(e)}")
+            self.logger.warning(f"[DATA_ERROR] push() | Error: {type(e).__name__}: {str(e)}")
             return False
 
     def pop(
@@ -110,8 +117,8 @@ class DataPipeline(BasePipeline[Index]):  # TODO: Make the object for th Data ob
         try:
             return self.queue.get(block=block, timeout=timeout)
         except queue.Empty:
-            operation_logger.warning(f"{__name__} - self.queue is empty: Data cannot be retrieved.")
+            self.logger.warning(f"[DATA_ERROR] pop() | Error: Queue is empty")
             return None
         except Exception as e:
-            operation_logger.warning(f"{__name__} - self.queue: Unknown exception has occurred: {str(e)}.")
+            self.logger.warning(f"[DATA_ERROR] pop() | Error: {type(e).__name__}: {str(e)}")
             return None

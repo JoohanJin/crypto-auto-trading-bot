@@ -22,34 +22,43 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
+# Standard Library
 import sys
-from pathlib import Path
-from dotenv import load_dotenv
+import time
 
-from manager.system_manager import SystemManager
-from logger.set_logger import operation_logger
+# Custom Library
+from src.infrastructure.system_manager import SystemManager
+from src.infrastructure.logging.set_logger import get_logger
+
+logger = get_logger(__name__)
 
 
 def main():
     try:
-        # ? Since __init__() for every class will activate them, no need to do anything here.
-        project_root = Path(__file__).resolve().parents[1]
-        load_dotenv(project_root / ".env")
+        # Load environment variables
+        logger.info("[APP_START] Application starting | Loading environment configuration")
 
-        main_system_manager: SystemManager = SystemManager()
-        operation_logger.info(
-            f"{main_system_manager} has been started."
-        )
+        # Initialize SystemManager
+        main_system_manager: SystemManager = SystemManager(name="MAIN_APP")  # noqa: F841
+        logger.info("[APP_INIT_COMPLETE] Application initialized | Status: ready")
+
+        # Start main event loop
+        logger.info("[APP_LOOP_START] Entering main event loop")
+        while True:
+            time.sleep(0.5)  # Sleep to reduce CPU usage
+
+    except KeyboardInterrupt:
+        logger.warning("[APP_SHUTDOWN] User interrupt received | Action: graceful shutdown")
+        sys.exit(0)
     except RuntimeError as e:
-        operation_logger.critical(
-            f"{__name__}: function main() has raised an RuntimeError: {str(e)}"
-        )
+        logger.critical(f"[MAIN_RUNTIME_ERROR] RuntimeError | Error: RuntimeError: {str(e)}")
         sys.exit(1)
     except Exception as e:
-        operation_logger.critical(
-            f"{__name__}: function main() has raised an Unexpected error starting the system: {str(e)}"
+        logger.critical(
+            f"[APP_STARTUP_ERROR] Unexpected error during startup | Error: {type(e).__name__}: {str(e)}"
         )
         sys.exit(1)
+    return
 
 
 if __name__ == "__main__":
