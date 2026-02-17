@@ -2,8 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import IntFlag
 
-from src.core.models.base import ImmutableModel
-from src.core.models.trade import TradePair
+from src.core.models.base import ImmutableModel, Side, TradePair
 
 
 class OrderHistory:
@@ -19,11 +18,6 @@ class OrderHistory:
         max_size: int = 100,
     ) -> None:
         return
-
-
-class Side(IntFlag):
-    BUY = 1 << 0  # 0001
-    SELL = 1 << 1  # 0010
 
 
 @dataclass(frozen=True)

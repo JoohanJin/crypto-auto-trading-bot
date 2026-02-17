@@ -2,9 +2,26 @@
 from __future__ import annotations
 from dataclasses import dataclass, replace
 from typing import TypeVar
+from enum import IntFlag
 
 T = TypeVar('T', bound='ImmutableModel')
 M = TypeVar('M', bound='MutableModel')
+
+
+class Side(IntFlag):
+    BUY = 1 << 0  # 0001
+    SELL = 1 << 1  # 0010
+
+
+@dataclass(frozen=True)
+class TradePair:
+    '''
+    - Custom Data Structure with ticker and quote
+        - Ticker: BTC by default
+        - Quote: USDT by default (USDC in the future)
+    '''
+    ticker: str
+    quote: str
 
 
 @dataclass(frozen=True)

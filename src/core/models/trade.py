@@ -2,8 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import IntFlag
 
-from src.core.models.base import ImmutableModel
-from src.core.models.order import Side
+from src.core.models.base import ImmutableModel, Side, TradePair
 
 
 class TradeState(IntFlag):
@@ -36,17 +35,6 @@ class PositionType(IntFlag):
     SCALED_ORDER = 1 << 8
     CONDITIONAL_ORDER = 1 << 9
     TWAP = 1 << 10
-
-
-@dataclass(frozen=True)
-class TradePair(ImmutableModel):
-    '''
-    - Custom Data Structure with ticker and quote
-        - Ticker: BTC by default
-        - Quote: USDT by default (USDC in the future)
-    '''
-    ticker: str  # = "BTC"
-    quote: str  # = "USDT"
 
 
 @dataclass
