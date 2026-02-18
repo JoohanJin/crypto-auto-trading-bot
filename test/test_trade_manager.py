@@ -6,7 +6,7 @@ Mocks external dependencies (Binance API, Telegram, pipelines) to test logic in 
 """
 import unittest
 import time
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, PropertyMock
 
 # Core Models
 from src.core.models.trade import TradePair, TradeState, PositionState
@@ -135,9 +135,9 @@ class TestAnalyzeSignals(unittest.TestCase):
         self._inject_signals([TradeSignal.LONG_TERM_BUY] * 30, offset_ms=120_000)
         
         # Inject 20 bearish signals (Density 20 met)
-        # But we mix them to keep consensus around -0.5 (meets EXIT > -0.3, but fails REVERSE > -0.8)
-        # 15 SELL (weight -30), 5 BUY (weight +10) -> Net -20, Total 40 -> Consensus -0.5
-        self._inject_signals([TradeSignal.SHORT_TERM_SELL] * 15 + [TradeSignal.SHORT_TERM_BUY] * 5)
+        # Consensus around -0.6 (meets EXIT > -0.5, but fails REVERSE > -0.8)
+        # 16 SELL (weight -32), 4 BUY (weight +8) -> Net -24, Total 40 -> Consensus -0.6
+        self._inject_signals([TradeSignal.SHORT_TERM_SELL] * 16 + [TradeSignal.SHORT_TERM_BUY] * 4)
         
         result = self.tm._analyze_signals()
         self.assertEqual(result, TradeState.EXIT)
@@ -150,8 +150,8 @@ class TestAnalyzeSignals(unittest.TestCase):
             
         self._inject_signals([TradeSignal.LONG_TERM_SELL] * 30, offset_ms=120_000)
         
-        # Inject 20 signals, consensus ~ +0.5
-        self._inject_signals([TradeSignal.SHORT_TERM_BUY] * 15 + [TradeSignal.SHORT_TERM_SELL] * 5)
+        # Inject 20 signals, consensus ~ +0.6
+        self._inject_signals([TradeSignal.SHORT_TERM_BUY] * 16 + [TradeSignal.SHORT_TERM_SELL] * 4)
         
         result = self.tm._analyze_signals()
         self.assertEqual(result, TradeState.EXIT)
@@ -223,14 +223,28 @@ class TestVerifySignal(unittest.TestCase):
 
     def test_fresh_signal_is_valid(self):
         """Signal created just now should pass validation."""
+        # Use a fresh signal
         signal = Signal(signal=TradeSignal.SHORT_TERM_BUY)
         self.assertTrue(self.tm.verify_signal(signal))
 
     def test_stale_signal_is_invalid(self):
         """Signal older than window should fail validation."""
+        # Instead of mocking Signal.timestamp (frozen property), 
+        # we mock TradeManager.generate_timestamp to pretend it's the future.
         signal = Signal(signal=TradeSignal.SHORT_TERM_BUY)
-        signal._timestamp = int(time.time() * 1_000) - 10_000
-        self.assertFalse(self.tm.verify_signal(signal, timestamp_window=5_000))
+        future_time = signal.timestamp + 10_000
+        
+        with patch.object(self.tm, 'generate_timestamp', return_value=future_time):
+            self.assertFalse(self.tm.verify_signal(signal, timestamp_window=5_000))
+
+    def test_custom_window(self):
+        """Custom timestamp window is respected."""
+        signal = Signal(signal=TradeSignal.SHORT_TERM_BUY)
+        future_time = signal.timestamp + 3_000
+        
+        with patch.object(self.tm, 'generate_timestamp', return_value=future_time):
+            self.assertTrue(self.tm.verify_signal(signal, timestamp_window=5_000))
+            self.assertFalse(self.tm.verify_signal(signal, timestamp_window=2_000))
 
 
 # =============================================================================

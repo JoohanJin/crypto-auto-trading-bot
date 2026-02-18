@@ -108,9 +108,6 @@ class TradeManager:
         """
         self.name: str = name if name else "TRADE_MANAGER"
         self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
-
-        # For trading specific logs, we can use the same adapter but maybe with a different level or just use info.
-        # However, to keep it consistent with the original design where trading logs went to a different file:
         self.trading_logger = get_adapter(get_logger(__name__, "trading"), f"{self.__class__.__name__}_{self.name}")
 
         '''
@@ -146,17 +143,17 @@ class TradeManager:
         self.sl_rate: float = stop_loss_rate
 
         # --- Weighted Signal Density & Consensus (WSDC) Settings ---
-        # These strict settings are designed to filter high-frequency noise 
+        # These strict settings are designed to filter high-frequency noise
         # (multiple signals per second) and reduce trading frequency.
-        self.signal_history: deque[tuple[int, TradeSignal]] = deque()
+        self.signal_history: deque[tuple[int, TradeSignal]] = deque()  # (timestamp, TradeSignal)
         self.signal_history_lock: threading.Lock = threading.Lock()
         self.history_window_ms: int = 600_000  # 10 minutes (structural backbone)
         self.momentum_window_ms: int = 60_000   # 1 minute (trigger window)
         
         # Thresholds for decision making
         # Entry/Reverse requires 20 signals in 1m with 80% agreement.
-        self.consensus_threshold: float = 0.8  
-        self.density_threshold: int = 20       
+        self.consensus_threshold: float = 0.8
+        self.density_threshold: int = 20
         self.trade_cooldown_ms: int = 300_000  # 5 minutes minimum between trades
         self.last_trade_timestamp: int = 0
 
@@ -616,17 +613,16 @@ class TradeManager:
         # Immediate exit to protect capital if momentum flips against us,
         # OR if the 10m structural bias shifts to the opposite direction.
         #
-        # NOTE: Threshold set to 20 signals (Density) within the 1m window to 
-        # filter out the high-frequency noise (multiple signals per second). 
-        # This prevents premature liquidation during minor volatility spikes.
+        # NOTE: Threshold set to 20 signals (Density) within the 1m window to
+        # filter out the high-frequency noise.
         if current_pos is not None:
-            # Long Exit: Require 20 BEARISH signals or structural shift
+            # Long Exit: Momentum flips strongly OR Structural bias flips with history (min 10)
             if current_pos.side == Side.BUY:
-                if (consensus_momentum < -0.3 and density_momentum >= 20) or consensus_structural < -0.1:
+                if (consensus_momentum < -0.5 and density_momentum >= 20) or (consensus_structural < -0.1 and len(structural_signals) >= 10):
                     return TradeState.EXIT
-            # Short Exit: Require 20 BULLISH signals or structural shift
+            # Short Exit: Momentum flips strongly OR Structural bias flips with history (min 10)
             elif current_pos.side == Side.SELL:
-                if (consensus_momentum > 0.3 and density_momentum >= 20) or consensus_structural > 0.1:
+                if (consensus_momentum > 0.5 and density_momentum >= 20) or (consensus_structural > 0.1 and len(structural_signals) >= 10):
                     return TradeState.EXIT
 
         return TradeState.HOLD
@@ -651,7 +647,7 @@ class TradeManager:
                     TradeState.EXIT,
                 ):
                     # Cooldown check
-                    if self.generate_timestamp() - self.last_trade_timestamp < self.trade_cooldown_ms:
+                    if ((self.generate_timestamp() - self.last_trade_timestamp) < self.trade_cooldown_ms):
                         time.sleep(0.25)
                         continue
 
@@ -664,6 +660,32 @@ class TradeManager:
             except Exception as e:
                 self.logger.error(f"[TRADE_DECISION_ERROR] Failed | Error: {type(e).__name__}: {str(e)}")
         return
+
+    def _get_signal(
+        self,
+        timestamp_window: int = 5_000,
+    ) -> TradeSignal | None:
+        """
+        func _get_signal(): private method
+            - get the signal from the signal pipeline
+            - This function should be run by other thread which is monitoring the system.
+
+        param self:
+            - TradeManager object
+
+        return TradeSignal:
+            - it will return the parameter signal and decide the action based on the signal.
+        return None
+            - if the signal is not valid, then it will return None.
+        """
+        signal_data: Signal = self.signal_pipeline_controller.pop()
+        if isinstance(signal_data, Signal):
+            return (
+                signal_data.signal
+                if self.verify_signal(signal_data=signal_data, timestamp_window=timestamp_window)
+                else None
+            )
+        return None
 
     def _thread_get_signal(
         self,
@@ -692,32 +714,6 @@ class TradeManager:
                         
             except Exception as e:
                 self.logger.error(f"[SIGNAL_ERROR] Failed to fetch | Error: {type(e).__name__}: {str(e)}")
-        return None
-
-    def _get_signal(
-        self,
-        timestamp_window: int = 5_000,
-    ) -> TradeSignal | None:
-        """
-        func _get_signal(): private method
-            - get the signal from the signal pipeline
-            - This function should be run by other thread which is monitoring the system.
-
-        param self:
-            - TradeManager object
-
-        return TradeSignal:
-            - it will return the parameter signal and decide the action based on the signal.
-        return None
-            - if the signal is not valid, then it will return None.
-        """
-        signal_data: Signal = self.signal_pipeline_controller.pop()
-        if isinstance(signal_data, Signal):
-            return (
-                signal_data.signal
-                if self.verify_signal(signal_data = signal_data, timestamp_window = timestamp_window)
-                else None
-            )
         return None
 
     '''
