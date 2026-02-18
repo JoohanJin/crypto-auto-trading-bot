@@ -163,8 +163,8 @@ class TradeManager:
         self.lock_current_position: threading.Lock = threading.Lock()
         self.current_position: PositionState | None = None
 
-        self.signal_cnt: int = 0
-        self.start_time: int
+        # self.signal_cnt: int = 0
+        # self.start_time: int
 
         # Start the TradeManager
         self.start()
@@ -527,9 +527,9 @@ class TradeManager:
             order: Order = self._construct_new_order(buy_or_sell)
             message: str | None = self._format_trade_message(order)
 
-            # order trigger to the telegram bot
-            self._make_order(order, trade_action=buy_or_sell)
-            self.telegram_bot.send_text(message)
+            # # order trigger to the telegram bot
+            # self._make_order(order, trade_action=buy_or_sell)
+            # self.telegram_bot.send_text(message)
             self.trading_logger.info(message)
         except Exception as e:
             self.logger.error(
@@ -698,11 +698,11 @@ class TradeManager:
         """
         signal_data: Signal = self.signal_pipeline_controller.pop()
 
-        if self.signal_cnt == 0:
-            self.start_time = self.generate_timestamp()
-        self.signal_cnt += 1
+        # if self.signal_cnt == 0:
+        #     self.start_time = self.generate_timestamp()
+        # self.signal_cnt += 1
 
-        self.logger.debug(f"[SIGNAL_BENCHMARKING] started at {self.start_time}, {self.signal_cnt} signals so far.")
+        # self.logger.debug(f"[SIGNAL_BENCHMARKING] started at {self.start_time}, {self.signal_cnt} signals so far.")
 
         if isinstance(signal_data, Signal):
             return (
