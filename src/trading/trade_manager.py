@@ -528,8 +528,8 @@ class TradeManager:
             message: str | None = self._format_trade_message(order)
 
             # # order trigger to the telegram bot
-            # self._make_order(order, trade_action=buy_or_sell)
-            # self.telegram_bot.send_text(message)
+            self._make_order(order, trade_action=buy_or_sell)
+            self.telegram_bot.send_text(message)
             self.trading_logger.info(message)
         except Exception as e:
             self.logger.error(
