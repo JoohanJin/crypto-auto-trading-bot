@@ -117,7 +117,7 @@ class SystemManager:
                 signal_pipeline_controller = self.signal_pipeline_controller,
                 http_interface=self.http_interface,
                 binance_future_client=self.binance_http_client,
-                delta_mapper = self.mapper,
+                score_mapper = self.mapper,
                 telegram_bot = self.telegram_bot,
             )
             self.logger.info("[COMPONENT_INIT] TradeManager | Status: ready")

@@ -1,7 +1,6 @@
 # Standard Library
 import threading
 import time
-from collections import deque
 
 # Custom Library
 from src.core.models.service_dto import AccountInformation, MarkPrice, Position
@@ -22,33 +21,10 @@ logger = get_logger(__name__)
 
 class TradeManager:
     """
-    The TradeManager is the 'brain' of the bot, responsible for high-frequency execution
-    based on the Weighted Signal Density & Consensus (WSDC) model.
-
-    OPERATIONAL STRATEGY:
-    --------------------
-    Instead of following single signals (which are often noisy in short timeframes),
-    this manager looks for 'signal clusters' or 'bursts'. It assumes that a high
-    density of signals in a short window represents a real market move rather than
-    an outlier.
-
-    KEY CONCEPTS:
-    1. Momentum (10s): The trigger. We look for a burst of signals (Density)
-       with high agreement (Consensus) to enter or reverse a trade.
-    2. Structural Bias (10m): The backbone. Longer-term signal history provides
-       context, preventing entries against the primary short-term trend.
-    3. Consensus Model: Weights signals (e.g., LONG_TERM > SHORT_TERM) to
-       calculate a percentage of agreement.
-    4. Panic Exit: Rapidly liquidates positions if momentum flips against us,
-       even if the long-term structural bias is still intact.
-    """
-
-    '''
     ##########################
     # Static Method
     ##########################
-    '''
-
+    """
     @classmethod
     def generate_timestamp(cls) -> int:
         """
@@ -91,13 +67,16 @@ class TradeManager:
         signal_pipeline_controller: PipelineController[Signal],
         http_interface: HttpInterface,  # TODO: need to fully move from EachBroker to the Interface
         binance_future_client: BinanceFutureHttpClient,
-        delta_mapper: ScoreMapper,
+        score_mapper: ScoreMapper,
         telegram_bot: CustomTelegramBot,
         trade_pair: TradePair | None = None,
         leverage: int = 10,
         trade_weight: float = 0.1,  # 10% of the total asset
         take_profit_rate: float = 0.2,  # 20% -> to prevent the error
         stop_loss_rate: float = 0.2,  # 20% -> to prevent the error
+        score_threashold: int = 2_000,
+        score_trend_management: int = 200,  # unused after reset-to-0 change
+        score_decay_rate: float = 0.99995,  # per-tick decay factor (applied every 250ms in _thread_decide_trade)
         trade_cooldown_ms: int = 30_000,  # minimum milliseconds between consecutive trades
         name: str | None = None,
     ) -> None:
@@ -132,10 +111,13 @@ class TradeManager:
         self.http_interface: HttpInterface = http_interface  # ! Need to use this in the future.
         self.binance_client: BinanceFutureHttpClient = binance_future_client
 
-        self.delta_mapper: ScoreMapper = delta_mapper
+        self.score_mapper: ScoreMapper = score_mapper
 
         self.telegram_bot: CustomTelegramBot = telegram_bot
 
+        self.score_threshold: int = score_threashold
+        self.trend_manager_score: int = score_trend_management  # legacy; score now always resets to 0 after trade
+        self.score_decay_rate: float = score_decay_rate
         self.trade_cooldown_ms: int = trade_cooldown_ms
         self.last_trade_timestamp: int = 0  # epoch ms of the last executed trade
 
@@ -145,23 +127,12 @@ class TradeManager:
         self.tp_rate: float = take_profit_rate
         self.sl_rate: float = stop_loss_rate
 
-        # --- Weighted Signal Density & Consensus (WSDC) Settings ---
-        # These strict settings are designed to filter high-frequency noise 
-        # (multiple signals per second) and reduce trading frequency.
-        self.signal_history: deque[tuple[int, TradeSignal]] = deque()
-        self.signal_history_lock: threading.Lock = threading.Lock()
-        self.history_window_ms: int = 600_000  # 10 minutes (structural backbone)
-        self.momentum_window_ms: int = 60_000   # 1 minute (trigger window)
-        
-        # Thresholds for decision making
-        # Entry/Reverse requires 20 signals in 1m with 80% agreement.
-        self.consensus_threshold: float = 0.8  
-        self.density_threshold: int = 20       
-        self.trade_cooldown_ms: int = 300_000  # 5 minutes minimum between trades
-        self.last_trade_timestamp: int = 0
-
         # Set the thread pool as a member function.
         self.threads: list[threading.Thread] = []
+
+        # Set the trade score as a member variable.
+        self.trade_score_lock: threading.Lock = threading.Lock()
+        self.trade_score: int = 0
 
         self.lock_current_position: threading.Lock = threading.Lock()
         self.current_position: PositionState | None = None
@@ -171,7 +142,7 @@ class TradeManager:
 
         self.logger.info(
             f"[INIT_COMPLETE] Ready | Pair: {self.trade_pair.ticker}/{self.trade_pair.quote} | "
-            f"Leverage: {self.leverage} | Window: {self.history_window_ms}ms"
+            f"Leverage: {self.leverage} | Threshold: {self.score_threshold}"
         )
         return
 
@@ -185,7 +156,7 @@ class TradeManager:
             - need to remove all the threads and possibly dynamic objects as well.
         """
         self.logger.info(
-            f"[SHUTDOWN] Cleanup initiated | Threads: {len(self.threads)} | History Size: {len(self.signal_history)}",
+            "[SHUTDOWN] Cleanup initiated | Threads: %d | Score: %d", len(self.threads), self.trade_score
         )
         return
 
@@ -291,6 +262,70 @@ class TradeManager:
     # Signal Management Method
     ##########################
     """
+    def _decide_trade(
+            self,
+            score: int,
+    ) -> TradeState:
+        """
+        func _decide_trade():
+            - private method
+            - decide the trade based on the score.
+            - It will return the decision based on the score.
+
+        param self:
+            - TradeManager object
+        param score: int
+            - score based on the signal data.
+
+        return TradeState:
+            - HOLD = 1
+            - NEW_BUY = 2
+            - NEW_SELL = 4
+            - REVERSE_BUY = 8
+            - REVERSE_SELL = 16
+        """
+        with self.lock_current_position:
+            current_pos = self.current_position.copy() if self.current_position else None
+
+        # 1. Reverse — strong signal against current position
+        if current_pos is not None:
+            if (score > (self.score_threshold // 2)) and (current_pos.side == Side.SELL):
+                return TradeState.REVERSE_BUY
+            if (score < (-1 * (self.score_threshold // 2))) and (current_pos.side == Side.BUY):
+                return TradeState.REVERSE_SELL
+
+        # 2. NEW / Scaling In — strong signal in any direction
+        if (score > self.score_threshold):
+            if current_pos is not None:
+                with self.trade_score_lock:
+                    self.trade_score = (
+                        self.trend_manager_score
+                        if self.trade_score > 0
+                        else -1 * self.trend_manager_score
+                    )
+                return TradeState.HOLD
+            return TradeState.NEW_BUY
+        if (score < (-1 * self.score_threshold)):
+            if current_pos is not None:
+                with self.trade_score_lock:
+                    self.trade_score = (
+                        self.trend_manager_score
+                        if self.trade_score > 0
+                        else -1 * self.trend_manager_score
+                    )
+                return TradeState.HOLD
+            return TradeState.NEW_SELL
+
+        # 3. EXIT — moderate signal against current position
+        if current_pos is not None:
+            exit_threshold = self.score_threshold // 4
+            if (current_pos.side == Side.BUY) and (score < -exit_threshold):
+                return TradeState.EXIT
+            if (current_pos.side == Side.SELL) and (score > exit_threshold):
+                return TradeState.EXIT
+
+        return TradeState.HOLD  # by default it is not doing anything.
+
     def _construct_new_order(
         self,
         buy_or_sell: TradeState,
@@ -538,110 +573,31 @@ class TradeManager:
             raise Exception
         return
     
-    def _analyze_signals(self) -> TradeState:
-        """
-        Analyze signal history to determine the next trade action.
-        
-        This method implements the core decision matrix:
-        1. Pruning: Removes stale signals to keep the decision window relevant.
-        2. Weighted Consensus: Calculates the 'conviction' of the crowd (-1.0 to 1.0).
-        3. Multi-Window Analysis: Compares 10s 'Momentum' vs 10m 'Structure'.
-        """
-        now = self.generate_timestamp()
-        
-        with self.signal_history_lock:
-            # 1. Prune old signals (Memory & Logic Management)
-            while self.signal_history and (now - self.signal_history[0][0] > self.history_window_ms):
-                self.signal_history.popleft()
-            
-            if not self.signal_history:
-                return TradeState.HOLD
-            
-            # 2. Extract Windows
-            # Structural: The full 10m history.
-            # Momentum: The immediate 10s 'burst' window.
-            history = list(self.signal_history)
-            momentum_signals = [s for ts, s in history if (now - ts) <= self.momentum_window_ms]
-            structural_signals = [s for ts, s in history]
-
-        def get_weighted_consensus(signals: list[TradeSignal]) -> float:
-            """
-            Returns a value between -1.0 (pure Sell) and 1.0 (pure Buy).
-            Weights are determined by the ScoreMapper (e.g., LONG_TERM_BUY = 5, SHORT_TERM_BUY = 2).
-            """
-            if not signals:
-                return 0.0
-            total_weight = 0.0
-            net_weight = 0.0
-            for s in signals:
-                weight = self.delta_mapper.map(s)
-                total_weight += abs(weight)
-                net_weight += weight
-            return net_weight / total_weight if total_weight > 0 else 0.0
-
-        # 3. Calculate Metrics
-        consensus_momentum = get_weighted_consensus(momentum_signals)
-        consensus_structural = get_weighted_consensus(structural_signals)
-        density_momentum = len(momentum_signals)
-
-        self.logger.debug(
-            f"[WSDC_STATS] Momentum(10s): {consensus_momentum:+.2f} [D={density_momentum}] | "
-            f"Structure(10m): {consensus_structural:+.2f} [H={len(history)}]"
-        )
-
-        with self.lock_current_position:
-            current_pos = self.current_position.copy() if self.current_position else None
-
-        # 4. Decision Logic
-        
-        # --- 4a. REVERSE / NEW ENTRY LOGIC (High Conviction Bursts) ---
-        # We only enter if we see a 'Burst' (Density > threshold).
-        # This filters out stray signals that don't represent a collective move.
-        if density_momentum >= self.density_threshold:
-            # BULLISH BURST: Momentum must agree with or create a strong trend.
-            if consensus_momentum >= self.consensus_threshold:
-                if current_pos is None:
-                    return TradeState.NEW_BUY
-                if current_pos.side == Side.SELL:
-                    return TradeState.REVERSE_BUY
-            
-            # BEARISH BURST
-            if consensus_momentum <= -self.consensus_threshold:
-                if current_pos is None:
-                    return TradeState.NEW_SELL
-                if current_pos.side == Side.BUY:
-                    return TradeState.REVERSE_SELL
-
-        # --- 4b. EXIT LOGIC (Panic/Exhaustion) ---
-        # Immediate exit to protect capital if momentum flips against us,
-        # OR if the 10m structural bias shifts to the opposite direction.
-        #
-        # NOTE: Threshold set to 20 signals (Density) within the 1m window to 
-        # filter out the high-frequency noise (multiple signals per second). 
-        # This prevents premature liquidation during minor volatility spikes.
-        if current_pos is not None:
-            # Long Exit: Require 20 BEARISH signals or structural shift
-            if current_pos.side == Side.BUY:
-                if (consensus_momentum < -0.3 and density_momentum >= 20) or consensus_structural < -0.1:
-                    return TradeState.EXIT
-            # Short Exit: Require 20 BULLISH signals or structural shift
-            elif current_pos.side == Side.SELL:
-                if (consensus_momentum > 0.3 and density_momentum >= 20) or consensus_structural > 0.1:
-                    return TradeState.EXIT
-
-        return TradeState.HOLD
-
     def _thread_decide_trade(
         self,
     ) -> None:
         """
         func _thread_decide_trade():
             - private method
-            - decide the trade based on the signal history (WSDC model).
+            - decide the trade based on the signal.
+            - This function should be run by the other function which is monitoring some schema.
+
+        param self:
+            - TradeManager object
+
+        return None:
         """
         while True:
             try:
-                decision: TradeState = self._analyze_signals()
+                with self.trade_score_lock:
+                    # Decay: older signals lose influence over time.
+                    # At 0.995 per 250ms tick, score halves in ~35 seconds of no new signals.
+                    # self.trade_score = int(self.trade_score * self.score_decay_rate)  # TODO: Need to apply this
+                    score: int = self.trade_score
+
+                decision: TradeState = self._decide_trade(
+                    score = score,
+                )
 
                 if decision in (
                     TradeState.NEW_BUY,
@@ -650,19 +606,32 @@ class TradeManager:
                     TradeState.REVERSE_SELL,
                     TradeState.EXIT,
                 ):
-                    # Cooldown check
+                    # Cooldown: skip trade if too soon after the last one.
+                    # Prevents rapid cycling (NEW → EXIT → NEW → EXIT) that bleeds fees.
                     if self.generate_timestamp() - self.last_trade_timestamp < self.trade_cooldown_ms:
                         time.sleep(0.25)
                         continue
 
-                    # Execute
-                    self._execute_trade(buy_or_sell=decision)
+                    # Trade
+                    self._execute_trade(
+                        buy_or_sell = decision,
+                    )
                     self.last_trade_timestamp = self.generate_timestamp()
+
+                    # Reset score to trend_manager_score after any trade.
+                    # Let signals naturally rebuild conviction rather than injecting
+                    # artificial directional bias that can cause immediate re-entry.
+                    with self.trade_score_lock:
+                        self.trade_score = (
+                            self.trend_manager_score
+                            if self.trade_score > 0
+                            else -1 * self.trend_manager_score
+                        )
 
                 time.sleep(0.25)
 
             except Exception as e:
-                self.logger.error(f"[TRADE_DECISION_ERROR] Failed | Error: {type(e).__name__}: {str(e)}")
+                self.logger.error(f"[TRADE_DECISION_ERROR] Failed | Score: {score} | Error: {type(e).__name__}: {str(e)}")
         return
 
     def _thread_get_signal(
@@ -682,14 +651,19 @@ class TradeManager:
 
         return None:
         """
+        curr_timestamp = 0
         while True:
             try:
                 signal: TradeSignal = self._get_signal(timestamp_window = timestamp_window,)
-                if isinstance(signal, TradeSignal) and signal != TradeSignal.HOLD:
-                    with self.signal_history_lock:
-                        self.signal_history.append((self.generate_timestamp(), signal))
-                        self.logger.debug(f"[SIGNAL_TRACK] Added signal: {signal.name} | Total History: {len(self.signal_history)}")
-                        
+                if signal:
+                    with self.trade_score_lock:
+                        delta: int = self._calculate_signal_score_delta(signal_data = signal)
+                        self.trade_score += delta
+                        self.logger.debug(f"[SIGNAL_STATS] Debug - current score: {self.trade_score}")
+                        if (self.generate_timestamp() - curr_timestamp > 300_000):
+                            self.logger.info(f"[SIGNAL_STATS] Score: {self.trade_score} | Signal Processed")
+                            curr_timestamp = self.generate_timestamp()
+                            
             except Exception as e:
                 self.logger.error(f"[SIGNAL_ERROR] Failed to fetch | Error: {type(e).__name__}: {str(e)}")
         return None
@@ -712,13 +686,35 @@ class TradeManager:
             - if the signal is not valid, then it will return None.
         """
         signal_data: Signal = self.signal_pipeline_controller.pop()
-        if isinstance(signal_data, Signal):
-            return (
-                signal_data.signal
-                if self.verify_signal(signal_data = signal_data, timestamp_window = timestamp_window)
-                else None
-            )
-        return None
+        if signal_data is None:
+            return None
+        return (
+            signal_data.signal
+            if self.verify_signal(signal_data = signal_data, timestamp_window = timestamp_window)
+            else None
+        )
+
+    def _calculate_signal_score_delta(
+        self,
+        signal_data: TradeSignal,
+    ) -> int:
+        """
+        func _calculate_delta():
+            - private method
+            - calculate the delta based on the signal data.
+            - It will return the delta value based on the signal data.
+
+        param self:
+            - TradeManager object
+        param signal_data: TradeSignal
+            - signal data which is passed from the signal pipeline.
+
+        return int:
+            - delta value based on the signal data.
+        """
+        return self.score_mapper.map(
+            signal = signal_data,
+        )
 
     '''
     - Execute Trade Utility Function
@@ -805,7 +801,7 @@ class TradeManager:
             # positions: list[Position] = self._get_open_orders()  # TODO: need to check with it.
             account_info: AccountInformation = self._get_account_info()
 
-            if (account_info.balance == account_info.available_balance):
+            if (account_info.balance == account_info.available_balance) and self.current_position is None:
                 return True
             return False
         except Exception as e:
@@ -1076,7 +1072,7 @@ if __name__ == "__main__":
     # =========================================================================
     print("\n[3/8] Creating score mapper...")
     
-    delta_mapper = ScoreMapper()
+    score_mapper = ScoreMapper()
     print("\n✓ ScoreMapper created")
 
     # =========================================================================
@@ -1105,13 +1101,15 @@ if __name__ == "__main__":
             signal_pipeline_controller=signal_pipeline_controller,
             http_interface=None,
             binance_future_client=bfhc,
-            delta_mapper=delta_mapper,
+            score_mapper=score_mapper,
             telegram_bot=telegram_bot,
             trade_pair=TradePair(ticker="BTC", quote="USDT"),
             leverage=10,
             trade_weight=0.1,
             take_profit_rate=0.10,
             stop_loss_rate=0.05,
+            score_threashold=2_000,
+            score_trend_management=0,
             name="TEST_TRADE_MANAGER",
         )
         print(tm._get_account_info())
