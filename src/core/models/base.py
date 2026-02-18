@@ -1,6 +1,7 @@
 # Standard Library
 from __future__ import annotations
 from dataclasses import dataclass, replace
+import time
 from typing import TypeVar
 from enum import IntFlag
 
@@ -34,6 +35,10 @@ class ImmutableModel:
 
     def copy(self: T) -> T:
         return replace(self)
+    
+    @classmethod
+    def generate_timestamp(cls) -> int:
+        return int(time.time() * 1_000)
 
 
 @dataclass
@@ -46,3 +51,7 @@ class MutableModel:
 
     def copy(self: M) -> M:
         return replace(self)
+    
+    @classmethod
+    def generate_timestamp(cls) -> int:
+        return int(time.time() * 1_000)
