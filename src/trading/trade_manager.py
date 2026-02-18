@@ -151,9 +151,9 @@ class TradeManager:
         self.momentum_window_ms: int = 60_000   # 1 minute (trigger window)
         
         # Thresholds for decision making
-        # Entry/Reverse requires 30 signals in 1m with 80% agreement.
+        # Entry/Reverse requires 60 signals in 1m with 80% agreement.
         self.consensus_threshold: float = 0.8
-        self.density_threshold: int = 30
+        self.density_threshold: int = 60
         self.trade_cooldown_ms: int = 300_000  # 5 minutes minimum between trades
         self.last_trade_timestamp: int = 0
 
@@ -162,6 +162,9 @@ class TradeManager:
 
         self.lock_current_position: threading.Lock = threading.Lock()
         self.current_position: PositionState | None = None
+
+        self.signal_cnt: int = 0
+        self.start_time: int
 
         # Start the TradeManager
         self.start()
@@ -581,8 +584,8 @@ class TradeManager:
                     return 0.0
                 total_weight = 0.0
                 net_weight = 0.0
-                for s in signals:
-                    weight = self.delta_mapper.map(s)
+                for s in signals:  # ! Linear? hmmm => should be fine with the current strategy since it only stores 10-minute data.
+                    weight = self.delta_mapper.map(s)  # ? based on the score mapping score -> which is correct.
                     total_weight += abs(weight)
                     net_weight += weight
                 return net_weight / total_weight if total_weight > 0 else 0.0
@@ -603,9 +606,12 @@ class TradeManager:
             # 5. Decision Logic
             
             # --- 5a. REVERSE / NEW ENTRY LOGIC (High Conviction Bursts) ---
-            # We only enter if we see a 'Burst' (Density > threshold). 
+            # We only enter if we see a 'Burst' (Density > threshold).
             # This filters out stray signals that don't represent a collective move.
             if density_momentum >= self.density_threshold:
+                '''
+                # This part is actually correct... hmmm why BUY only then so artnwj.
+                '''
                 # BULLISH BURST: Momentum must agree with or create a strong trend.
                 if consensus_momentum >= self.consensus_threshold:
                     if current_pos is None:
@@ -635,6 +641,8 @@ class TradeManager:
                 elif current_pos.side == Side.SELL:
                     if (consensus_momentum > 0.5 and density_momentum >= 30) or (consensus_structural > 0.1 and len(structural_signals) >= 10):
                         return TradeState.EXIT
+                    return TradeState.HOLD
+
         return TradeState.HOLD
 
     def _thread_decide_trade(
@@ -689,6 +697,13 @@ class TradeManager:
             - if the signal is not valid, then it will return None.
         """
         signal_data: Signal = self.signal_pipeline_controller.pop()
+
+        if self.signal_cnt == 0:
+            self.start_time = self.generate_timestamp()
+        self.signal_cnt += 1
+
+        self.logger.debug(f"[SIGNAL_BENCHMARKING] started at {self.start_time}, {self.signal_cnt} signals so far.")
+
         if isinstance(signal_data, Signal):
             return (
                 signal_data.signal
