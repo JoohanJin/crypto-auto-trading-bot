@@ -67,6 +67,11 @@ class StrategyManager:
         # shared data structure to store Timestamp of the previoius invokation of each signal.
         self.signal_timestamps: dict[str, int] = dict()
         self.signal_timestamps_lock: threading.Lock = threading.Lock()
+        
+        # Statistics for heartbeat logging
+        self.signal_counts: dict[str, int] = {}
+        self.signal_counts_lock: threading.Lock = threading.Lock()
+        
         self.signal_window: int = signal_window
         self.threads: list[threading.Thread] = []
 
@@ -90,9 +95,35 @@ class StrategyManager:
     def push_signal(self, signal: Signal, details: str) -> None:
         try:
             self._push_signal_callback(signal)
-            self.trading_logger.info(f"[SIGNAL_GEN] Strategy: {details} | Signal: {signal.signal.name} | Status: success")
+            
+            # Update statistics
+            with self.signal_counts_lock:
+                self.signal_counts[details] = self.signal_counts.get(details, 0) + 1
+                
+            # Log at DEBUG level to reduce noise
+            self.trading_logger.debug(f"[SIGNAL_GEN] Strategy: {details} | Signal: {signal.signal.name} | Status: success")
         except Exception as e:
             self.logger.critical(f"[STRATEGY_ERROR] push_signal() | Error: {type(e).__name__}: {str(e)}")
+
+    def _thread_log_status(self) -> None:
+        """
+        Periodically logs aggregated signal statistics to reduce log noise.
+        """
+        while True:
+            try:
+                time.sleep(60)
+                
+                with self.signal_counts_lock:
+                    if not self.signal_counts:
+                        self.logger.info("[STRATEGY_STATS] No signals generated in last interval.")
+                    else:
+                        stats_str = ", ".join([f"{k}: {v}" for k, v in self.signal_counts.items()])
+                        self.logger.info(f"[STRATEGY_STATS] Signal Counts (1m): {stats_str}")
+                        self.signal_counts.clear() # Reset for next interval
+                        
+            except Exception as e:
+                self.logger.error(f"[STATUS_LOG_ERROR] Failed to log status | Error: {type(e).__name__}: {str(e)}")
+                time.sleep(10)
 
     def _load_strategies(self) -> None:
         fetcher = StrategyFetcher(self.STRATEGY_CONFIG_PATH)
@@ -133,6 +164,15 @@ class StrategyManager:
             )
             self.threads.append(thread)
             self.logger.info(f"[THREAD_START] {name} | Status: ready")
+
+        # Start the heartbeat/status logger
+        status_thread = threading.Thread(
+            name="StrategyManager_StatusLogger",
+            target=self._thread_log_status,
+            daemon=True,
+        )
+        self.threads.append(status_thread)
+        self.logger.info(f"[THREAD_START] {status_thread.name} | Status: ready")
 
     def __verify_index(
         self,
