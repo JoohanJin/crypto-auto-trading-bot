@@ -1,30 +1,23 @@
 from __future__ import annotations
 
-import sys
 import tempfile
 import threading
 import unittest
 from pathlib import Path
 from unittest import mock
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-SRC_DIR = PROJECT_ROOT / "src"
-if str(SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(SRC_DIR))
-
-from core.models.constants import IndexType  # type: ignore
-from core.models.indexes import Index  # type: ignore
-from core.models.signal import TradeSignal  # type: ignore
+from src.core.models.index import IndexType, Index  # type: ignore
+from src.core.models.signal import TradeSignal  # type: ignore
 
 try:
-    from strategy import (  # type: ignore
+    from src.strategy import (  # type: ignore
         StrategyCondition,
         StrategyConfig,
         StrategyExecutor,
         StrategyFactory,
         StrategyFetcher,
     )
-    from strategy_manager import StrategyManager  # type: ignore
+    from src.strategy.strategy_manager import StrategyManager  # type: ignore
 except ModuleNotFoundError:  # pragma: no cover - optional dependency
     StrategyCondition = StrategyConfig = StrategyExecutor = StrategyFactory = StrategyFetcher = StrategyManager = None  # type: ignore[misc]
 
@@ -136,7 +129,7 @@ class StrategyExecutorTest(unittest.TestCase):
 
         push_signal.assert_called_once()
         update_timestamp.assert_called_once_with("demo")
-        logic.assert_called_once()
+        logic.assert_called_once_with({}, None, strategy)
 
 
 class StrategyManagerHelpersTest(unittest.TestCase):
@@ -184,6 +177,50 @@ class StrategyManagerHelpersTest(unittest.TestCase):
 
         signal = self.manager._evaluate_condition(condition, self.manager.indicators, cfg)
         self.assertEqual(signal, TradeSignal.SHORT_TERM_BUY)
+
+    def test_evaluate_cross_above_condition(self) -> None:
+        condition = StrategyCondition(
+            type="comparison",
+            payload={
+                "left": {"indicator": "SMA", "window": 60},
+                "right": {"indicator": "EMA", "window": 60},
+                "operator": "cross_above",
+            },
+        )
+        cfg = StrategyConfig(
+            name="cross",
+            enabled=True,
+            indicators=[IndexType.SMA, IndexType.EMA],
+            verify_freshness=False,
+            conditions=[condition],
+            signal_type=TradeSignal.LONG_TERM_BUY,
+            signal_window=1000,
+        )
+        
+        # Scenario 1: No previous indicators -> None
+        res = self.manager._evaluate_condition(condition, self.manager.indicators, cfg, None)
+        self.assertIsNone(res)
+
+        # Scenario 2: Previous: SMA(10) <= EMA(12) (Below). Current: SMA(15) > EMA(12) (Above) -> SIGNAL
+        prev_ind = {
+             IndexType.SMA: Index(timestamp=900, index_type=IndexType.SMA, data={60: 10.0}),
+             IndexType.EMA: Index(timestamp=900, index_type=IndexType.EMA, data={60: 12.0}),
+        }
+        curr_ind = {
+             IndexType.SMA: Index(timestamp=1000, index_type=IndexType.SMA, data={60: 15.0}),
+             IndexType.EMA: Index(timestamp=1000, index_type=IndexType.EMA, data={60: 12.0}),
+        }
+        
+        res = self.manager._evaluate_condition(condition, curr_ind, cfg, prev_ind)
+        self.assertEqual(res, TradeSignal.LONG_TERM_BUY)
+
+        # Scenario 3: Previous: SMA(15) > EMA(12). Current: SMA(16) > EMA(12) (Already Above) -> None
+        prev_above = {
+             IndexType.SMA: Index(timestamp=900, index_type=IndexType.SMA, data={60: 15.0}),
+             IndexType.EMA: Index(timestamp=900, index_type=IndexType.EMA, data={60: 12.0}),
+        }
+        res = self.manager._evaluate_condition(condition, curr_ind, cfg, prev_above)
+        self.assertIsNone(res)
 
     def test_evaluate_divergence_condition(self) -> None:
         condition = StrategyCondition(

@@ -1,5 +1,6 @@
 # STANDARD LIBRARY
 import time
+import copy
 from typing import Callable, Dict
 
 # CUSTOM LIBRARY
@@ -42,11 +43,14 @@ class StrategyExecutor:
     def execute(
         self,
         strategy: StrategyConfig,
-        logic: Callable[[Dict[IndexType, Index | float | None], StrategyConfig], TradeSignal | None],
+        logic: Callable[[Dict[IndexType, Index | float | None], Dict[IndexType, Index | float | None] | None, StrategyConfig], TradeSignal | None],
     ) -> None:
         """
         Generic execution loop that can be launched in a thread.
+        Maintains 'previous_indicators' state for crossover detection.
         """
+        previous_indicators: Dict[IndexType, Index | float | None] | None = None
+
         while True:
             indicators = self._get_indicators(strategy.indicators)
             should_process = True
@@ -56,9 +60,16 @@ class StrategyExecutor:
                 )
 
             if should_process and self._should_generate(strategy.name, strategy.signal_window):
-                signal_type = logic(indicators, strategy)
+                # Pass both current and previous indicators to logic
+                signal_type = logic(indicators, previous_indicators, strategy)
                 if signal_type:
                     self._emit_signal(signal_type, strategy.name)
                 self._update_timestamp(strategy.name)
+
+            # Update previous_indicators for the next iteration.
+            # Deep copy is essential because 'indicators' contains mutable Index objects (with nested dicts)
+            # that might be updated in-place by the data pipeline before the next loop.
+            if indicators:
+                previous_indicators = copy.deepcopy(indicators)
 
             time.sleep(self._sleep_interval)

@@ -209,6 +209,7 @@ class StrategyManager:
         condition: StrategyCondition,
         indicators: dict[IndexType, Index | float | None],
         strategy: StrategyConfig,
+        previous_indicators: dict[IndexType, Index | float | None] | None = None,
     ) -> TradeSignal | None:
         payload = condition.payload
 
@@ -217,12 +218,35 @@ class StrategyManager:
             right_cfg = payload.get("right", {})
             operator = payload.get("operator", "")
 
+            # Current values
             left_val = self._resolve_indicator_value(indicators, left_cfg.get("indicator", ""), left_cfg.get("window"))
             right_val = self._resolve_indicator_value(indicators, right_cfg.get("indicator", ""), right_cfg.get("window"))
 
             if left_val is None or right_val is None:
                 return None
 
+            # Crossover Logic
+            if operator in ("cross_above", "cross_below"):
+                if previous_indicators is None:
+                    return None
+                
+                prev_left = self._resolve_indicator_value(previous_indicators, left_cfg.get("indicator", ""), left_cfg.get("window"))
+                prev_right = self._resolve_indicator_value(previous_indicators, right_cfg.get("indicator", ""), right_cfg.get("window"))
+                
+                if prev_left is None or prev_right is None:
+                    return None
+
+                if operator == "cross_above":
+                    # Was below or equal, now above
+                    if (prev_left <= prev_right) and (left_val > right_val):
+                        return strategy.signal_type
+                elif operator == "cross_below":
+                    # Was above or equal, now below
+                    if (prev_left >= prev_right) and (left_val < right_val):
+                        return strategy.signal_type
+                return None
+
+            # Standard Logic
             if self._compare(left_val, right_val, operator):
                 return strategy.signal_type
 
@@ -274,10 +298,14 @@ class StrategyManager:
     def _build_strategy_logic(
         self,
         strategy: StrategyConfig,
-    ) -> Callable[[dict[IndexType, Index | float | None], StrategyConfig], TradeSignal | None]:
-        def logic(indicators: dict[IndexType, Index | float | None], cfg: StrategyConfig) -> TradeSignal | None:
+    ) -> Callable[[dict[IndexType, Index | float | None], dict[IndexType, Index | float | None] | None, StrategyConfig], TradeSignal | None]:
+        def logic(
+            indicators: dict[IndexType, Index | float | None],
+            previous_indicators: dict[IndexType, Index | float | None] | None,
+            cfg: StrategyConfig,
+        ) -> TradeSignal | None:
             for condition in cfg.conditions:
-                signal = self._evaluate_condition(condition, indicators, cfg)
+                signal = self._evaluate_condition(condition, indicators, cfg, previous_indicators)
                 if signal:
                     return signal
             return None

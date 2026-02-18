@@ -148,9 +148,17 @@ class SignalGenerator:
         )
         self.logger.info(f"[THREAD_START] {index_thread.name} | Status: ready")
 
+        status_thread: threading.Thread = threading.Thread(
+            name = 'status_logger',
+            target = self._thread_log_status,
+            daemon = True,
+        )
+        self.logger.info(f"[THREAD_START] {status_thread.name} | Status: ready")
+
         self.threads.extend(
             [
                 index_thread,
+                status_thread,
             ]
         )
 
@@ -181,3 +189,36 @@ class SignalGenerator:
             self.logger.debug(f"[SIGNAL_GEN] Signal: {signal.signal.name} | Status: success")
         except Exception as e:
             self.logger.critical(f"[SIGNAL_ERROR] push_signal() | Error: {type(e).__name__}: {str(e)}")
+
+    def _thread_log_status(self) -> None:
+        """
+        Periodically logs the status of the signal generator,
+        including data freshness and potential health issues.
+        
+        Purpose:
+        - Checks if data pipeline is providing fresh data.
+        - Logs staleness of key indicators (SMA, EMA, PRICE).
+        - Helps detect pipeline lag or disconnects early.
+        """
+        while True:
+            try:
+                time.sleep(60)  # Log every minute
+                
+                with self.indicators_lock:
+                    status_str = []
+                    now = self.generate_timestamp()
+                    
+                    for idx_type, idx_data in self.indicators.items():
+                        if idx_data:
+                            freshness = now - idx_data.timestamp
+                            status = "FRESH" if freshness < 5000 else "STALE"
+                            status_str.append(f"{idx_type.name}: {status} ({freshness}ms ago)")
+                        else:
+                            status_str.append(f"{idx_type.name}: NO_DATA")
+                            
+                    log_msg = f"[STATUS_HEARTBEAT] Indicators: {' | '.join(status_str)}"
+                    self.logger.info(log_msg)
+                    
+            except Exception as e:
+                self.logger.error(f"[STATUS_LOG_ERROR] Failed to log status | Error: {type(e).__name__}: {str(e)}")
+                time.sleep(10)
