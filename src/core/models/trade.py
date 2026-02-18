@@ -2,7 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import IntFlag
 
-from src.core.models.base import ImmutableModel
+from src.core.models.base import ImmutableModel, Side, TradePair
 
 
 class TradeState(IntFlag):
@@ -37,17 +37,6 @@ class PositionType(IntFlag):
     TWAP = 1 << 10
 
 
-@dataclass(frozen=True)
-class TradePair(ImmutableModel):
-    '''
-    - Custom Data Structure with ticker and quote
-        - Ticker: BTC by default
-        - Quote: USDT by default (USDC in the future)
-    '''
-    ticker: str  # = "BTC"
-    quote: str  # = "USDT"
-
-
 @dataclass
 class PositionState:
     """
@@ -70,7 +59,7 @@ class PositionState:
         timestamp: int
             - The timestamp (ms) when the position was opened.
     """
-    side: int  # Side.BUY or Side.SELL (IntFlag, int-compatible)
+    side: int | Side  # Side.BUY or Side.SELL (IntFlag, int-compatible)
     ticker_size: float
     quote_size: float
     entry_price: float

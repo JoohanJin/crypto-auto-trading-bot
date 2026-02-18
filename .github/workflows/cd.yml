@@ -1,0 +1,35 @@
+name: CD
+
+on:
+  pull_request:
+    branches: [ stable ]
+    types: [ closed ]
+
+jobs:
+  deploy:
+    # Only run if the PR was merged (not just closed)
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Google Auth
+        uses: 'google-github-actions/auth@v2'
+        with:
+          credentials_json: '${{ secrets.GCP_SA_KEY }}'
+
+      - name: 'Set up Cloud SDK'
+        uses: 'google-github-actions/setup-gcloud@v2'
+        with:
+          project_id: '${{ secrets.GCP_PROJECT_ID }}'
+
+      - name: 'Build and Push Image'
+        run: |
+          gcloud builds submit --tag asia-northeast3-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot:latest .
+
+      - name: 'Update VM Instance'
+        run: |
+          gcloud compute instances update-container crypto-bot-vm 
+            --zone=asia-northeast3-a 
+            --container-image=asia-northeast3-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot:latest

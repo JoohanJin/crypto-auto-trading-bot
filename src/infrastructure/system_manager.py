@@ -277,6 +277,11 @@ class SystemManager:
             if not api_key or not secret_key:
                 self.logger.critical("[CREDENTIAL_ERROR] Binance WebSocket | Missing: API_KEY or SECRET_KEY")
                 raise ValueError("Binance WebSocket credentials not configured")
+            
+            # GCP Deployment fix: handle literal "\n" and extra quotes in multi-line keys
+            if "\\n" in secret_key:
+                secret_key = secret_key.replace("\\n", "\n").strip('"').strip("'")
+                
             return api_key, secret_key
         except Exception as e:
             self.logger.critical(
