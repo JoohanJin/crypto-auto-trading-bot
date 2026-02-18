@@ -49,7 +49,7 @@
     {
       "name": "ema_trend_follow",
       "enabled": true,
-      "description": "Follow the dominant EMA trend using mid-term (60s) vs long-term (300s) slopes.",
+      "description": "Follow the dominant EMA trend using mid-term (60s) vs long-term (300s) slopes. (Bullish)",
       "indicators": ["EMA"],
       "verify_freshness": true,
       "conditions": [
@@ -67,6 +67,29 @@
         }
       ],
       "signal_type": "LONG_TERM_BUY",
+      "signal_window": 4000
+    },
+    {
+      "name": "ema_trend_follow_sell",
+      "enabled": true,
+      "description": "Follow the dominant EMA trend using mid-term (60s) vs long-term (300s) slopes. (Bearish)",
+      "indicators": ["EMA"],
+      "verify_freshness": true,
+      "conditions": [
+        {
+          "type": "comparison",
+          "left": {
+            "indicator": "EMA",
+            "window": 60
+          },
+          "operator": "<",
+          "right": {
+            "indicator": "EMA",
+            "window": 300
+          }
+        }
+      ],
+      "signal_type": "LONG_TERM_SELL",
       "signal_window": 4000
     },
     {
@@ -137,8 +160,8 @@
     },
     {
       "name": "price_ema_pullback_buy",
-      "enabled": true,
-      "description": "Buy pullbacks when price dips below EMA(60).",
+      "enabled": false,
+      "description": "Buy pullbacks when price dips below EMA(60). (Disabled to reduce noise)",
       "indicators": ["EMA", "PRICE"],
       "verify_freshness": false,
       "conditions": [
@@ -160,8 +183,8 @@
     },
     {
       "name": "price_ema_pullback_sell",
-      "enabled": true,
-      "description": "Trim/short when price stretches above EMA(60).",
+      "enabled": false,
+      "description": "Trim/short when price stretches above EMA(60). (Disabled to reduce noise)",
       "indicators": ["EMA", "PRICE"],
       "verify_freshness": false,
       "conditions": [
@@ -220,8 +243,8 @@
     },
     {
       "name": "price_reversal_buy",
-      "enabled": true,
-      "description": "Contrarian fade: buy when price dips below SMA(300).",
+      "enabled": false,
+      "description": "Contrarian fade: buy when price dips below SMA(300). (Disabled to focus on trend following)",
       "indicators": ["SMA", "PRICE"],
       "verify_freshness": false,
       "conditions": [
@@ -243,8 +266,8 @@
     },
     {
       "name": "price_reversal_sell",
-      "enabled": true,
-      "description": "Contrarian fade: sell/trim when price stretches above SMA(300).",
+      "enabled": false,
+      "description": "Contrarian fade: sell/trim when price stretches above SMA(300). (Disabled to focus on trend following)",
       "indicators": ["SMA", "PRICE"],
       "verify_freshness": false,
       "conditions": [
