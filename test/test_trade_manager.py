@@ -106,34 +106,34 @@ class TestAnalyzeSignals(unittest.TestCase):
     # --- NEW ENTRY tests ---
 
     def test_new_buy_burst(self):
-        """Density >= 30 and Consensus >= 0.8 → NEW_BUY"""
+        """Density >= 60 and Consensus >= 0.8 → NEW_BUY"""
         # Inject old signal to satisfy warmup (9.5 mins ago)
         self._inject_signals([TradeSignal.HOLD], offset_ms=570_000)
         
-        # Inject 30 LONG_TERM_BUY signals (Density 30)
-        self._inject_signals([TradeSignal.LONG_TERM_BUY] * 30)
+        # Inject 60 LONG_TERM_BUY signals (Density 60)
+        self._inject_signals([TradeSignal.LONG_TERM_BUY] * 60)
         result = self.tm._analyze_signals()
         self.assertEqual(result, TradeState.NEW_BUY)
 
     def test_new_sell_burst(self):
-        """Density >= 30 and Consensus <= -0.8 → NEW_SELL"""
+        """Density >= 60 and Consensus <= -0.8 → NEW_SELL"""
         self._inject_signals([TradeSignal.HOLD], offset_ms=570_000) # Warmup
-        self._inject_signals([TradeSignal.LONG_TERM_SELL] * 30)
+        self._inject_signals([TradeSignal.LONG_TERM_SELL] * 60)
         result = self.tm._analyze_signals()
         self.assertEqual(result, TradeState.NEW_SELL)
 
     def test_low_density_returns_hold(self):
-        """Density < 30 → HOLD even with perfect consensus"""
+        """Density < 60 → HOLD even with perfect consensus"""
         self._inject_signals([TradeSignal.HOLD], offset_ms=570_000) # Warmup
-        self._inject_signals([TradeSignal.LONG_TERM_BUY] * 29)
+        self._inject_signals([TradeSignal.LONG_TERM_BUY] * 59)
         result = self.tm._analyze_signals()
         self.assertEqual(result, TradeState.HOLD)
 
     def test_mixed_momentum_returns_hold(self):
         """High density but low consensus → HOLD"""
         self._inject_signals([TradeSignal.HOLD], offset_ms=570_000) # Warmup
-        # 30 Signals: 20 BUY (100), 10 SELL (-50) -> Net 50, Total 150 -> 0.33 < 0.8
-        self._inject_signals([TradeSignal.LONG_TERM_BUY] * 20 + [TradeSignal.LONG_TERM_SELL] * 10)
+        # 60 Signals: 40 BUY (200), 20 SELL (-100) -> Net 100, Total 300 -> 0.33 < 0.8
+        self._inject_signals([TradeSignal.LONG_TERM_BUY] * 40 + [TradeSignal.LONG_TERM_SELL] * 20)
         result = self.tm._analyze_signals()
         self.assertEqual(result, TradeState.HOLD)
 
@@ -148,10 +148,10 @@ class TestAnalyzeSignals(unittest.TestCase):
         # Warmup & Structural bullish bias
         self._inject_signals([TradeSignal.LONG_TERM_BUY] * 30, offset_ms=570_000)
         
-        # Inject 30 bearish signals (Density 30 met)
+        # Inject 60 bearish signals (Density 60 met)
         # Consensus around -0.6 (meets EXIT > -0.5, but fails REVERSE > -0.8)
-        # 24 SELL (weight -48), 6 BUY (weight +12) -> Net -36, Total 60 -> Consensus -0.6
-        self._inject_signals([TradeSignal.SHORT_TERM_SELL] * 24 + [TradeSignal.SHORT_TERM_BUY] * 6)
+        # 48 SELL (weight -96), 12 BUY (weight +24) -> Net -72, Total 120 -> Consensus -0.6
+        self._inject_signals([TradeSignal.SHORT_TERM_SELL] * 48 + [TradeSignal.SHORT_TERM_BUY] * 12)
         
         result = self.tm._analyze_signals()
         self.assertEqual(result, TradeState.EXIT)
@@ -164,8 +164,9 @@ class TestAnalyzeSignals(unittest.TestCase):
             
         self._inject_signals([TradeSignal.LONG_TERM_SELL] * 30, offset_ms=570_000)
         
-        # Inject 30 signals, consensus ~ +0.6
-        self._inject_signals([TradeSignal.SHORT_TERM_BUY] * 24 + [TradeSignal.SHORT_TERM_SELL] * 6)
+        # Inject 60 signals, consensus ~ +0.6
+        # 48 BUY (weight +96), 12 SELL (weight -24) -> Net 72, Total 120 -> Consensus 0.6
+        self._inject_signals([TradeSignal.SHORT_TERM_BUY] * 48 + [TradeSignal.SHORT_TERM_SELL] * 12)
         
         result = self.tm._analyze_signals()
         self.assertEqual(result, TradeState.EXIT)
@@ -179,8 +180,8 @@ class TestAnalyzeSignals(unittest.TestCase):
             self.tm.current_position = pos
             
         self._inject_signals([TradeSignal.HOLD], offset_ms=570_000) # Warmup
-        # 30 strong sell signals (triggers burst)
-        self._inject_signals([TradeSignal.LONG_TERM_SELL] * 30)
+        # 60 strong sell signals (triggers burst)
+        self._inject_signals([TradeSignal.LONG_TERM_SELL] * 60)
         result = self.tm._analyze_signals()
         self.assertEqual(result, TradeState.REVERSE_SELL)
 
