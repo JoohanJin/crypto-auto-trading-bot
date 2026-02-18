@@ -153,7 +153,7 @@ class TradeManager:
         # Thresholds for decision making
         # Entry/Reverse requires 60 signals in 1m with 80% agreement.
         self.consensus_threshold: float = 0.8
-        self.density_threshold: int = 60
+        self.density_threshold: int = 45
         self.trade_cooldown_ms: int = 300_000  # 5 minutes minimum between trades
         self.last_trade_timestamp: int = 0
 
