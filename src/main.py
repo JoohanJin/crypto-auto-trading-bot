@@ -25,16 +25,41 @@ SOFTWARE.
 # Standard Library
 import sys
 import time
+import argparse
 
 # Custom Library
 from src.infrastructure.system_manager import SystemManager
-from src.infrastructure.logging.set_logger import get_logger
+from src.infrastructure.logging.set_logger import get_logger, set_global_log_level
 
 logger = get_logger(__name__)
 
 
 def main():
+    parser = argparse.ArgumentParser(description="AutoCryptoTrading Bot")
+    parser.add_argument(
+        "--debug", "-d", 
+        action="store_true", 
+        help="Enable debug logging (overrides .env)"
+    )
+    parser.add_argument(
+        "--log-level", "-l",
+        type=str,
+        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+        help="Set specific log level"
+    )
+    
+    args = parser.parse_args()
+
     try:
+        # Resolve log level: CLI > Default(INFO)
+        if args.debug:
+            set_global_log_level("DEBUG")
+        elif args.log_level:
+            set_global_log_level(args.log_level)
+        else:
+            # Force INFO if no arguments provided, ensuring predictable default behavior
+            set_global_log_level("INFO")
+
         # Load environment variables
         logger.info("[APP_START] Application starting | Loading environment configuration")
 

@@ -13,13 +13,8 @@ class TradeSignal(IntFlag):
 
 
 class Signal:
-    '''
-    ##############################################################
-    #                         Static Method                      #
-    ##############################################################
-    '''
-    @staticmethod
-    def generate_timestamp() -> int:
+    @classmethod
+    def generate_timestamp(cls) -> int:
         return int(time.time() * 1_000)
 
     '''
@@ -43,7 +38,7 @@ class Signal:
         func __init__:
             - Create an indicator instance with the given signal and timestamp.
         """
-        self._timestamp: int = Signal.generate_timestamp()
+        self._timestamp: int = self.generate_timestamp()
         self._signal: TradeSignal = signal
 
         return None

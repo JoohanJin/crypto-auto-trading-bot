@@ -13,14 +13,11 @@ load_dotenv()
 _LOG_DIR: Path = Path(os.getenv("LOG_DIR", "./log"))
 _LOG_DIR.mkdir(parents=True, exist_ok=True)
 
-# Get log level from environment variable, default to INFO
-_LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO").upper()
-
 
 def setup_logger(
     name: str,
     log_filename: str,
-    level: str = _LOG_LEVEL,
+    level: str = "INFO",
     add_console: bool = False
 ) -> logging.Logger:
     """
@@ -59,6 +56,17 @@ def setup_logger(
 # Initialize Loggers
 operation_logger = setup_logger("OperationLogger", "system-logging.log", add_console=True)
 trading_logger = setup_logger("TradingLogger", "trading-logging.log", add_console=True)
+
+
+def set_global_log_level(level: str):
+    """Dynamically update the log level for all global loggers."""
+    numeric_level = getattr(logging, level.upper(), None)
+    if not isinstance(numeric_level, int):
+        raise ValueError(f"Invalid log level: {level}")
+    
+    operation_logger.setLevel(numeric_level)
+    trading_logger.setLevel(numeric_level)
+    operation_logger.info(f"[LOG_LEVEL_CHANGE] Set global log level to: {level.upper()}")
 
 
 def get_logger(module_name: str, logger_type: str = "operation") -> logging.Logger:
