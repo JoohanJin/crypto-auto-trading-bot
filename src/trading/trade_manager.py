@@ -151,9 +151,9 @@ class TradeManager:
         self.momentum_window_ms: int = 60_000   # 1 minute (trigger window)
         
         # Thresholds for decision making
-        # Entry/Reverse requires 20 signals in 1m with 80% agreement.
+        # Entry/Reverse requires 30 signals in 1m with 80% agreement.
         self.consensus_threshold: float = 0.8
-        self.density_threshold: int = 20
+        self.density_threshold: int = 30
         self.trade_cooldown_ms: int = 300_000  # 5 minutes minimum between trades
         self.last_trade_timestamp: int = 0
 
@@ -541,8 +541,9 @@ class TradeManager:
         
         This method implements the core decision matrix:
         1. Pruning: Removes stale signals to keep the decision window relevant.
-        2. Weighted Consensus: Calculates the 'conviction' of the crowd (-1.0 to 1.0).
-        3. Multi-Window Analysis: Compares 10s 'Momentum' vs 10m 'Structure'.
+        2. Warm-up Check: Waits for history to fill (at least 9 minutes).
+        3. Weighted Consensus: Calculates the 'conviction' of the crowd (-1.0 to 1.0).
+        4. Multi-Window Analysis: Compares 1m 'Momentum' vs 10m 'Structure'.
         """
         now = self.generate_timestamp()
         
@@ -553,78 +554,87 @@ class TradeManager:
             
             if not self.signal_history:
                 return TradeState.HOLD
+
+            # 2. Warm-up Check (Data Sufficiency)
+            # Require at least 90% of the history window (9 minutes) to be filled
+            # before making any decisions. This prevents premature actions on cold starts.
+            oldest_signal_time = self.signal_history[0][0]
+            if (now - oldest_signal_time) < (self.history_window_ms * 0.9):
+                self.logger.debug(
+                    f"[WARMUP] Gathering data... {int((now - oldest_signal_time)/1000)}s / {int(self.history_window_ms/1000)}s"
+                )
+                return TradeState.HOLD
             
-            # 2. Extract Windows
+            # 3. Extract Windows
             # Structural: The full 10m history.
-            # Momentum: The immediate 10s 'burst' window.
+            # Momentum: The immediate 1m 'burst' window.
             history = list(self.signal_history)
             momentum_signals = [s for ts, s in history if (now - ts) <= self.momentum_window_ms]
             structural_signals = [s for ts, s in history]
-
-        def get_weighted_consensus(signals: list[TradeSignal]) -> float:
-            """
-            Returns a value between -1.0 (pure Sell) and 1.0 (pure Buy).
-            Weights are determined by the ScoreMapper (e.g., LONG_TERM_BUY = 5, SHORT_TERM_BUY = 2).
-            """
-            if not signals:
-                return 0.0
-            total_weight = 0.0
-            net_weight = 0.0
-            for s in signals:
-                weight = self.delta_mapper.map(s)
-                total_weight += abs(weight)
-                net_weight += weight
-            return net_weight / total_weight if total_weight > 0 else 0.0
-
-        # 3. Calculate Metrics
-        consensus_momentum = get_weighted_consensus(momentum_signals)
-        consensus_structural = get_weighted_consensus(structural_signals)
-        density_momentum = len(momentum_signals)
-
-        self.logger.debug(
-            f"[WSDC_STATS] Momentum(10s): {consensus_momentum:+.2f} [D={density_momentum}] | "
-            f"Structure(10m): {consensus_structural:+.2f} [H={len(history)}]"
-        )
-
-        with self.lock_current_position:
-            current_pos = self.current_position.copy() if self.current_position else None
-
-        # 4. Decision Logic
-        
-        # --- 4a. REVERSE / NEW ENTRY LOGIC (High Conviction Bursts) ---
-        # We only enter if we see a 'Burst' (Density > threshold).
-        # This filters out stray signals that don't represent a collective move.
-        if density_momentum >= self.density_threshold:
-            # BULLISH BURST: Momentum must agree with or create a strong trend.
-            if consensus_momentum >= self.consensus_threshold:
-                if current_pos is None:
-                    return TradeState.NEW_BUY
-                if current_pos.side == Side.SELL:
-                    return TradeState.REVERSE_BUY
+    
+            def get_weighted_consensus(signals: list[TradeSignal]) -> float:
+                """
+                Returns a value between -1.0 (pure Sell) and 1.0 (pure Buy).
+                Weights are determined by the ScoreMapper (e.g., LONG_TERM_BUY = 5, SHORT_TERM_BUY = 2).
+                """
+                if not signals:
+                    return 0.0
+                total_weight = 0.0
+                net_weight = 0.0
+                for s in signals:
+                    weight = self.delta_mapper.map(s)
+                    total_weight += abs(weight)
+                    net_weight += weight
+                return net_weight / total_weight if total_weight > 0 else 0.0
+    
+            # 4. Calculate Metrics
+            consensus_momentum = get_weighted_consensus(momentum_signals)
+            consensus_structural = get_weighted_consensus(structural_signals)
+            density_momentum = len(momentum_signals)
+    
+            self.logger.debug(
+                f"[WSDC_STATS] Momentum(1m): {consensus_momentum:+.2f} [D={density_momentum}] | "
+                f"Structure(10m): {consensus_structural:+.2f} [H={len(history)}]"
+            )
+    
+            with self.lock_current_position:
+                current_pos = self.current_position.copy() if self.current_position else None
+    
+            # 5. Decision Logic
             
-            # BEARISH BURST
-            if consensus_momentum <= -self.consensus_threshold:
-                if current_pos is None:
-                    return TradeState.NEW_SELL
+            # --- 5a. REVERSE / NEW ENTRY LOGIC (High Conviction Bursts) ---
+            # We only enter if we see a 'Burst' (Density > threshold). 
+            # This filters out stray signals that don't represent a collective move.
+            if density_momentum >= self.density_threshold:
+                # BULLISH BURST: Momentum must agree with or create a strong trend.
+                if consensus_momentum >= self.consensus_threshold:
+                    if current_pos is None:
+                        return TradeState.NEW_BUY
+                    if current_pos.side == Side.SELL:
+                        return TradeState.REVERSE_BUY
+                
+                # BEARISH BURST
+                if consensus_momentum <= -self.consensus_threshold:
+                    if current_pos is None:
+                        return TradeState.NEW_SELL
+                    if current_pos.side == Side.BUY:
+                        return TradeState.REVERSE_SELL
+    
+            # --- 5b. EXIT LOGIC (Panic/Exhaustion) ---
+            # Immediate exit to protect capital if momentum flips against us,
+            # OR if the 10m structural bias shifts to the opposite direction.
+            #
+            # NOTE: Threshold set to 30 signals (Density) within the 1m window to
+            # filter out the high-frequency noise.
+            if current_pos is not None:
+                # Long Exit: Momentum flips strongly OR Structural bias flips with history (min 10)
                 if current_pos.side == Side.BUY:
-                    return TradeState.REVERSE_SELL
-
-        # --- 4b. EXIT LOGIC (Panic/Exhaustion) ---
-        # Immediate exit to protect capital if momentum flips against us,
-        # OR if the 10m structural bias shifts to the opposite direction.
-        #
-        # NOTE: Threshold set to 20 signals (Density) within the 1m window to
-        # filter out the high-frequency noise.
-        if current_pos is not None:
-            # Long Exit: Momentum flips strongly OR Structural bias flips with history (min 10)
-            if current_pos.side == Side.BUY:
-                if (consensus_momentum < -0.5 and density_momentum >= 20) or (consensus_structural < -0.1 and len(structural_signals) >= 10):
-                    return TradeState.EXIT
-            # Short Exit: Momentum flips strongly OR Structural bias flips with history (min 10)
-            elif current_pos.side == Side.SELL:
-                if (consensus_momentum > 0.5 and density_momentum >= 20) or (consensus_structural > 0.1 and len(structural_signals) >= 10):
-                    return TradeState.EXIT
-
+                    if (consensus_momentum < -0.5 and density_momentum >= 30) or (consensus_structural < -0.1 and len(structural_signals) >= 10):
+                        return TradeState.EXIT
+                # Short Exit: Momentum flips strongly OR Structural bias flips with history (min 10)
+                elif current_pos.side == Side.SELL:
+                    if (consensus_momentum > 0.5 and density_momentum >= 30) or (consensus_structural > 0.1 and len(structural_signals) >= 10):
+                        return TradeState.EXIT
         return TradeState.HOLD
 
     def _thread_decide_trade(
