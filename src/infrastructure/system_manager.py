@@ -41,6 +41,7 @@ class SystemManager:
     def __init__(
         self,
         name: str | None = None,
+        disable_trade: bool = False,
     ):
         """
         func __init__():
@@ -48,6 +49,8 @@ class SystemManager:
 
         param self: SystemManager
             - class object
+        param disable_trade: bool
+            - If True, actual trade execution is disabled (dry run).
 
         return None
         """
@@ -58,6 +61,7 @@ class SystemManager:
         self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
 
         self._stop = threading.Event()
+        self.disable_trade = disable_trade
 
         load_dotenv()
 
@@ -119,8 +123,9 @@ class SystemManager:
                 binance_future_client=self.binance_http_client,
                 delta_mapper = self.mapper,
                 telegram_bot = self.telegram_bot,
+                disable_trade = self.disable_trade,
             )
-            self.logger.info("[COMPONENT_INIT] TradeManager | Status: ready")
+            self.logger.info(f"[COMPONENT_INIT] TradeManager | Status: ready | Trade Execution: {'DISABLED' if self.disable_trade else 'ENABLED'}")
 
             self.logger.info("[SYSTEM_INIT_COMPLETE] Ready | Components: 7 | Status: operational")
 

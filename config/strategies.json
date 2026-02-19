@@ -13,7 +13,7 @@
             "indicator": "SMA",
             "window": 60
           },
-          "operator": "cross_above",
+          "operator": ">",
           "right": {
             "indicator": "EMA",
             "window": 300
@@ -36,7 +36,7 @@
             "indicator": "SMA",
             "window": 60
           },
-          "operator": "cross_below",
+          "operator": "<",
           "right": {
             "indicator": "EMA",
             "window": 300
@@ -286,57 +286,11 @@
       ],
       "signal_type": "SHORT_TERM_SELL",
       "signal_window": 4500
-    },
-    {
-      "name": "price_trend_surfing_buy",
-      "enabled": true,
-      "description": "Short-term bullish bias: Price is holding above the mid-term EMA(60).",
-      "indicators": ["EMA", "PRICE"],
-      "verify_freshness": false,
-      "conditions": [
-        {
-          "type": "price_comparison",
-          "price_indicator": "PRICE",
-          "compare_to": {
-            "indicator": "EMA",
-            "window": 60
-          },
-          "buy_operator": ">",
-          "sell_operator": "",
-          "buy_signal": "SHORT_TERM_BUY",
-          "sell_signal": ""
-        }
-      ],
-      "signal_type": "SHORT_TERM_BUY",
-      "signal_window": 3000
-    },
-    {
-      "name": "price_trend_surfing_sell",
-      "enabled": true,
-      "description": "Short-term bearish bias: Price is holding below the mid-term EMA(60).",
-      "indicators": ["EMA", "PRICE"],
-      "verify_freshness": false,
-      "conditions": [
-        {
-          "type": "price_comparison",
-          "price_indicator": "PRICE",
-          "compare_to": {
-            "indicator": "EMA",
-            "window": 60
-          },
-          "buy_operator": "",
-          "sell_operator": "<",
-          "buy_signal": "",
-          "sell_signal": "SHORT_TERM_SELL"
-        }
-      ],
-      "signal_type": "SHORT_TERM_SELL",
-      "signal_window": 3000
     }
   ],
   "global_settings": {
     "default_signal_window": 5000,
-    "sleep_interval": 1.5,
+    "sleep_interval": 0.75,
     "enable_all_strategies": true
   }
 }

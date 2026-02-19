@@ -20,7 +20,7 @@ logger = get_logger(__name__)
 
 
 class StrategyManager:
-    SLEEP_INTERVAL: float = 1.5
+    SLEEP_INTERVAL: float = 0.75
     STRATEGY_CONFIG_PATH: Path = Path("config/strategies.json")
 
     @staticmethod
@@ -119,7 +119,7 @@ class StrategyManager:
                     else:
                         stats_str = ", ".join([f"{k}: {v}" for k, v in self.signal_counts.items()])
                         self.logger.info(f"[STRATEGY_STATS] Signal Counts (1m): {stats_str}")
-                        self.signal_counts.clear() # Reset for next interval
+                        self.signal_counts.clear()  # Reset for next interval
                         
             except Exception as e:
                 self.logger.error(f"[STATUS_LOG_ERROR] Failed to log status | Error: {type(e).__name__}: {str(e)}")

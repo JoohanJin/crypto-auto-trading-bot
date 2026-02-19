@@ -100,6 +100,7 @@ class TradeManager:
         stop_loss_rate: float = 0.2,  # 20% -> to prevent the error
         trade_cooldown_ms: int = 30_000,  # minimum milliseconds between consecutive trades
         name: str | None = None,
+        disable_trade: bool = False,
     ) -> None:
         """
         func __init__():
@@ -141,6 +142,8 @@ class TradeManager:
         self.trade_weight: float = trade_weight
         self.tp_rate: float = take_profit_rate
         self.sl_rate: float = stop_loss_rate
+        
+        self.disable_trade: bool = disable_trade
 
         # --- Weighted Signal Density & Consensus (WSDC) Settings ---
         # These strict settings are designed to filter high-frequency noise
@@ -153,7 +156,7 @@ class TradeManager:
         # Thresholds for decision making
         # Entry/Reverse requires 60 signals in 1m with 80% agreement.
         self.consensus_threshold: float = 0.8
-        self.density_threshold: int = 45
+        self.density_threshold: int = 50
         self.trade_cooldown_ms: int = 300_000  # 5 minutes minimum between trades
         self.last_trade_timestamp: int = 0
 
@@ -592,10 +595,15 @@ class TradeManager:
             order: Order = self._construct_new_order(buy_or_sell)
             message: str | None = self._format_trade_message(order)
 
-            # # order trigger to the telegram bot
-            self._make_order(order, trade_action=buy_or_sell)
-            self.telegram_bot.send_text(message)
-            self.trading_logger.info(message)
+            # order trigger to the telegram bot
+            if not self.disable_trade:
+                self._make_order(order, trade_action=buy_or_sell)
+                self.telegram_bot.send_text(message)
+                self.trading_logger.info(message.replace("\n", " "))
+            else:
+                # Dry run mode: Update internal position state but don't call API
+                self._update_position(order, buy_or_sell)
+                self.trading_logger.info("[DRY_RUN] " + message.replace('\n', ' '))
         except Exception as e:
             self.logger.error(
                 f"[TRADE_EXECUTION_ERROR] Trade: {buy_or_sell.name} | Error: {type(e).__name__}: {str(e)}"
@@ -613,7 +621,7 @@ class TradeManager:
         3. Weighted Consensus: Calculates the 'conviction' of the crowd (-1.0 to 1.0).
         4. Multi-Window Analysis: Compares 1m 'Momentum' vs 10m 'Structure'.
         """
-        now = self.generate_timestamp()
+        now: int = self.generate_timestamp()  # timestamp
         
         with self.signal_history_lock:
             # 1. Prune old signals (Memory & Logic Management)
@@ -649,7 +657,7 @@ class TradeManager:
                     return 0.0
                 total_weight = 0.0
                 net_weight = 0.0
-                for s in signals:  # ! Linear? hmmm => should be fine with the current strategy since it only stores 10-minute data.
+                for s in signals:  # ! Linear - should be fine with the current strategy since it only stores 10-min data.
                     weight = self.delta_mapper.map(s)  # ? based on the score mapping score -> which is correct.
                     total_weight += abs(weight)
                     net_weight += weight
@@ -680,7 +688,7 @@ class TradeManager:
                 # BULLISH BURST: Momentum must agree with or create a strong trend.
                 if consensus_momentum >= self.consensus_threshold:
                     if current_pos is None:
-                        return TradeState.NEW_BUY
+                        return TradeState.NEW_BUY 
                     if current_pos.side == Side.SELL:
                         return TradeState.REVERSE_BUY
                 
@@ -700,11 +708,11 @@ class TradeManager:
             if current_pos is not None:
                 # Long Exit: Momentum flips strongly OR Structural bias flips with history (min 10)
                 if current_pos.side == Side.BUY:
-                    if (consensus_momentum < -0.5 and density_momentum >= 30) or (consensus_structural < -0.1 and len(structural_signals) >= 10):
+                    if (consensus_momentum < -0.5 and density_momentum >= 40) or (consensus_structural < -0.1 and len(structural_signals) >= 10):
                         return TradeState.EXIT
                 # Short Exit: Momentum flips strongly OR Structural bias flips with history (min 10)
                 elif current_pos.side == Side.SELL:
-                    if (consensus_momentum > 0.5 and density_momentum >= 30) or (consensus_structural > 0.1 and len(structural_signals) >= 10):
+                    if (consensus_momentum > 0.5 and density_momentum >= 40) or (consensus_structural > 0.1 and len(structural_signals) >= 10):
                         return TradeState.EXIT
                     return TradeState.HOLD
 

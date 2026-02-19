@@ -47,6 +47,11 @@ def main():
         choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
         help="Set specific log level"
     )
+    parser.add_argument(
+        "--disable-trade", 
+        action="store_true", 
+        help="Disable trade execution (Dry Run)"
+    )
     
     args = parser.parse_args()
 
@@ -64,8 +69,12 @@ def main():
         logger.info("[APP_START] Application starting | Loading environment configuration")
 
         # Initialize SystemManager
-        main_system_manager: SystemManager = SystemManager(name="MAIN_APP")  # noqa: F841
-        logger.info("[APP_INIT_COMPLETE] Application initialized | Status: ready")
+        # Pass disable_trade flag to SystemManager
+        main_system_manager: SystemManager = SystemManager(
+            name="MAIN_APP",
+            disable_trade=args.disable_trade
+        )
+        logger.info(f"[APP_INIT_COMPLETE] Application initialized | Status: ready | Trade Execution: {'DISABLED' if args.disable_trade else 'ENABLED'}")
 
         # Start main event loop
         logger.info("[APP_LOOP_START] Entering main event loop")
