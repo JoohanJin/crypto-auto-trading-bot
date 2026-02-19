@@ -688,7 +688,7 @@ class TradeManager:
                 # BULLISH BURST: Momentum must agree with or create a strong trend.
                 if consensus_momentum >= self.consensus_threshold:
                     if current_pos is None:
-                        return TradeState.NEW_BUY 
+                        return TradeState.NEW_BUY
                     if current_pos.side == Side.SELL:
                         return TradeState.REVERSE_BUY
                 

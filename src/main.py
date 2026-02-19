@@ -37,8 +37,8 @@ logger = get_logger(__name__)
 def main():
     parser = argparse.ArgumentParser(description="AutoCryptoTrading Bot")
     parser.add_argument(
-        "--debug", "-d", 
-        action="store_true", 
+        "--debug", "-d",
+        action="store_true",
         help="Enable debug logging (overrides .env)"
     )
     parser.add_argument(
@@ -48,8 +48,8 @@ def main():
         help="Set specific log level"
     )
     parser.add_argument(
-        "--disable-trade", 
-        action="store_true", 
+        "--disable-trade", "-dt",
+        action="store_true",
         help="Disable trade execution (Dry Run)"
     )
     
