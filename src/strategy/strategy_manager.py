@@ -23,8 +23,8 @@ class StrategyManager:
     SLEEP_INTERVAL: float = 0.75
     STRATEGY_CONFIG_PATH: Path = Path("config/strategies.json")
 
-    @staticmethod
-    def generate_timestamp() -> int:
+    @classmethod
+    def generate_timestamp(cls) -> int:
         """
         static func generate_timestamp():
             - Generate the timestamp using the current time, in the form of epoch in ms.
@@ -179,7 +179,7 @@ class StrategyManager:
         index: Index,
         time_window: int = 5_000,
     ) -> bool:
-        if (StrategyManager.generate_timestamp() - index.timestamp < time_window):
+        if (self.generate_timestamp() - index.timestamp < time_window):
             return True
         else:
             return False
@@ -357,7 +357,7 @@ class StrategyManager:
         key: str,
     ) -> None:
         with self.signal_timestamps_lock:
-            self.signal_timestamps[key] = StrategyManager.generate_timestamp()
+            self.signal_timestamps[key] = self.generate_timestamp()
         return
 
     def __get_signal_timestamp(
@@ -383,7 +383,7 @@ class StrategyManager:
         """
         prev_timestamp: int = self.__get_signal_timestamp(key)
         window = signal_window if signal_window is not None else self.signal_window
-        return StrategyManager.generate_timestamp() - prev_timestamp > window
+        return self.generate_timestamp() - prev_timestamp > window
 
     def _get_indicators_safely(
         self,
