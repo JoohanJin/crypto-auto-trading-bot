@@ -62,6 +62,7 @@ class SignalGenerator:
         custom_telegram_bot: CustomTelegramBot,
         signal_window: int = 5_000,
         name: str | None = None,
+        strategy_manager: StrategyManager | None = None,
     ) -> None:
         """
         func __init__():
@@ -100,8 +101,7 @@ class SignalGenerator:
 
         # threads pool
         self.threads: List[threading.Thread] = []
-
-        self.strategy_manager: StrategyManager = StrategyManager(
+        self.strategy_manager: StrategyManager = strategy_manager or StrategyManager(
             indicators = self.indicators,
             indicators_lock = self.indicators_lock,
             push_signal_callback = self.push_signal,

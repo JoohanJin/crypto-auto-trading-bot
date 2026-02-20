@@ -1,7 +1,7 @@
 # STANDARD LIBRARY
 import threading
 from pathlib import Path
-from typing import Any, Callable, Dict
+from typing import Any, Callable
 import time
 
 # CUSTOM LIBRARY
@@ -20,8 +20,7 @@ logger = get_logger(__name__)
 
 
 class StrategyManager:
-    SLEEP_INTERVAL: float = 0.75
-    STRATEGY_CONFIG_PATH: Path = Path("config/strategies.json")
+    SLEEP_INTERVAL: float = 0.75  # only for the default value
 
     @classmethod
     def generate_timestamp(cls) -> int:
@@ -59,6 +58,7 @@ class StrategyManager:
         push_signal_callback: Callable[[Signal], None],
         signal_window: int = 5_000,
         name: str | None = None,
+        strategy_path: str | None = None
     ) -> None:
         self.name: str = name if name else "STRATEGY_MANAGER"
         self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
@@ -81,9 +81,11 @@ class StrategyManager:
         self.strategy_executor: StrategyExecutor | None = None
         self.strategy_configs: list[StrategyConfig] = []
 
+        self.strategy_path: Path = Path(strategy_path) if strategy_path is not None else Path("config/strategies.json")
+
         self.start()
         
-        self.logger.info(f"[STRATEGY_INIT] {self.name} | Status: ready")
+        self.logger.info(f"[STRATEGY_INIT] {self.name} | Global Period: {self.SLEEP_INTERVAL} s| Status: ready")
         return
 
     def start(self) -> None:
@@ -126,16 +128,26 @@ class StrategyManager:
                 time.sleep(10)
 
     def _load_strategies(self) -> None:
-        fetcher = StrategyFetcher(self.STRATEGY_CONFIG_PATH)
-        raw_config = fetcher.load_strategies()
+        # StrategyFetcher
+        fetcher: StrategyFetcher = StrategyFetcher(self.strategy_path)
+        '''
+        raw_config = {
+            "strategies": []
+            "global_settings: {}
+        }
+        '''
+        raw_config: dict = fetcher.load_strategies()
 
         # Align sleep interval with config if provided
-        global_settings: Dict[str, Any] = raw_config.get("global_settings", {})
+        global_settings: dict[str, Any] = raw_config.get("global_settings", {})  # => Strategy
         self.SLEEP_INTERVAL = global_settings.get("sleep_interval", self.SLEEP_INTERVAL)
 
-        factory = StrategyFactory()
-        self.strategy_configs = factory.build_all(raw_config)
+        # StrategyFactory
+        factory: StrategyFactory = StrategyFactory()
+        # Get the list of StrategyConfig
+        self.strategy_configs: list[StrategyConfig] = factory.build_all(raw_config)
 
+        # StrategyExecutor
         self.strategy_executor = StrategyExecutor(
             push_signal=self.push_signal,
             get_indicators=lambda indicator_types: self._get_indicators_safely(*indicator_types),
@@ -364,6 +376,9 @@ class StrategyManager:
         self,
         key: str,
     ) -> int:
+        '''
+        ;func __get_signal_timestamp()
+        '''
         with self.signal_timestamps_lock:
             return self.signal_timestamps.get(key, 0)
 
