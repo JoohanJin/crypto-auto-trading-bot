@@ -1,4 +1,5 @@
 # Standard Library
+from dataclasses import dataclass
 import threading
 import time
 from collections import deque
@@ -18,6 +19,14 @@ from src.core.models.trade import TradePair, TradeState, PositionState
 from src.core.models.order import Order, Side
 
 logger = get_logger(__name__)
+
+
+@dataclass
+class SignalBenchmark:
+    one_min_cnt: int = float('inf')
+    one_max_cnt: int = float('-inf')
+    ten_min_cnt: int = float('inf')
+    ten_max_cnt: int = float('-inf')
 
 
 class TradeManager:
@@ -166,6 +175,8 @@ class TradeManager:
         self.lock_current_position: threading.Lock = threading.Lock()
         self.current_position: PositionState | None = None
 
+        self.signal_benchmark: SignalBenchmark = SignalBenchmark()
+
         # self.signal_cnt: int = 0
         # self.start_time: int
 
@@ -263,11 +274,21 @@ class TradeManager:
                 # If _analyze_signals was called recently, its logs might be sufficient.
                 # To provide actual running status, we can log basic info.
                 
+                if density_momentum != 0:
+                    self.signal_benchmark.one_max_cnt = max(self.signal_benchmark.one_max_cnt, density_momentum)
+                    self.signal_benchmark.one_min_cnt = min(self.signal_benchmark.one_min_cnt, density_momentum)
+                if history_size != 0:
+                    self.signal_benchmark.ten_max_cnt = max(self.signal_benchmark.ten_max_cnt, history_size)
+                    self.signal_benchmark.ten_min_cnt = min(self.signal_benchmark.ten_min_cnt, history_size)
+
                 self.logger.info(
                     f"[STATUS_HEARTBEAT] Position: {pos_status} | "
                     f"10m History: {history_size} signals | "
                     f"1m Density: {density_momentum} signals | "
-                    f"Last Trade: {self.last_trade_timestamp if self.last_trade_timestamp else 'N/A'} ms ago"
+                    f"Last Trade: {self.generate_timestamp() - self.last_trade_timestamp if self.last_trade_timestamp else 'N/A'} ms ago"
+                )
+                self.logger.info(
+                    f"[BENCHMARK_BREIFING] Benchmark: {self.signal_benchmark}"
                 )
 
             except Exception as e:
@@ -1105,7 +1126,7 @@ class TradeManager:
             - Fetch mark price with infinite retry logic.
             - Uses _fetch_with_retry() for consistent error handling.
 
-        param self: TradeManager object
+        param self: TradeeManager object
         param initial_delay: float
             - Initial delay in seconds before first retry (default: 1.0)
 
