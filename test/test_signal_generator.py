@@ -8,7 +8,6 @@ Tests for the SignalGenerator component, focusing on:
 4. Thread management and lifecycle.
 """
 import unittest
-import threading
 from unittest.mock import MagicMock, patch
 
 # Core Models & Interfaces
@@ -79,7 +78,8 @@ class TestSignalGenerator(unittest.TestCase):
             
             # We want to test the body of the loop. Since it's a while True that catches Exception,
             # we will raise a BaseException (which is not caught by `except Exception:`) to break the loop.
-            class StopLoopException(BaseException): pass
+            class StopLoopException(BaseException):
+                pass
             
             self.mock_data_pipeline.pop.side_effect = [test_index, StopLoopException("Stop")]
             
