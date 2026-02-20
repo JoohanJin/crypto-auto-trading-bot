@@ -2,7 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import IntFlag
 
-from src.core.models.base import ImmutableModel, Side, TradePair
+from src.core.models.base import Side, TradePair
 
 
 class TradeState(IntFlag):
