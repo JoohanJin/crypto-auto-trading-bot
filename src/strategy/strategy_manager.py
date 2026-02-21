@@ -1,7 +1,7 @@
 # STANDARD LIBRARY
 import threading
 from pathlib import Path
-from typing import Any, Callable, Dict
+from typing import Any, Callable
 import time
 
 # CUSTOM LIBRARY
@@ -20,11 +20,8 @@ logger = get_logger(__name__)
 
 
 class StrategyManager:
-    SLEEP_INTERVAL: float = 0.75
-    STRATEGY_CONFIG_PATH: Path = Path("config/strategies.json")
-
-    @staticmethod
-    def generate_timestamp() -> int:
+    @classmethod
+    def generate_timestamp(cls) -> int:
         """
         static func generate_timestamp():
             - Generate the timestamp using the current time, in the form of epoch in ms.
@@ -59,6 +56,11 @@ class StrategyManager:
         push_signal_callback: Callable[[Signal], None],
         signal_window: int = 5_000,
         name: str | None = None,
+        strategy_path: str | None = None,
+        sleep_interval: float = 0.75,
+        strategy_fetcher: StrategyFetcher | None = None,
+        strategy_factory: StrategyFactory | None = None,
+        strategy_executor: StrategyExecutor | None = None,
     ) -> None:
         self.name: str = name if name else "STRATEGY_MANAGER"
         self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
@@ -81,14 +83,18 @@ class StrategyManager:
         self.strategy_executor: StrategyExecutor | None = None
         self.strategy_configs: list[StrategyConfig] = []
 
+        self.sleep_interval: float = sleep_interval
+        self.strategy_path: Path = Path(strategy_path) if strategy_path is not None else Path("config/strategies.json")
+
+        self._load_strategies(strategy_fetcher, strategy_factory, strategy_executor)
+
         self.start()
-        
-        self.logger.info(f"[STRATEGY_INIT] {self.name} | Status: ready")
+
+        self.logger.info(f"[STRATEGY_INIT] {self.name} | Global Period: {self.sleep_interval} s| Status: ready")
         return
 
     def start(self) -> None:
         # if this is the thread-based class
-        self._load_strategies()
         self.__init_threads()
         self.start_threads(self.threads)
 
@@ -125,25 +131,42 @@ class StrategyManager:
                 self.logger.error(f"[STATUS_LOG_ERROR] Failed to log status | Error: {type(e).__name__}: {str(e)}")
                 time.sleep(10)
 
-    def _load_strategies(self) -> None:
-        fetcher = StrategyFetcher(self.STRATEGY_CONFIG_PATH)
-        raw_config = fetcher.load_strategies()
+    def _load_strategies(
+        self,
+        strategy_fetcher: StrategyFetcher | None,
+        strategy_factory: StrategyFactory | None,
+        strategy_executor: StrategyExecutor | None,
+    ) -> None:
+        # StrategyFetcher
+        self.fetcher: StrategyFetcher = strategy_fetcher or StrategyFetcher(self.strategy_path)
+        '''
+        raw_config = {
+            "strategies": []
+            "global_settings: {}
+        }
+        '''
+        raw_config: dict = self.fetcher.load_strategies()
 
         # Align sleep interval with config if provided
-        global_settings: Dict[str, Any] = raw_config.get("global_settings", {})
-        self.SLEEP_INTERVAL = global_settings.get("sleep_interval", self.SLEEP_INTERVAL)
+        global_settings: dict[str, Any] = raw_config.get("global_settings", {})  # => Strategy
+        self.sleep_interval = global_settings.get("sleep_interval", self.sleep_interval)
 
-        factory = StrategyFactory()
-        self.strategy_configs = factory.build_all(raw_config)
+        # StrategyFactory
+        factory: StrategyFactory = strategy_factory or StrategyFactory()
+        # Get the list of StrategyConfig
+        self.strategy_configs: list[StrategyConfig] = factory.build_all(raw_config)
 
-        self.strategy_executor = StrategyExecutor(
+        # StrategyExecutor
+        self.strategy_executor = strategy_executor or StrategyExecutor(
             push_signal=self.push_signal,
             get_indicators=lambda indicator_types: self._get_indicators_safely(*indicator_types),
             should_generate=self._should_generate_signal,
             update_timestamp=self.__update_signal_timestamp,
             verify_index=self.__verify_index,
-            sleep_interval=self.SLEEP_INTERVAL,
+            sleep_interval=self.sleep_interval,
         )
+
+        return
 
     def __init_threads(self) -> None:
         """
@@ -174,15 +197,16 @@ class StrategyManager:
         self.threads.append(status_thread)
         self.logger.info(f"[THREAD_START] {status_thread.name} | Status: ready")
 
+        return
+
     def __verify_index(
         self,
         index: Index,
         time_window: int = 5_000,
     ) -> bool:
-        if (StrategyManager.generate_timestamp() - index.timestamp < time_window):
+        if (self.generate_timestamp() - index.timestamp < time_window):
             return True
-        else:
-            return False
+        return False
 
     def __extract_data(
         self,
@@ -190,8 +214,7 @@ class StrategyManager:
     ) -> dict[int, float] | None:
         if index:
             return index.data
-        else:
-            return None
+        return None
 
     def _get_indicator_value(
         self,
@@ -357,13 +380,16 @@ class StrategyManager:
         key: str,
     ) -> None:
         with self.signal_timestamps_lock:
-            self.signal_timestamps[key] = StrategyManager.generate_timestamp()
+            self.signal_timestamps[key] = self.generate_timestamp()
         return
 
     def __get_signal_timestamp(
         self,
         key: str,
     ) -> int:
+        '''
+        ;func __get_signal_timestamp()
+        '''
         with self.signal_timestamps_lock:
             return self.signal_timestamps.get(key, 0)
 
@@ -383,7 +409,7 @@ class StrategyManager:
         """
         prev_timestamp: int = self.__get_signal_timestamp(key)
         window = signal_window if signal_window is not None else self.signal_window
-        return StrategyManager.generate_timestamp() - prev_timestamp > window
+        return self.generate_timestamp() - prev_timestamp > window
 
     def _get_indicators_safely(
         self,

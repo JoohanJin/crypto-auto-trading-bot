@@ -30,12 +30,13 @@ class StrategyExecutor:
     ) -> None:
         self.name: str = name if name else "STRATEGY_EXECUTOR"
         self.trading_logger = get_adapter(get_logger(__name__, "trading"), f"{self.__class__.__name__}_{self.name}")
-        self._push_signal = push_signal
-        self._get_indicators = get_indicators
-        self._should_generate = should_generate
-        self._update_timestamp = update_timestamp
-        self._verify_index = verify_index
-        self._sleep_interval = sleep_interval
+
+        self._push_signal: Callable = push_signal
+        self._get_indicators: Callable = get_indicators
+        self._should_generate: Callable = should_generate
+        self._update_timestamp: Callable = update_timestamp
+        self._verify_index: Callable = verify_index
+        self._sleep_interval: Callable = sleep_interval
 
     def _emit_signal(self, signal_type: TradeSignal, details: str) -> None:
         self._push_signal(Signal(signal=signal_type), details)

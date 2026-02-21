@@ -6,7 +6,7 @@ Mocks external dependencies (Binance API, Telegram, pipelines) to test logic in 
 """
 import unittest
 import time
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
 # Core Models
 from src.core.models.trade import TradePair, TradeState, PositionState
@@ -34,7 +34,7 @@ def _make_trade_manager(**overrides) -> TradeManager:
         trade_weight=0.1,
         take_profit_rate=0.2,
         stop_loss_rate=0.2,
-        trade_cooldown_ms=300_000, # 5 min default
+        trade_cooldown_ms=300_000,  # 5 min default
         name="TEST",
     )
     defaults.update(overrides)
@@ -117,21 +117,21 @@ class TestAnalyzeSignals(unittest.TestCase):
 
     def test_new_sell_burst(self):
         """Density >= 60 and Consensus <= -0.8 → NEW_SELL"""
-        self._inject_signals([TradeSignal.HOLD], offset_ms=570_000) # Warmup
+        self._inject_signals([TradeSignal.HOLD], offset_ms=570_000)  # Warmup
         self._inject_signals([TradeSignal.LONG_TERM_SELL] * 60)
         result = self.tm._analyze_signals()
         self.assertEqual(result, TradeState.NEW_SELL)
 
     def test_low_density_returns_hold(self):
         """Density < 60 → HOLD even with perfect consensus"""
-        self._inject_signals([TradeSignal.HOLD], offset_ms=570_000) # Warmup
+        self._inject_signals([TradeSignal.HOLD], offset_ms=570_000)  # Warmup
         self._inject_signals([TradeSignal.LONG_TERM_BUY] * 59)
         result = self.tm._analyze_signals()
         self.assertEqual(result, TradeState.HOLD)
 
     def test_mixed_momentum_returns_hold(self):
         """High density but low consensus → HOLD"""
-        self._inject_signals([TradeSignal.HOLD], offset_ms=570_000) # Warmup
+        self._inject_signals([TradeSignal.HOLD], offset_ms=570_000)  # Warmup
         # 60 Signals: 40 BUY (200), 20 SELL (-100) -> Net 100, Total 300 -> 0.33 < 0.8
         self._inject_signals([TradeSignal.LONG_TERM_BUY] * 40 + [TradeSignal.LONG_TERM_SELL] * 20)
         result = self.tm._analyze_signals()
@@ -179,7 +179,7 @@ class TestAnalyzeSignals(unittest.TestCase):
         with self.tm.lock_current_position:
             self.tm.current_position = pos
             
-        self._inject_signals([TradeSignal.HOLD], offset_ms=570_000) # Warmup
+        self._inject_signals([TradeSignal.HOLD], offset_ms=570_000)  # Warmup
         # 60 strong sell signals (triggers burst)
         self._inject_signals([TradeSignal.LONG_TERM_SELL] * 60)
         result = self.tm._analyze_signals()
@@ -192,7 +192,7 @@ class TestAnalyzeSignals(unittest.TestCase):
         # Inject signals 11 minutes ago
         self._inject_signals([TradeSignal.LONG_TERM_BUY] * 50, offset_ms=660_000)
         result = self.tm._analyze_signals()
-        self.assertEqual(result, TradeState.HOLD) # Also HOLD because history is empty after pruning
+        self.assertEqual(result, TradeState.HOLD)  # Also HOLD because history is empty after pruning
         self.assertEqual(len(self.tm.signal_history), 0)
 
 
@@ -245,7 +245,7 @@ class TestVerifySignal(unittest.TestCase):
 
     def test_stale_signal_is_invalid(self):
         """Signal older than window should fail validation."""
-        # Instead of mocking Signal.timestamp (frozen property), 
+        # Instead of mocking Signal.timestamp (frozen property),
         # we mock TradeManager.generate_timestamp to pretend it's the future.
         signal = Signal(signal=TradeSignal.SHORT_TERM_BUY)
         future_time = signal.timestamp + 10_000
@@ -291,7 +291,7 @@ class TestConstructNewOrder(unittest.TestCase):
         with self.tm.lock_current_position:
             self.tm.current_position = existing
         order = self.tm._construct_new_order(TradeState.REVERSE_BUY)
-        self.assertEqual(order.ticker_size, 0.02) # Close(0.01) + Open(0.01)
+        self.assertEqual(order.ticker_size, 0.02)  # Close(0.01) + Open(0.01)
 
     def test_exit_without_position_raises(self):
         self.tm.current_position = None
@@ -368,13 +368,14 @@ class TestTradeSizing(unittest.TestCase):
         self.tm._get_available_quote = MagicMock(return_value=1000.0)
         self.assertEqual(self.tm._get_trade_quote_amt(), 100.0)
 
+
 class TestDecideToMakeTrade(unittest.TestCase):
     def setUp(self):
         self.tm = _make_trade_manager()
 
     def test_allow_trade_on_empty_position(self):
         self.tm._get_account_info = MagicMock(return_value=AccountInformation(
-            timestamp=0, source="t", id="a", asset="USDT", balance=100.0, 
+            timestamp=0, source="t", id="a", asset="USDT", balance=100.0,
             unrealized_pnl=0.0, available_balance=100.0
         ))
         self.assertTrue(self.tm._decide_to_make_trade())
@@ -385,7 +386,7 @@ class TestDecideToMakeTrade(unittest.TestCase):
 # =============================================================================
 class TestTradeCooldown(unittest.TestCase):
     def setUp(self):
-        self.tm = _make_trade_manager(trade_cooldown_ms=300_000) # 5 min
+        self.tm = _make_trade_manager(trade_cooldown_ms=300_000)  # 5 min
 
     def test_cooldown_blocks_immediate_retry(self):
         self.tm.last_trade_timestamp = self.tm.generate_timestamp()

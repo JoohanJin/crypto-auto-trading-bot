@@ -1,5 +1,5 @@
 # STANDARD LIBRARY
-from typing import Any, Dict, List
+from typing import Any
 
 # CUSTOM LIBRARY
 from src.core.models.index import IndexType
@@ -21,7 +21,7 @@ class StrategyFactory:
     def _parse_signal(signal: str) -> TradeSignal:
         return TradeSignal[signal]
 
-    def build(self, raw_strategy: Dict[str, Any]) -> StrategyConfig:
+    def build(self, raw_strategy: dict[str, Any]) -> StrategyConfig:
         indicators = [self._parse_indicator(ind) for ind in raw_strategy.get("indicators", [])]
         conditions = [
             StrategyCondition(type=cond.get("type", ""), payload=cond)  # payload kept flexible for now
@@ -41,7 +41,7 @@ class StrategyFactory:
             description=raw_strategy.get("description"),
         )
 
-    def build_all(self, raw_config: Dict[str, Any]) -> List[StrategyConfig]:
+    def build_all(self, raw_config: dict[str, Any]) -> list[StrategyConfig]:
         return [
             self.build(strategy)
             for strategy in raw_config.get("strategies", [])
