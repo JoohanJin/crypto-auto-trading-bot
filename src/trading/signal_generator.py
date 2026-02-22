@@ -60,7 +60,7 @@ class SignalGenerator:
         data_pipeline_controller: PipelineController[dict[str, int | IndexType, dict[int, float]]],
         signal_pipeline_controller: PipelineController[dict[str, int | TradeSignal]],
         custom_telegram_bot: CustomTelegramBot,
-        signal_window: int = 5_000,
+        signal_window: int = 2_500,
         name: str | None = None,
         strategy_manager: StrategyManager | None = None,
     ) -> None:
