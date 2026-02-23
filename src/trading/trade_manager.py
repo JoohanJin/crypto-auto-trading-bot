@@ -95,7 +95,7 @@ class TradeManager:
         telegram_bot: CustomTelegramBot,
         trade_pair: TradePair | None = None,
         leverage: int = 10,
-        trade_weight: float = 0.1,  # 10% of the total asset
+        trade_weight: float = 0.2,  # 20% of the total asset
         take_profit_rate: float = 0.2,  # 20% -> to prevent the error
         stop_loss_rate: float = 0.2,  # 20% -> to prevent the error
         trade_cooldown_ms: int = 30_000,  # minimum milliseconds between consecutive trades
@@ -155,7 +155,7 @@ class TradeManager:
         
         # Thresholds for decision making
         # Entry/Reverse requires 60 signals in 1m with 80% agreement.
-        self.consensus_threshold: float = 0.9
+        self.consensus_threshold: float = 0.95
         self.density_threshold: int = 50
         self.trade_cooldown_ms: int = 300_000  # 5 minutes minimum between trades
         self.last_trade_timestamp: int = 0
