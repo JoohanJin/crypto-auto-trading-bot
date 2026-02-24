@@ -661,10 +661,12 @@ class TradeManager:
                 return 0.0
             total_weight = 0.0
             net_weight = 0.0
+
             for s in signals:  # ! Linear - should be fine with the current strategy since it only stores 10-min data.
                 weight = self.delta_mapper.map(s)  # ? based on the score mapping score -> which is correct.
                 total_weight += abs(weight)
                 net_weight += weight
+
             return net_weight / total_weight if total_weight > 0 else 0.0
 
         # 4. Calculate Metrics
@@ -750,6 +752,13 @@ class TradeManager:
                     # Execute
                     self._execute_trade(buy_or_sell=decision)
                     self.last_trade_timestamp = self.generate_timestamp()
+
+                    # Add dynamic cooldown for Panic Exits (Whipsaw protection)
+                    if decision == TradeState.EXIT:
+                        self.logger.warning("[WHIPSAW_PROTECTION] Panic exit triggered! Extending cooldown to 10 minutes.")
+                        self.trade_cooldown_ms = 600_000  # Pause for 10 full minutes
+                    else:
+                        self.trade_cooldown_ms = 300_000  # Standard 5 minute cooldown
 
                 time.sleep(0.25)
 
