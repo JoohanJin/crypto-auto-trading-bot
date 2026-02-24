@@ -689,9 +689,6 @@ class TradeManager:
         # This filters out stray signals that don't represent a collective move.
 
         # if density_momentum >= self.density_threshold:
-        '''
-        # This part is actually correct... hmmm why BUY only then.
-        '''
         # BULLISH BURST: Momentum must agree with or create a strong trend.
         if (consensus_momentum >= self.consensus_threshold) and (consensus_structural >= self.consensus_threshold):
             if current_pos is None:
