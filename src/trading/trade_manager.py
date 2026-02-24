@@ -95,7 +95,7 @@ class TradeManager:
         telegram_bot: CustomTelegramBot,
         trade_pair: TradePair | None = None,
         leverage: int = 10,
-        trade_weight: float = 0.2,  # 20% of the total asset
+        trade_weight: float = 0.15,  # 20% of the total asset
         take_profit_rate: float = 0.2,  # 20% -> to prevent the error
         stop_loss_rate: float = 0.2,  # 20% -> to prevent the error
         trade_cooldown_ms: int = 30_000,  # minimum milliseconds between consecutive trades
