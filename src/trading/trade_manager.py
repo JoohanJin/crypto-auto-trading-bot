@@ -158,11 +158,16 @@ class TradeManager:
         )  # (timestamp, TradeSignal)
         self.signal_history_lock: threading.Lock = threading.Lock()
         self.history_window_ms: int = 600_000  # 10 minutes (structural backbone)
+        self.mid_term_window_ms: int = self.history_window_ms * 0.5
+        self.short_term_window_ms: int = self.history_window_ms * 0.2
 
         # Thresholds for decision making
         # Entry/Reverse requires 60 signals in 1m with 80% agreement.
         # TODO: Need to decide the value
         self.consensus_threshold: float = 0.8
+        self.exit_consensus_threshold: float = self.consensus_threshold * 0.9
+        self.exit_mid_term_threshold: float = self.consensus_threshold * 0.7
+        self.exit_short_term_consensus_threshold: float = self.consensus_threshold * 0.5
 
         self.density_threshold: int = 50
         self.trade_cooldown_ms: int = 300_000  # 5 minutes minimum between trades
@@ -248,9 +253,13 @@ class TradeManager:
                     # Prune old signals to get accurate current window counts
                     now = self.generate_timestamp()
 
-                    # one minute
-                    momentum_signals = [s for ts, s in self.signal_history if (now - ts) <= self.momentum_window_ms]
-                    density_momentum = len(momentum_signals)
+                    # mid term momentum
+                    mid_term_momentum: list = [s for ts, s in self.signal_history if (now - ts) <= self.mid_term_window_ms]
+                    mid_term_density: int = len(mid_term_momentum)
+
+                    # short term momentum
+                    short_term_momentum: list = [s for ts, s in self.signal_history if (now - ts) <= self.short_term_window_ms]
+                    short_term_density: int = len(short_term_momentum)
 
                 # Re-fetch current position as it might have changed
                 with self.lock_current_position:
@@ -272,8 +281,9 @@ class TradeManager:
 
                 self.logger.info(
                     f"[STATUS_HEARTBEAT] Position: {pos_status} | "
-                    f"10m History: {history_size} signals | "
-                    f"1m Density: {density_momentum} signals | "
+                    f"{self.history_window_ms / 1_000} s History: {history_size} signals | "
+                    f"{self.mid_term_window_ms / 1_000} s Density: {mid_term_density} signals | "
+                    f"{self.short_term_window_ms / 1_000} s Density: {short_term_density} signals | "
                     f"Last Trade: {self.generate_timestamp() - self.last_trade_timestamp if self.last_trade_timestamp else 'N/A'} ms ago"
                 )
 
@@ -729,10 +739,10 @@ class TradeManager:
 
             # make the list of pools for momentum and structural signals
             short_term_momentum_signals = [
-                s for ts, s in history if (now - ts) <= self.history_window_ms * 0.5
+                s for ts, s in history if (now - ts) <= self.short_term_window_ms
             ]
             mid_term_momentum_signals = [
-                s for ts, s in history if (now - ts) <= self.history_window_ms * 0.2
+                s for ts, s in history if (now - ts) <= self.mid_term_window_ms
             ]
             structural_signals = [s for ts, s in history]
 
@@ -771,7 +781,7 @@ class TradeManager:
         # BULLISH BURST: Momentum must agree with or create a strong trend.
         # TODO: Need to deal with this part
         if (consensus_short_term >= self.consensus_threshold) and (
-            consensus_mid_term >= self.self.consensus_threshold) and (
+            consensus_mid_term >= self.consensus_threshold) and (
             consensus_structural >= self.consensus_threshold
         ):
             if current_pos is None:
@@ -799,16 +809,16 @@ class TradeManager:
         if current_pos is not None:
             # Long Exit: Momentum flips strongly OR Structural bias flips with history (min 10)
             if current_pos.side == Side.BUY:
-                if (consensus_short_term < -(self.consensus_threshold * 0.5)) and (
-                    consensus_mid_term < -(self.consensus_threshold * 0.7)) and (
-                    consensus_structural < -(self.consensus_threshold * 0.9)
+                if (consensus_short_term < -(self.exit_short_term_consensus_threshold)) and (
+                    consensus_mid_term < -(self.exit_mid_term_threshold)) and (
+                    consensus_structural < -(self.exit_consensus_threshold)
                 ):
                     return TradeState.EXIT
             # Short Exit: Momentum flips strongly OR Structural bias flips with history (min 10)
             elif current_pos.side == Side.SELL:
-                if (consensus_short_term > self.consensus_threshold * 0.5) and (
-                    consensus_mid_term > self.consensus_threshold * 0.7) and (
-                    consensus_structural > self.consensus_threshold * 0.9
+                if (consensus_short_term > self.exit_short_term_consensus_threshold) and (
+                    consensus_mid_term > self.exit_mid_term_threshold) and (
+                    consensus_structural > self.exit_consensus_threshold
                 ):
                     return TradeState.EXIT
                 return TradeState.HOLD
