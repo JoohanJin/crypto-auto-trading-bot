@@ -249,17 +249,9 @@ class TradeManager:
                     history_size = len(self.signal_history)
                     # Prune old signals to get accurate current window counts
                     now = self.generate_timestamp()
-                    while self.signal_history and (
-                        now - self.signal_history[0][0] > self.history_window_ms
-                    ):
-                        self.signal_history.popleft()
 
                     # one minute
-                    momentum_signals = [
-                        s
-                        for ts, s in self.signal_history
-                        if (now - ts) <= self.momentum_window_ms
-                    ]
+                    momentum_signals = [s for ts, s in self.signal_history if (now - ts) <= self.momentum_window_ms]
                     density_momentum = len(momentum_signals)
 
                 # Re-fetch current position as it might have changed
@@ -716,9 +708,9 @@ class TradeManager:
         """
         now: int = self.generate_timestamp()  # timestamp
 
-        with self.signal_history_lock:
-            self._clean_up_history(now)
+        self._clean_up_history(now)
 
+        with self.signal_history_lock:
             if not self.signal_history:
                 return TradeState.HOLD
 
