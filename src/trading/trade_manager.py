@@ -496,14 +496,14 @@ class TradeManager:
             f"Trade Signal: {order.side_str}\n"
             f"Entry Price: {order.entry_price}\n"
             f"Amount: {order.quote_size} {order.quote} or {order.ticker_size} {order.ticker}\n"
-            f"Take Profit: {order.tp_price}\n"
-            f"Stop Loss: {order.sl_price}\n"
+            # f"Take Profit: {order.tp_price}\n"
+            # f"Stop Loss: {order.sl_price}\n"
         )
         
         if not order.meta_data.get("reverse", False):  # NEW_BUY or NEW_SELL
-            return base_message + "It is the new order."
+            return base_message + "It is a NEW order."
         else:  # REVERSE_BUY or REVERSE_SELL
-            return base_message + "It is the reverse order."
+            return base_message + "It is a REVERSE order."
 
     def _update_position(
         self,
