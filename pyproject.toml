@@ -3,7 +3,7 @@
 # =============================================================================
 [project]
 name = "crypto-auto-trading-bot"
-version = "0.1.0"
+version = "3_0_0"
 description = "Automated cryptocurrency trading bot supporting multiple exchanges"
 readme = "README.md"
 license = {text = "MIT"}
