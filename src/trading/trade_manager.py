@@ -657,7 +657,7 @@ class TradeManager:
             else:
                 # Dry run mode: Update internal position state but don't call API
                 self._update_position(order, buy_or_sell)
-                self.telegram_bot.send_text("[DRY_RUN]" + message)
+                self.telegram_bot.send_text("[DRY_RUN]\n" + message)
                 self.trading_logger.info("[DRY_RUN] " + message.replace("\n", " "))
         except Exception as e:
             self.logger.error(
