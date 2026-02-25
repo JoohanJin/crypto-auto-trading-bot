@@ -22,14 +22,16 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
+import argparse
 # Standard Library
 import sys
 import time
-import argparse
 
 # Custom Library
+from src import VERSION
+from src.infrastructure.logging.set_logger import (get_logger,
+                                                   set_global_log_level)
 from src.infrastructure.system_manager import SystemManager
-from src.infrastructure.logging.set_logger import get_logger, set_global_log_level
 
 logger = get_logger(__name__)
 
@@ -52,7 +54,7 @@ def main():
         action="store_true",
         help="Disable trade execution (Dry Run)"
     )
-    
+
     args = parser.parse_args()
 
     try:
@@ -66,7 +68,7 @@ def main():
             set_global_log_level("INFO")
 
         # Load environment variables
-        logger.info("[APP_START] Application starting | Loading environment configuration")
+        logger.info(f"[APP_START] AutoCryptoTrading Bot Version: {VERSION} | Loading environment configuration")
 
         # Initialize SystemManager
         # Pass disable_trade flag to SystemManager

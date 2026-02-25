@@ -3,19 +3,18 @@ import threading
 import time
 from collections import deque
 
+from src.brokers.binance.http_client import BinanceFutureHttpClient
+from src.core.models.order import Order, Side
+from src.core.models.score_mapping import ScoreMapper
 # Custom Library
 from src.core.models.service_dto import AccountInformation, MarkPrice, Position
-from src.integrations.telegram.telegram_bot_class import CustomTelegramBot
-from src.infrastructure.logging.set_logger import get_logger, get_adapter
-from src.interfaces.pipeline_interface import PipelineController
-from src.core.models.score_mapping import ScoreMapper
-from src.brokers.binance.http_client import BinanceFutureHttpClient
-from src.interfaces.http_interface import HttpInterface
-
 # Core Models
 from src.core.models.signal import Signal, TradeSignal
-from src.core.models.trade import TradePair, TradeState, PositionState
-from src.core.models.order import Order, Side
+from src.core.models.trade import PositionState, TradePair, TradeState
+from src.infrastructure.logging.set_logger import get_adapter, get_logger
+from src.integrations.telegram.telegram_bot_class import CustomTelegramBot
+from src.interfaces.http_interface import HttpInterface
+from src.interfaces.pipeline_interface import PipelineController
 
 logger = get_logger(__name__)
 
@@ -43,11 +42,11 @@ class TradeManager:
        even if the long-term structural bias is still intact.
     """
 
-    '''
+    """
     ##########################
     # Static Method
     ##########################
-    '''
+    """
 
     @classmethod
     def generate_timestamp(cls) -> int:
@@ -109,14 +108,16 @@ class TradeManager:
         """
         self.name: str = name if name else "TRADE_MANAGER"
         self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
-        self.trading_logger = get_adapter(get_logger(__name__, "trading"), f"{self.__class__.__name__}_{self.name}")
+        self.trading_logger = get_adapter(
+            get_logger(__name__, "trading"), f"{self.__class__.__name__}_{self.name}"
+        )
 
-        '''
+        """
         # TODO: Need to keep the record of the previous order.
         # TODO: Keep checking where that order is still alive or not.
         # TODO: Need to refactor the order layer to get the data from the DTO,
         # order for unified and modular implementation.
-        '''
+        """
         self.trade_pair: TradePair = (
             trade_pair
             if isinstance(trade_pair, TradePair)
@@ -124,10 +125,14 @@ class TradeManager:
         )
 
         # Set the signal piepline as a member variable
-        self.signal_pipeline_controller: PipelineController[Signal] = signal_pipeline_controller
+        self.signal_pipeline_controller: PipelineController[Signal] = (
+            signal_pipeline_controller
+        )
 
         # For HTTP Communication (RESTful API)
-        self.http_interface: HttpInterface = http_interface  # ! Need to use this in the future.
+        self.http_interface: HttpInterface = (
+            http_interface  # ! Need to use this in the future.
+        )
         self.binance_client: BinanceFutureHttpClient = binance_future_client
 
         self.delta_mapper: ScoreMapper = delta_mapper
@@ -142,20 +147,25 @@ class TradeManager:
         self.trade_weight: float = trade_weight
         self.tp_rate: float = take_profit_rate
         self.sl_rate: float = stop_loss_rate
-        
+
         self.disable_trade: bool = disable_trade
 
         # --- Weighted Signal Density & Consensus (WSDC) Settings ---
         # These strict settings are designed to filter high-frequency noise
         # (multiple signals per second) and reduce trading frequency.
-        self.signal_history: deque[tuple[int, TradeSignal]] = deque()  # (timestamp, TradeSignal)
+        self.signal_history: deque[tuple[int, TradeSignal]] = (
+            deque()
+        )  # (timestamp, TradeSignal)
         self.signal_history_lock: threading.Lock = threading.Lock()
         self.history_window_ms: int = 600_000  # 10 minutes (structural backbone)
-        self.momentum_window_ms: int = 60_000   # 1 minute (trigger window)
-        
+        self.momentum_window_ms: int = 60_000  # 1 minute (trigger window)
+
         # Thresholds for decision making
         # Entry/Reverse requires 60 signals in 1m with 80% agreement.
-        self.consensus_threshold: float = 0.95
+        self.consensus_threshold: float = 0.9  # TODO: Need to decide the value
+        self.exit_momentum_threshold: float = self.consensus_threshold * 0.9
+        self.exit_structurual_threshold: float = self.consensus_threshold * 0.6
+
         self.density_threshold: int = 50
         self.trade_cooldown_ms: int = 300_000  # 5 minutes minimum between trades
         self.last_trade_timestamp: int = 0
@@ -225,7 +235,7 @@ class TradeManager:
     ) -> None:
         """
         Logs the current status and key metrics of the TradeManager periodically.
-        
+
         Purpose:
         - Provides a 'heartbeat' to confirm the manager is active.
         - Monitors critical state: Position, Signal History size, and recent activity (Density).
@@ -239,10 +249,17 @@ class TradeManager:
                     history_size = len(self.signal_history)
                     # Prune old signals to get accurate current window counts
                     now = self.generate_timestamp()
-                    while self.signal_history and (now - self.signal_history[0][0] > self.history_window_ms):
+                    while self.signal_history and (
+                        now - self.signal_history[0][0] > self.history_window_ms
+                    ):
                         self.signal_history.popleft()
-                    
-                    momentum_signals = [s for ts, s in self.signal_history if (now - ts) <= self.momentum_window_ms]
+
+                    # one minute
+                    momentum_signals = [
+                        s
+                        for ts, s in self.signal_history
+                        if (now - ts) <= self.momentum_window_ms
+                    ]
                     density_momentum = len(momentum_signals)
 
                 # Re-fetch current position as it might have changed
@@ -258,11 +275,11 @@ class TradeManager:
                 # For precise logging, one could reuse parts of _analyze_signals or call it if performance allows.
                 # Here, we'll use a basic approximation for demonstration.
                 # A more accurate way would be to have _analyze_signals return these metrics.
-                
+
                 # For simplicity and avoiding re-implementing complex logic, log relevant stored states.
                 # If _analyze_signals was called recently, its logs might be sufficient.
                 # To provide actual running status, we can log basic info.
-                
+
                 self.logger.info(
                     f"[STATUS_HEARTBEAT] Position: {pos_status} | "
                     f"10m History: {history_size} signals | "
@@ -271,7 +288,9 @@ class TradeManager:
                 )
 
             except Exception as e:
-                self.logger.error(f"[STATUS_LOG_ERROR] Failed to log status | Error: {type(e).__name__}: {str(e)}")
+                self.logger.error(
+                    f"[STATUS_LOG_ERROR] Failed to log status | Error: {type(e).__name__}: {str(e)}"
+                )
                 # Avoid excessive error logging if it's a persistent issue
                 time.sleep(10)  # Wait a bit before next attempt if logging fails
         return
@@ -301,18 +320,18 @@ class TradeManager:
         """
         # Generate the threads for the function, need to plan it.
         thread_get_signal: threading.Thread = threading.Thread(
-            target = self._thread_get_signal,
-            name = "Thread-Get-Signal",
+            target=self._thread_get_signal,
+            name="Thread-Get-Signal",
         )
 
         thread_decide_trade: threading.Thread = threading.Thread(
-            target = self._thread_decide_trade,
-            name = "Thread-Decide-Trade",
+            target=self._thread_decide_trade,
+            name="Thread-Decide-Trade",
         )
 
         thread_log_status: threading.Thread = threading.Thread(
-            target = self._thread_log_status,
-            name = "Thread-Log-Status",
+            target=self._thread_log_status,
+            name="Thread-Log-Status",
         )
 
         # initialize the threads for the operations
@@ -347,7 +366,9 @@ class TradeManager:
                 )
 
             except Exception as e:  # Unknown Exception
-                self.logger.error(f"[THREAD_ERROR] {thread.name} failed | Error: {type(e).__name__}: {str(e)}")
+                self.logger.error(
+                    f"[THREAD_ERROR] {thread.name} failed | Error: {type(e).__name__}: {str(e)}"
+                )
                 raise Exception(
                     f"{__name__}: Failed to start thread '{thread.name}': {str(e)}"
                 )
@@ -359,12 +380,13 @@ class TradeManager:
     # Signal Management Method
     ##########################
     """
+
     def _construct_new_order(
         self,
         buy_or_sell: TradeState,
     ) -> Order:
         try:
-            mark_price: MarkPrice = self._get_mark_price()   # market price
+            mark_price: MarkPrice = self._get_mark_price()  # market price
 
             order_side: Side
             order_side_str: str
@@ -374,7 +396,9 @@ class TradeManager:
             meta_data: dict[str, bool | str] = None
 
             with self.lock_current_position:
-                current_pos = self.current_position.copy() if self.current_position else None
+                current_pos = (
+                    self.current_position.copy() if self.current_position else None
+                )
 
             # EXIT — close-only order: sell to close LONG, buy to close SHORT.
             # Size = current position size. No TP/SL needed (flat after close).
@@ -390,9 +414,13 @@ class TradeManager:
                 # Approximate P/L for logging/messaging.
                 # Positive = profit, negative = loss.
                 if current_pos.side == Side.BUY:  # long
-                    pnl_rate = (entry_price - current_pos.entry_price) / current_pos.entry_price
+                    pnl_rate = (
+                        entry_price - current_pos.entry_price
+                    ) / current_pos.entry_price
                 else:  # short
-                    pnl_rate = (current_pos.entry_price - entry_price) / current_pos.entry_price
+                    pnl_rate = (
+                        current_pos.entry_price - entry_price
+                    ) / current_pos.entry_price
 
                 meta_data = dict(exit=True, pnl_rate=round(pnl_rate, 6))
 
@@ -401,8 +429,8 @@ class TradeManager:
                     side_str=order_side_str,
                     entry_price=entry_price,
                     leverage=self.leverage,
-                    tp_price=0.0,   # no TP for exit — we're going flat
-                    sl_price=0.0,   # no SL for exit — we're going flat
+                    tp_price=0.0,  # no TP for exit — we're going flat
+                    sl_price=0.0,  # no SL for exit — we're going flat
                     trade_pair=self.trade_pair,
                     ticker=self.trade_pair.ticker,
                     ticker_size=ticker_size,
@@ -418,11 +446,22 @@ class TradeManager:
             )
 
             # Determine order side (same for NEW and REVERSE)
-            order_side = Side.BUY if buy_or_sell in (TradeState.NEW_BUY, TradeState.REVERSE_BUY) else Side.SELL
-            order_side_str = "BUY" if buy_or_sell in (TradeState.NEW_BUY, TradeState.REVERSE_BUY) else "SELL"
+            order_side = (
+                Side.BUY
+                if buy_or_sell in (TradeState.NEW_BUY, TradeState.REVERSE_BUY)
+                else Side.SELL
+            )
+            order_side_str = (
+                "BUY"
+                if buy_or_sell in (TradeState.NEW_BUY, TradeState.REVERSE_BUY)
+                else "SELL"
+            )
 
             # Determine quantities
-            is_reverse = buy_or_sell in (TradeState.REVERSE_BUY, TradeState.REVERSE_SELL) and current_pos is not None
+            is_reverse = (
+                buy_or_sell in (TradeState.REVERSE_BUY, TradeState.REVERSE_SELL)
+                and current_pos is not None
+            )
 
             if is_reverse:
                 # REVERSE order = close current position + open new base position
@@ -432,8 +471,17 @@ class TradeManager:
                 base_ticker = self._get_trade_ticker_amt(entry_price)
                 ticker_size = current_pos.ticker_size + base_ticker
                 quote_size = current_pos.quote_size + base_quote
-                meta_data = dict(reverse=True, base_ticker_size=base_ticker, base_quote_size=base_quote)
-            elif buy_or_sell in (TradeState.NEW_BUY, TradeState.NEW_SELL, TradeState.REVERSE_BUY, TradeState.REVERSE_SELL):
+                meta_data = dict(
+                    reverse=True,
+                    base_ticker_size=base_ticker,
+                    base_quote_size=base_quote,
+                )
+            elif buy_or_sell in (
+                TradeState.NEW_BUY,
+                TradeState.NEW_SELL,
+                TradeState.REVERSE_BUY,
+                TradeState.REVERSE_SELL,
+            ):
                 # NEW order (explicitly NEW_* or REVERSE with no active position)
                 quote_size = self._get_trade_quote_amt()
                 ticker_size = self._get_trade_ticker_amt(entry_price)
@@ -468,12 +516,12 @@ class TradeManager:
         """
         func _format_trade_message():
             - Format trade execution message based on order type
-            
+
         param order: Order
             - The order object with trade details
         param buy_or_sell: TradeState
             - Trade state to determine message suffix
-            
+
         return str | None:
             - Formatted message or None if invalid state
         """
@@ -499,7 +547,7 @@ class TradeManager:
             # f"Take Profit: {order.tp_price}\n"
             # f"Stop Loss: {order.sl_price}\n"
         )
-        
+
         if not order.meta_data.get("reverse", False):  # NEW_BUY or NEW_SELL
             return base_message + "It is a NEW order."
         else:  # REVERSE_BUY or REVERSE_SELL
@@ -522,13 +570,19 @@ class TradeManager:
 
         with self.lock_current_position:
             # Check if we are adding to an existing position on the same side
-            if self.current_position is not None and self.current_position.side == order.side:
-                total_ticker_size: float = self.current_position.ticker_size + order.ticker_size
+            if (
+                self.current_position is not None
+                and self.current_position.side == order.side
+            ):
+                total_ticker_size: float = (
+                    self.current_position.ticker_size + order.ticker_size
+                )
                 # Calculate Weighted Average Entry Price
                 new_entry_price = (
-                    (self.current_position.ticker_size / total_ticker_size) * self.current_position.entry_price +
-                    (order.ticker_size / total_ticker_size) * order.entry_price
-                )
+                    self.current_position.ticker_size / total_ticker_size
+                ) * self.current_position.entry_price + (
+                    order.ticker_size / total_ticker_size
+                ) * order.entry_price
                 self.current_position = PositionState(
                     side=self.current_position.side,
                     ticker_size=total_ticker_size,
@@ -604,53 +658,39 @@ class TradeManager:
                 # Dry run mode: Update internal position state but don't call API
                 self._update_position(order, buy_or_sell)
                 self.telegram_bot.send_text("[DRY_RUN]" + message)
-                self.trading_logger.info("[DRY_RUN] " + message.replace('\n', ' '))
+                self.trading_logger.info("[DRY_RUN] " + message.replace("\n", " "))
         except Exception as e:
             self.logger.error(
                 f"[TRADE_EXECUTION_ERROR] Trade: {buy_or_sell.name} | Error: {type(e).__name__}: {str(e)}"
             )
             raise Exception
         return
-    
+
+    def _clean_up_history(self, now: int) -> None:
+        # 1. Prune old signals (Memory & Logic Management)
+        with self.signal_history_lock:
+            while self.signal_history and (
+                now - self.signal_history[0][0] > self.history_window_ms
+            ):
+                self.signal_history.popleft()
+        return
+
     def _analyze_signals(self) -> TradeState:
         """
         Analyze signal history to determine the next trade action.
-        
+
         This method implements the core decision matrix:
         1. Pruning: Removes stale signals to keep the decision window relevant.
         2. Warm-up Check: Waits for history to fill (at least 9 minutes).
         3. Weighted Consensus: Calculates the 'conviction' of the crowd (-1.0 to 1.0).
         4. Multi-Window Analysis: Compares 1m 'Momentum' vs 10m 'Structure'.
         """
-        now: int = self.generate_timestamp()  # timestamp
-        
-        with self.signal_history_lock:
-            # 1. Prune old signals (Memory & Logic Management)
-            while self.signal_history and (now - self.signal_history[0][0] > self.history_window_ms):
-                self.signal_history.popleft()
-            
-            if not self.signal_history:
-                return TradeState.HOLD
-            
-            # 2. Warm-up Check (Data Sufficiency)
-            # Require at least 90% of the history window (9 minutes) to be filled
-            # before making any decisions. This prevents premature actions on cold starts.
-            oldest_signal_time = self.signal_history[0][0]
-            if (now - oldest_signal_time) < (self.history_window_ms * 0.95):
-                self.logger.debug(
-                    f"[WARMUP] Gathering data... {int((now - oldest_signal_time)/1000)}s / {int(self.history_window_ms/1000)}s"
-                )
-                return TradeState.HOLD
-            
-            # 3. Extract Windows
-            # Structural: The full 10m history.
-            # Momentum: The immediate 1m 'burst' window.
-            history = list(self.signal_history)
-        momentum_signals = [s for ts, s in history if (now - ts) <= self.momentum_window_ms]
-        structural_signals = [s for ts, s in history]
 
-        if len(structural_signals) < 300 or len(momentum_signals) < 35:
-            return TradeState.HOLD
+        """
+        ################
+        SUB-FUNCTIONS
+        ################
+        """
 
         def get_weighted_consensus(signals: list[TradeSignal]) -> float:
             """
@@ -669,35 +709,81 @@ class TradeManager:
 
             return net_weight / total_weight if total_weight > 0 else 0.0
 
+        """
+        ################
+        Implementations
+        ################
+        """
+        now: int = self.generate_timestamp()  # timestamp
+
+        with self.signal_history_lock:
+            self._clean_up_history(now)
+
+            if not self.signal_history:
+                return TradeState.HOLD
+
+            # 2. Warm-up Check (Data Sufficiency)
+            # Require at least 90% of the history window (9 minutes) to be filled
+            # before making any decisions. This prevents premature actions on cold starts.
+            oldest_signal_time = self.signal_history[0][0]
+            if (now - oldest_signal_time) < (self.history_window_ms * 0.95):
+                self.logger.debug(
+                    f"[WARMUP] Gathering data... {int((now - oldest_signal_time)/1000)}s / {int(self.history_window_ms/1000)}s"
+                )
+                return TradeState.HOLD
+
+            # 3. Extract Windows
+            # Structural: The full 10m history.
+            # Momentum: The immediate 1m 'burst' window.
+            history = list(self.signal_history)
+
+            # make the list of pools for momentum and structural signals
+            momentum_signals = [
+                s for ts, s in history if (now - ts) <= self.momentum_window_ms
+            ]
+            structural_signals = [s for ts, s in history]
+
+        # Minimum boundary
+        if len(structural_signals) < 300 or len(momentum_signals) < 35:
+            return TradeState.HOLD
+
         # 4. Calculate Metrics
         consensus_momentum = get_weighted_consensus(momentum_signals)
         consensus_structural = get_weighted_consensus(structural_signals)
         density_momentum = len(momentum_signals)
 
+        # 4-1. logging
         self.logger.debug(
             f"[WSDC_STATS] Momentum(1m): {consensus_momentum:+.2f} [D={density_momentum}] | "
             f"Structure(10m): {consensus_structural:+.2f} [H={len(history)}]"
         )
 
         with self.lock_current_position:
-            current_pos = self.current_position.copy() if self.current_position else None
+            current_pos = (
+                self.current_position.copy() if self.current_position else None
+            )
 
         # 5. Decision Logic
-        
+
         # --- 5a. REVERSE / NEW ENTRY LOGIC (High Conviction Bursts) ---
         # We only enter if we see a 'Burst' (Density > threshold).
         # This filters out stray signals that don't represent a collective move.
 
         # if density_momentum >= self.density_threshold:
         # BULLISH BURST: Momentum must agree with or create a strong trend.
-        if (consensus_momentum >= self.consensus_threshold) and (consensus_structural >= self.consensus_threshold):
+        # TODO: Need to deal with this part
+        if (consensus_momentum >= self.consensus_threshold) and (
+            consensus_structural >= self.consensus_threshold
+        ):
             if current_pos is None:
                 return TradeState.NEW_BUY
             if current_pos.side == Side.SELL:
                 return TradeState.REVERSE_BUY
-        
+
         # BEARISH BURST
-        if (consensus_momentum <= -self.consensus_threshold) and (consensus_structural <= -self.consensus_threshold):
+        if (consensus_momentum <= -self.consensus_threshold) and (
+            consensus_structural <= -self.consensus_threshold
+        ):
             if current_pos is None:
                 return TradeState.NEW_SELL
             if current_pos.side == Side.BUY:
@@ -709,14 +795,19 @@ class TradeManager:
         #
         # NOTE: Threshold set to 30 signals (Density) within the 1m window to
         # filter out the high-frequency noise.
+
         if current_pos is not None:
             # Long Exit: Momentum flips strongly OR Structural bias flips with history (min 10)
             if current_pos.side == Side.BUY:
-                if (consensus_momentum < -0.8) and (consensus_structural < -0.5):
+                if (consensus_momentum < -(self.exit_momentum_threshold)) and (
+                    consensus_structural < -(self.exit_structurual_threshold)
+                ):
                     return TradeState.EXIT
             # Short Exit: Momentum flips strongly OR Structural bias flips with history (min 10)
             elif current_pos.side == Side.SELL:
-                if (consensus_momentum > 0.8) and (consensus_structural > 0.5):
+                if (consensus_momentum > self.exit_momentum_threshold) and (
+                    consensus_structural > self.exit_structurual_threshold
+                ):
                     return TradeState.EXIT
                 return TradeState.HOLD
 
@@ -742,7 +833,9 @@ class TradeManager:
                     TradeState.EXIT,
                 ):
                     # Cooldown check
-                    if ((self.generate_timestamp() - self.last_trade_timestamp) < self.trade_cooldown_ms):
+                    if (
+                        self.generate_timestamp() - self.last_trade_timestamp
+                    ) < self.trade_cooldown_ms:
                         time.sleep(0.25)
                         continue
 
@@ -752,7 +845,9 @@ class TradeManager:
 
                     # Add dynamic cooldown for Panic Exits (Whipsaw protection)
                     if decision == TradeState.EXIT:
-                        self.logger.warning("[WHIPSAW_PROTECTION] Panic exit triggered! Extending cooldown to 10 minutes.")
+                        self.logger.warning(
+                            "[WHIPSAW_PROTECTION] Panic exit triggered! Extending cooldown to 10 minutes."
+                        )
                         self.trade_cooldown_ms = 600_000  # Pause for 10 full minutes
                     else:
                         self.trade_cooldown_ms = 300_000  # Standard 5 minute cooldown
@@ -760,7 +855,9 @@ class TradeManager:
                 time.sleep(0.25)
 
             except Exception as e:
-                self.logger.error(f"[TRADE_DECISION_ERROR] Failed | Error: {type(e).__name__}: {str(e)}")
+                self.logger.error(
+                    f"[TRADE_DECISION_ERROR] Failed | Error: {type(e).__name__}: {str(e)}"
+                )
         return
 
     def _get_signal(
@@ -789,7 +886,9 @@ class TradeManager:
         if isinstance(signal_data, Signal):
             return (
                 signal_data.signal
-                if self.verify_signal(signal_data=signal_data, timestamp_window=timestamp_window)
+                if self.verify_signal(
+                    signal_data=signal_data, timestamp_window=timestamp_window
+                )
                 else None
             )
         return None
@@ -813,19 +912,26 @@ class TradeManager:
         """
         while True:
             try:
-                signal: TradeSignal = self._get_signal(timestamp_window = timestamp_window,)
+                signal: TradeSignal = self._get_signal(
+                    timestamp_window=timestamp_window,
+                )
                 if isinstance(signal, TradeSignal) and signal != TradeSignal.HOLD:
                     with self.signal_history_lock:
                         self.signal_history.append((self.generate_timestamp(), signal))
-                        self.logger.debug(f"[SIGNAL_TRACK] Added signal: {signal.name} | Total History: {len(self.signal_history)}")
-                        
+                        self.logger.debug(
+                            f"[SIGNAL_TRACK] Added signal: {signal.name} | Total History: {len(self.signal_history)}"
+                        )
+
             except Exception as e:
-                self.logger.error(f"[SIGNAL_ERROR] Failed to fetch | Error: {type(e).__name__}: {str(e)}")
+                self.logger.error(
+                    f"[SIGNAL_ERROR] Failed to fetch | Error: {type(e).__name__}: {str(e)}"
+                )
         return None
 
-    '''
+    """
     - Execute Trade Utility Function
-    '''
+    """
+
     def _get_current_price(
         self,
     ) -> float | None:
@@ -843,7 +949,9 @@ class TradeManager:
         try:
             return self._get_mark_price().mark_price
         except Exception as e:
-            self.logger.critical(f"[PRICE_FETCH_ERROR] Mark price unavailable | Error: {type(e).__name__}: {str(e)}")
+            self.logger.critical(
+                f"[PRICE_FETCH_ERROR] Mark price unavailable | Error: {type(e).__name__}: {str(e)}"
+            )
             raise Exception
 
     def _get_target_prices(
@@ -908,20 +1016,22 @@ class TradeManager:
             # positions: list[Position] = self._get_open_orders()  # TODO: need to check with it.
             account_info: AccountInformation = self._get_account_info()
 
-            if (account_info.balance == account_info.available_balance):
+            if account_info.balance == account_info.available_balance:
                 return True
             return False
         except Exception as e:
-            self.logger.error(f"[TRADE_DECISION_CHECK_ERROR] Position check failed | Error: {type(e).__name__}: {str(e)}")
+            self.logger.error(
+                f"[TRADE_DECISION_CHECK_ERROR] Position check failed | Error: {type(e).__name__}: {str(e)}"
+            )
             return False
 
     def _get_trade_quote_amt(
         self,
     ) -> float:
-        '''
+        """
         ;func _get_trade_amount() -> float
             - return the amt of the money
-        '''
+        """
         return round(self._get_available_quote() * self.trade_weight, 2)
 
     def _get_trade_ticker_amt(
@@ -929,7 +1039,7 @@ class TradeManager:
         ticker_price: float,
     ) -> float | None:
         # ! need to be moved to the broker logic.
-        '''
+        """
         ;func calculate_btc_qty()
             - calculate the quantity of ticker quantity: default is BTC
                 - e.g., for BTC_USDT pair, the function is getting the BTC quantity.
@@ -960,17 +1070,21 @@ class TradeManager:
                 - e.g., 10% of the entire balance.
             - The current BTC price.
                 - from the broker
-        '''
+        """
         try:
             quote_trade_amt: float = self._get_trade_quote_amt()
-            return round((self.leverage * quote_trade_amt) / ticker_price, 3)  # we need the current
+            return round(
+                (self.leverage * quote_trade_amt) / ticker_price, 3
+            )  # we need the current
         except Exception as e:
-            self.logger.critical(f"[QUANTITY_CALC_ERROR] Ticker: {self.trade_pair.ticker} | Price: {ticker_price} | Error: {type(e).__name__}: {str(e)}")
+            self.logger.critical(
+                f"[QUANTITY_CALC_ERROR] Ticker: {self.trade_pair.ticker} | Price: {ticker_price} | Error: {type(e).__name__}: {str(e)}"
+            )
             raise
 
     def _get_available_quote(self) -> float | None:
         # ! generalization: need to be moved to the broker logic.
-        '''
+        """
         ;func get_available_quote():
             - Calculate the quantity of the quote quantity: default is USDT.
                 - e.g., for BTC_USDT pair, the function is getting the USDT quantity.
@@ -979,14 +1093,16 @@ class TradeManager:
 
         ;params float | None:
             - the amount of the quote
-        '''
+        """
         try:
             # TODO: get the available data.
             # What are we going to do here ? -> get the average from different source of data?
             account_info: AccountInformation = self._get_account_info()
             return round(account_info.available_balance, 4)
         except Exception as e:
-            self.logger.critical(f"[BALANCE_FETCH_ERROR] Quote: {self.trade_pair.quote} | Error: {type(e).__name__}: {str(e)}")
+            self.logger.critical(
+                f"[BALANCE_FETCH_ERROR] Quote: {self.trade_pair.quote} | Error: {type(e).__name__}: {str(e)}"
+            )
             raise
 
     def _fetch_with_retry(
@@ -1022,14 +1138,14 @@ class TradeManager:
         while True:
             try:
                 response = network_call()
-                
+
                 # Validate response against expected type
                 if isinstance(expected_type, type):
                     is_valid = isinstance(response, expected_type)
                 else:
                     # expected_type is a callable validation function
                     is_valid = expected_type(response)
-                
+
                 if is_valid:
                     if attempt > 0:
                         self.logger.info(
@@ -1037,7 +1153,7 @@ class TradeManager:
                             f"Response Type: {type(response).__name__}"
                         )
                     return response
-                
+
                 # Response received but invalid type
                 self.logger.warning(
                     f"[INVALID_RESPONSE] {call_name}() | Attempt: {attempt + 1} | "
@@ -1076,12 +1192,14 @@ class TradeManager:
             - Returns AccountInformation once successfully received
         """
         return self._fetch_with_retry(
-            network_call=lambda: self.binance_client.get_account_balance(asset=self.trade_pair.quote),
+            network_call=lambda: self.binance_client.get_account_balance(
+                asset=self.trade_pair.quote
+            ),
             expected_type=AccountInformation,
             call_name="_get_account_info",
             initial_delay=initial_delay,
         )
-    
+
     def _get_open_orders(
         self,
         initial_delay: float = 1.0,
@@ -1099,7 +1217,9 @@ class TradeManager:
             - Returns list of open orders once successfully received
         """
         return self._fetch_with_retry(
-            network_call=lambda: self.binance_client.get_open_orders(symbol=self.trade_pair),
+            network_call=lambda: self.binance_client.get_open_orders(
+                symbol=self.trade_pair
+            ),
             expected_type=list,
             call_name="_get_open_orders",
             initial_delay=initial_delay,
@@ -1122,7 +1242,9 @@ class TradeManager:
             - Returns MarkPrice once successfully received
         """
         return self._fetch_with_retry(
-            network_call=lambda: self.binance_client.get_mark_price(symbol=self.trade_pair),
+            network_call=lambda: self.binance_client.get_mark_price(
+                symbol=self.trade_pair
+            ),
             expected_type=MarkPrice,
             call_name="_get_mark_price",
             initial_delay=initial_delay,
@@ -1138,14 +1260,16 @@ if __name__ == "__main__":
     # User can manually call functions to test if they work.                                                           #
     ####################################################################################################################
     """
-    from src.brokers.binance.http_client import BinanceFutureHttpClient
-    from unittest.mock import MagicMock, patch
-    from dotenv import load_dotenv
     import os
+    from unittest.mock import MagicMock, patch
 
-    print("\n" + "="*80)
+    from dotenv import load_dotenv
+
+    from src.brokers.binance.http_client import BinanceFutureHttpClient
+
+    print("\n" + "=" * 80)
     print("BUILDING BinanceFutureHttpClient")
-    print("="*80 + "\n")
+    print("=" * 80 + "\n")
 
     load_dotenv()
 
@@ -1160,7 +1284,7 @@ if __name__ == "__main__":
     print("[1/8] Creating pipelines...")
     from src.pipeline.data_pipeline import DataPipeline
     from src.pipeline.signal_pipeline import SignalPipeline
-    
+
     data_pipeline = DataPipeline()
     signal_pipeline = SignalPipeline()
     print("     ✓ DataPipeline created")
@@ -1170,15 +1294,17 @@ if __name__ == "__main__":
     # 2. Create PipelineControllers
     # =========================================================================
     print("\n[2/8] Creating pipeline controllers...")
-    
-    signal_pipeline_controller = PipelineController(pipeline=signal_pipeline, name="TEST_SIGNAL_PC")
+
+    signal_pipeline_controller = PipelineController(
+        pipeline=signal_pipeline, name="TEST_SIGNAL_PC"
+    )
     print("     ✓ PipelineController[Signal] created")
 
     # =========================================================================
     # 3. Create ScoreMapper
     # =========================================================================
     print("\n[3/8] Creating score mapper...")
-    
+
     delta_mapper = ScoreMapper()
     print("\n✓ ScoreMapper created")
 
@@ -1186,7 +1312,7 @@ if __name__ == "__main__":
     # 4. Mock Telegram Bot (avoid env var dependency)
     # =========================================================================
     print("\n[4/8] Setting up telegram bot (mocked)...")
-    
+
     telegram_bot = MagicMock(spec=CustomTelegramBot)
     telegram_bot.send_text = MagicMock(return_value=None)
 
@@ -1202,8 +1328,8 @@ if __name__ == "__main__":
     # 6. Build TradeManager with patched start()
     # =========================================================================
     print("\n[6/8] Building TradeManager...\n")
-    
-    with patch.object(TradeManager, 'start', return_value=None):
+
+    with patch.object(TradeManager, "start", return_value=None):
         tm = TradeManager(
             signal_pipeline_controller=signal_pipeline_controller,
             http_interface=None,
@@ -1220,7 +1346,7 @@ if __name__ == "__main__":
         print(tm._get_account_info())
 
         print(tm._get_open_orders())
-        
+
         mark_price: MarkPrice = tm._get_mark_price()
         print(mark_price)
 
@@ -1263,7 +1389,7 @@ if __name__ == "__main__":
         # order trigger to the telegram bot
         # async def test_telegram_send_text(msg: str):
         #     await tm.telegram_bot.send_text(message)
-        
+
         # asyncio.run(test_telegram_send_text(message))
         tm.telegram_bot.send_text("사랑해")
 
