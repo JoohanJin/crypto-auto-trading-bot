@@ -162,7 +162,8 @@ class TradeManager:
 
         # Thresholds for decision making
         # Entry/Reverse requires 60 signals in 1m with 80% agreement.
-        self.consensus_threshold: float = 0.9  # TODO: Need to decide the value
+        # TODO: Need to decide the value
+        self.consensus_threshold: float = 0.9
         self.exit_momentum_threshold: float = self.consensus_threshold * 0.9
         self.exit_structurual_threshold: float = self.consensus_threshold * 0.6
 
