@@ -845,9 +845,7 @@ class TradeManager:
                     TradeState.EXIT,
                 ):
                     # Cooldown check
-                    if (
-                        self.generate_timestamp() - self.last_trade_timestamp
-                    ) < self.trade_cooldown_ms:
+                    if (self.generate_timestamp() - self.last_trade_timestamp) < self.trade_cooldown_ms:
                         time.sleep(0.25)
                         continue
 
@@ -898,9 +896,7 @@ class TradeManager:
         if isinstance(signal_data, Signal):
             return (
                 signal_data.signal
-                if self.verify_signal(
-                    signal_data=signal_data, timestamp_window=timestamp_window
-                )
+                if self.verify_signal(signal_data=signal_data, timestamp_window=timestamp_window)
                 else None
             )
         return None
