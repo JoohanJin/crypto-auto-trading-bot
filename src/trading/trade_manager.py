@@ -817,17 +817,19 @@ class TradeManager:
         if current_pos is not None:
             # Long Exit: Momentum flips strongly OR Structural bias flips with history (min 10)
             if current_pos.side == Side.BUY:
-                if (consensus_short_term < -(self.exit_short_term_consensus_threshold)) and (
-                    consensus_mid_term < -(self.exit_mid_term_threshold)) and (
-                    consensus_structural < -(self.exit_consensus_threshold)
-                ):
+                if (
+                    (consensus_short_term < -(self.exit_short_term_consensus_threshold)) +
+                    (consensus_mid_term < -(self.exit_mid_term_threshold)) +
+                    (consensus_structural < -(self.exit_consensus_threshold))
+                ) >= 2:
                     return TradeState.EXIT
             # Short Exit: Momentum flips strongly OR Structural bias flips with history (min 10)
             elif current_pos.side == Side.SELL:
-                if (consensus_short_term > self.exit_short_term_consensus_threshold) and (
-                    consensus_mid_term > self.exit_mid_term_threshold) and (
-                    consensus_structural > self.exit_consensus_threshold
-                ):
+                if (
+                    (consensus_short_term > self.exit_short_term_consensus_threshold) +
+                    (consensus_mid_term > self.exit_mid_term_threshold) +
+                    (consensus_structural > self.exit_consensus_threshold)
+                ) >= 2:
                     return TradeState.EXIT
 
         return TradeState.HOLD
