@@ -709,6 +709,21 @@ class TradeManager:
 
             return net_weight / total_weight if total_weight > 0 else 0.0
 
+        def is_buy() -> bool:
+            return (
+                (consensus_short_term >= self.consensus_threshold) and (
+                    consensus_mid_term >= self.consensus_threshold) and (
+                    consensus_structural >= self.consensus_threshold
+                )
+            )
+
+        def is_sell() -> bool:
+            return (
+                (consensus_short_term <= -self.consensus_threshold) and (
+                    consensus_mid_term <= -self.consensus_threshold) and (
+                    consensus_structural <= -self.consensus_threshold)
+            )
+
         """
         ################
         Implementations
@@ -755,6 +770,7 @@ class TradeManager:
             return TradeState.HOLD
 
         # 4. Calculate Metrics
+        # TODO: Change this to sliding windows for O(1) computation
         consensus_short_term: float = get_weighted_consensus(short_term_momentum_signals)
         consensus_mid_term: float = get_weighted_consensus(mid_term_momentum_signals)
         consensus_structural: float = get_weighted_consensus(structural_signals)
@@ -772,7 +788,6 @@ class TradeManager:
             )
 
         # 5. Decision Logic
-
         # --- 5a. REVERSE / NEW ENTRY LOGIC (High Conviction Bursts) ---
         # We only enter if we see a 'Burst' (Density > threshold).
         # This filters out stray signals that don't represent a collective move.
@@ -780,20 +795,14 @@ class TradeManager:
         # if density_momentum >= self.density_threshold:
         # BULLISH BURST: Momentum must agree with or create a strong trend.
         # TODO: Need to deal with this part
-        if (consensus_short_term >= self.consensus_threshold) and (
-            consensus_mid_term >= self.consensus_threshold) and (
-            consensus_structural >= self.consensus_threshold
-        ):
+        if is_buy():
             if current_pos is None:
                 return TradeState.NEW_BUY
             if current_pos.side == Side.SELL:
                 return TradeState.REVERSE_BUY
 
         # BEARISH BURST
-        if (consensus_short_term <= -self.consensus_threshold) and (
-            consensus_mid_term <= -self.consensus_threshold) and (
-            consensus_structural <= -self.consensus_threshold
-        ):
+        if is_sell():
             if current_pos is None:
                 return TradeState.NEW_SELL
             if current_pos.side == Side.BUY:
@@ -805,7 +814,6 @@ class TradeManager:
         #
         # NOTE: Threshold set to 30 signals (Density) within the 1m window to
         # filter out the high-frequency noise.
-
         if current_pos is not None:
             # Long Exit: Momentum flips strongly OR Structural bias flips with history (min 10)
             if current_pos.side == Side.BUY:
@@ -821,7 +829,6 @@ class TradeManager:
                     consensus_structural > self.exit_consensus_threshold
                 ):
                     return TradeState.EXIT
-                return TradeState.HOLD
 
         return TradeState.HOLD
 
@@ -849,8 +856,9 @@ class TradeManager:
                         time.sleep(0.25)
                         continue
 
-                    # Execute
+                    # Execute trade
                     self._execute_trade(buy_or_sell=decision)
+                    # update trade_ts for cooldown
                     self.last_trade_timestamp = self.generate_timestamp()
 
                     # Add dynamic cooldown for Panic Exits (Whipsaw protection)
