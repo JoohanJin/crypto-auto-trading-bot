@@ -709,35 +709,6 @@ class TradeManager:
 
             return net_weight / total_weight if total_weight > 0 else 0.0
 
-        def is_buy() -> bool:
-            return (
-                (consensus_short_term >= self.consensus_threshold) and (
-                    consensus_mid_term >= self.consensus_threshold) and (
-                    consensus_structural >= self.consensus_threshold
-                )
-            )
-
-        def is_sell() -> bool:
-            return (
-                (consensus_short_term <= -self.consensus_threshold) and (
-                    consensus_mid_term <= -self.consensus_threshold) and (
-                    consensus_structural <= -self.consensus_threshold)
-            )
-
-        def is_exit_from_buy() -> bool:
-            return (current_pos.side == Side.BUY) and (
-                (consensus_short_term < -(self.exit_short_term_consensus_threshold)) +
-                (consensus_mid_term < -(self.exit_mid_term_threshold)) +
-                (consensus_structural < -(self.exit_consensus_threshold))
-            ) >= 2
-
-        def is_exit_from_sell() -> bool:
-            return (current_pos.side == Side.SELL) and (
-                (consensus_short_term > self.exit_short_term_consensus_threshold) +
-                (consensus_mid_term > self.exit_mid_term_threshold) +
-                (consensus_structural > self.exit_consensus_threshold)
-            ) >= 2
-
         """
         ################
         Implementations
@@ -808,7 +779,21 @@ class TradeManager:
 
         # if density_momentum >= self.density_threshold:
         # BULLISH BURST: Momentum must agree with or create a strong trend.
-        # TODO: Need to deal with this part
+        def is_buy() -> bool:
+            return (
+                (consensus_short_term >= self.consensus_threshold) and (
+                    consensus_mid_term >= self.consensus_threshold) and (
+                    consensus_structural >= self.consensus_threshold
+                )
+            )
+
+        def is_sell() -> bool:
+            return (
+                (consensus_short_term <= -self.consensus_threshold) and (
+                    consensus_mid_term <= -self.consensus_threshold) and (
+                    consensus_structural <= -self.consensus_threshold)
+            )
+
         if is_buy():
             if current_pos is None:
                 return TradeState.NEW_BUY
@@ -828,6 +813,20 @@ class TradeManager:
         #
         # NOTE: Threshold set to 30 signals (Density) within the 1m window to
         # filter out the high-frequency noise.
+        def is_exit_from_buy() -> bool:
+            return (current_pos.side == Side.BUY) and (
+                (consensus_short_term < -(self.exit_short_term_consensus_threshold)) +
+                (consensus_mid_term < -(self.exit_mid_term_threshold)) +
+                (consensus_structural < -(self.exit_consensus_threshold))
+            ) >= 2
+
+        def is_exit_from_sell() -> bool:
+            return (current_pos.side == Side.SELL) and (
+                (consensus_short_term > self.exit_short_term_consensus_threshold) +
+                (consensus_mid_term > self.exit_mid_term_threshold) +
+                (consensus_structural > self.exit_consensus_threshold)
+            ) >= 2
+
         if current_pos is not None:
             # Long Exit: Momentum flips strongly OR Structural bias flips with history (min 10)
             # Short Exit: Momentum flips strongly OR Structural bias flips with history (min 10)
