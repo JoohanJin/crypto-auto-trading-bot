@@ -157,7 +157,7 @@ class TradeManager:
             deque()
         )  # (timestamp, TradeSignal)
         self.signal_history_lock: threading.Lock = threading.Lock()
-        self.history_window_ms: int = 600_000  # 10 minutes (structural backbone)
+        self.history_window_ms: int = 900_000  # 15 minutes (structural backbone)
         self.mid_term_window_ms: int = self.history_window_ms * 0.5
         self.short_term_window_ms: int = self.history_window_ms * 0.2
 
@@ -165,9 +165,9 @@ class TradeManager:
         # Entry/Reverse requires 60 signals in 1m with 80% agreement.
         # TODO: Need to decide the value
         self.consensus_threshold: float = 0.8
-        self.exit_consensus_threshold: float = self.consensus_threshold * 0.9
+        self.exit_consensus_threshold: float = self.consensus_threshold * 0.5
         self.exit_mid_term_threshold: float = self.consensus_threshold * 0.7
-        self.exit_short_term_consensus_threshold: float = self.consensus_threshold * 0.5
+        self.exit_short_term_consensus_threshold: float = self.consensus_threshold * 0.9
 
         self.density_threshold: int = 50
         self.trade_cooldown_ms: int = 300_000  # 5 minutes minimum between trades
@@ -724,6 +724,20 @@ class TradeManager:
                     consensus_structural <= -self.consensus_threshold)
             )
 
+        def is_exit_from_buy() -> bool:
+            return (current_pos.side == Side.BUY) and (
+                (consensus_short_term < -(self.exit_short_term_consensus_threshold)) +
+                (consensus_mid_term < -(self.exit_mid_term_threshold)) +
+                (consensus_structural < -(self.exit_consensus_threshold))
+            ) >= 2
+
+        def is_exit_from_sell() -> bool:
+            return (current_pos.side == Side.SELL) and (
+                (consensus_short_term > self.exit_short_term_consensus_threshold) +
+                (consensus_mid_term > self.exit_mid_term_threshold) +
+                (consensus_structural > self.exit_consensus_threshold)
+            ) >= 2
+
         """
         ################
         Implementations
@@ -816,21 +830,9 @@ class TradeManager:
         # filter out the high-frequency noise.
         if current_pos is not None:
             # Long Exit: Momentum flips strongly OR Structural bias flips with history (min 10)
-            if current_pos.side == Side.BUY:
-                if (
-                    (consensus_short_term < -(self.exit_short_term_consensus_threshold)) +
-                    (consensus_mid_term < -(self.exit_mid_term_threshold)) +
-                    (consensus_structural < -(self.exit_consensus_threshold))
-                ) >= 2:
-                    return TradeState.EXIT
             # Short Exit: Momentum flips strongly OR Structural bias flips with history (min 10)
-            elif current_pos.side == Side.SELL:
-                if (
-                    (consensus_short_term > self.exit_short_term_consensus_threshold) +
-                    (consensus_mid_term > self.exit_mid_term_threshold) +
-                    (consensus_structural > self.exit_consensus_threshold)
-                ) >= 2:
-                    return TradeState.EXIT
+            if is_exit_from_buy() or is_exit_from_sell():
+                return TradeState.EXIT
 
         return TradeState.HOLD
 
@@ -868,9 +870,9 @@ class TradeManager:
                         self.logger.warning(
                             "[WHIPSAW_PROTECTION] Panic exit triggered! Extending cooldown to 10 minutes."
                         )
-                        self.trade_cooldown_ms = 600_000  # Pause for 10 full minutes
+                        self.trade_cooldown_ms = self.history_window_ms * 0.5  # Pause for 10 full minutes
                     else:
-                        self.trade_cooldown_ms = 300_000  # Standard 5 minute cooldown
+                        self.trade_cooldown_ms = 0  # Standard 5 minute cooldown
 
                 time.sleep(0.25)
 
