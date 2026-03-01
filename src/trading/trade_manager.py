@@ -668,7 +668,7 @@ class TradeManager:
             raise Exception
         return
 
-    def _clean_up_history(self, now: int) -> None:
+    def _prune_history(self, now: int) -> None:
         # 1. Prune old signals (Memory & Logic Management)
         with self.signal_history_lock:
             while self.signal_history and (
@@ -718,7 +718,7 @@ class TradeManager:
         """
         now: int = self.generate_timestamp()  # timestamp
 
-        self._clean_up_history(now)
+        self._prune_history(now)
 
         with self.signal_history_lock:
             if not self.signal_history:
