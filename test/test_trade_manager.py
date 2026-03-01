@@ -4,17 +4,16 @@ TradeManager Unit Tests (WSDC Logic)
 Tests for the core trading logic in TradeManager using the Weighted Signal Density & Consensus model.
 Mocks external dependencies (Binance API, Telegram, pipelines) to test logic in isolation.
 """
-import unittest
 import time
+import unittest
 from unittest.mock import MagicMock, patch
 
-# Core Models
-from src.core.models.trade import TradePair, TradeState, PositionState
 from src.core.models.order import Order, Side
-from src.core.models.signal import Signal, TradeSignal
 from src.core.models.score_mapping import ScoreMapper
-from src.core.models.service_dto import MarkPrice, AccountInformation
-
+from src.core.models.service_dto import AccountInformation, MarkPrice
+from src.core.models.signal import Signal, TradeSignal
+# Core Models
+from src.core.models.trade import PositionState, TradePair, TradeState
 # System Under Test
 from src.trading.trade_manager import TradeManager
 
@@ -109,7 +108,7 @@ class TestAnalyzeSignals(unittest.TestCase):
         """Density >= 60 and Consensus >= 0.8 → NEW_BUY"""
         # Inject old signal to satisfy warmup (9.5 mins ago)
         self._inject_signals([TradeSignal.HOLD], offset_ms=570_000)
-        
+
         # Inject 60 LONG_TERM_BUY signals (Density 60)
         self._inject_signals([TradeSignal.LONG_TERM_BUY] * 60)
         result = self.tm._analyze_signals()
@@ -144,15 +143,15 @@ class TestAnalyzeSignals(unittest.TestCase):
         pos = _make_position(side=Side.BUY)
         with self.tm.lock_current_position:
             self.tm.current_position = pos
-        
+
         # Warmup & Structural bullish bias
         self._inject_signals([TradeSignal.LONG_TERM_BUY] * 30, offset_ms=570_000)
-        
+
         # Inject 60 bearish signals (Density 60 met)
         # Consensus around -0.6 (meets EXIT > -0.5, but fails REVERSE > -0.8)
         # 48 SELL (weight -96), 12 BUY (weight +24) -> Net -72, Total 120 -> Consensus -0.6
         self._inject_signals([TradeSignal.SHORT_TERM_SELL] * 48 + [TradeSignal.SHORT_TERM_BUY] * 12)
-        
+
         result = self.tm._analyze_signals()
         self.assertEqual(result, TradeState.EXIT)
 
@@ -161,13 +160,13 @@ class TestAnalyzeSignals(unittest.TestCase):
         pos = _make_position(side=Side.SELL)
         with self.tm.lock_current_position:
             self.tm.current_position = pos
-            
+
         self._inject_signals([TradeSignal.LONG_TERM_SELL] * 30, offset_ms=570_000)
-        
+
         # Inject 60 signals, consensus ~ +0.6
         # 48 BUY (weight +96), 12 SELL (weight -24) -> Net 72, Total 120 -> Consensus 0.6
         self._inject_signals([TradeSignal.SHORT_TERM_BUY] * 48 + [TradeSignal.SHORT_TERM_SELL] * 12)
-        
+
         result = self.tm._analyze_signals()
         self.assertEqual(result, TradeState.EXIT)
 
@@ -178,7 +177,7 @@ class TestAnalyzeSignals(unittest.TestCase):
         pos = _make_position(side=Side.BUY)
         with self.tm.lock_current_position:
             self.tm.current_position = pos
-            
+
         self._inject_signals([TradeSignal.HOLD], offset_ms=570_000)  # Warmup
         # 60 strong sell signals (triggers burst)
         self._inject_signals([TradeSignal.LONG_TERM_SELL] * 60)
@@ -190,7 +189,7 @@ class TestAnalyzeSignals(unittest.TestCase):
     def test_stale_signals_are_pruned(self):
         """Signals older than 10m are ignored."""
         # Inject signals 11 minutes ago
-        self._inject_signals([TradeSignal.LONG_TERM_BUY] * 50, offset_ms=660_000)
+        self._inject_signals([TradeSignal.LONG_TERM_BUY] * 50, offset_ms=self.tm.history_window_ms + 60_000)
         result = self.tm._analyze_signals()
         self.assertEqual(result, TradeState.HOLD)  # Also HOLD because history is empty after pruning
         self.assertEqual(len(self.tm.signal_history), 0)
@@ -249,7 +248,7 @@ class TestVerifySignal(unittest.TestCase):
         # we mock TradeManager.generate_timestamp to pretend it's the future.
         signal = Signal(signal=TradeSignal.SHORT_TERM_BUY)
         future_time = signal.timestamp + 10_000
-        
+
         with patch.object(self.tm, 'generate_timestamp', return_value=future_time):
             self.assertFalse(self.tm.verify_signal(signal, timestamp_window=5_000))
 
@@ -257,7 +256,7 @@ class TestVerifySignal(unittest.TestCase):
         """Custom timestamp window is respected."""
         signal = Signal(signal=TradeSignal.SHORT_TERM_BUY)
         future_time = signal.timestamp + 3_000
-        
+
         with patch.object(self.tm, 'generate_timestamp', return_value=future_time):
             self.assertTrue(self.tm.verify_signal(signal, timestamp_window=5_000))
             self.assertFalse(self.tm.verify_signal(signal, timestamp_window=2_000))
