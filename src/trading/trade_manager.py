@@ -103,6 +103,12 @@ class TradeManager:
         history_window_ms: int = 600_000,
         min_history_density: int = 350,
         min_short_term_density: int = 70,
+        consensus_short_term_threshold: float = 0.9,
+        consensus_mid_term_threshold: float = 0.65,
+        consensus_threshold: float = 0.45,
+        exit_short_term_consensus_threshold: float = 0.85,
+        exit_mid_term_consensus_threshold: float = 0.70,
+        exit_consensus_threshold: float = 0.50,
     ) -> None:
         """
         func __init__():
@@ -115,6 +121,18 @@ class TradeManager:
             get_logger(__name__, "trading"), f"{self.__class__.__name__}_{self.name}"
         )
 
+        # --- Entry thresholds (require all 3 windows) ---
+        # TODO: need to test the correct value with back-testing facilities
+        # Loosened to avoid entering too late after the move is already underway.
+        self.consensus_short_term_threshold: float = consensus_short_term_threshold
+        self.consensus_mid_term_threshold: float = consensus_mid_term_threshold
+        self.consensus_threshold: float = consensus_threshold  # structural: just needs directional agreement
+
+        # --- Exit thresholds (require all 3 windows) ---
+        # Tightened so normal retracements don't trigger panic exits.
+        self.exit_short_term_consensus_threshold: float = exit_short_term_consensus_threshold
+        self.exit_mid_term_threshold: float = exit_mid_term_consensus_threshold
+        self.exit_consensus_threshold: float = exit_consensus_threshold
         """
         # TODO: Need to keep the record of the previous order.
         # TODO: Keep checking where that order is still alive or not.
@@ -165,19 +183,6 @@ class TradeManager:
         self.short_term_window_ms: int = self.history_window_ms // 5  # 2 minutes
         self.min_history_density: int = min_history_density
         self.min_short_term_density: int = min_short_term_density
-
-        # --- Entry thresholds (require all 3 windows) ---
-        # TODO: need to test the correct value with back-testing facilities
-        # Loosened to avoid entering too late after the move is already underway.
-        self.consensus_short_term_threshold: float = 0.90
-        self.consensus_mid_term_threshold: float = 0.65
-        self.consensus_threshold: float = 0.45  # structural: just needs directional agreement
-
-        # --- Exit thresholds (require all 3 windows) ---
-        # Tightened so normal retracements don't trigger panic exits.
-        self.exit_short_term_consensus_threshold: float = 0.85
-        self.exit_mid_term_threshold: float = 0.70
-        self.exit_consensus_threshold: float = 0.50
 
         # Set the thread pool as a member function.
         self.threads: list[threading.Thread] = []
@@ -819,9 +824,9 @@ class TradeManager:
 
         if current_pos is None:  # NEW Order
             if is_buy():
-                return TradeState.BUY
+                return TradeState.NEW_BUY
             elif is_sell():
-                return TradeState.SELL
+                return TradeState.NEW_SELL
             return TradeState.HOLD
         else:  # current_pos is not None — EXIT or REVERSE
             if is_reversal_buy():  # stronger condition than exit condition: opposite position + buy signal

@@ -1,0 +1,64 @@
+2026-03-03 00:38:38,234 - INFO - OperationLogger - [SERVICE_INIT] OperationLogger initialized
+2026-03-03 00:38:38,234 - INFO - TradingLogger - [SERVICE_INIT] TradingLogger initialized
+[BACKTEST] Time and Sleep have been successfully mocked.
+
+==================================================
+INITIALIZING BACKTEST: OHLC
+==================================================
+
+1970-01-01 08:00:00,000 - INFO - OperationLogger.src.pipeline.data_pipeline - [DataPipeline_DATA_PIPELINE] [COMPONENT_INIT] DATA_PIPELINE | Status: active
+1970-01-01 08:00:00,000 - INFO - OperationLogger.src.pipeline.signal_pipeline - [SignalPipeline_SIGNAL_PIPELINE] [COMPONENT_INIT] SIGNAL_PIPELINE | Status: active
+1970-01-01 08:00:00,000 - INFO - OperationLogger.src.interfaces.pipeline_interface - [PipelineController_PIPELINE_CONTROLLER] [SERVICE_INIT] PIPELINE_CONTROLLER initialized
+1970-01-01 08:00:00,000 - INFO - OperationLogger.src.interfaces.pipeline_interface - [PipelineController_PIPELINE_CONTROLLER] [SERVICE_INIT] PIPELINE_CONTROLLER initialized
+1970-01-01 08:00:00,000 - INFO - OperationLogger.src.data.data_manager - [DataManager_BACKTEST_DATA_MANAGER] [THREAD_START] resize_df | Status: running
+1970-01-01 08:00:00,000 - INFO - OperationLogger.src.data.data_manager - [DataManager_BACKTEST_DATA_MANAGER] [THREAD_START] resize_df | Status: running
+1970-01-01 08:00:00,000 - INFO - OperationLogger.src.data.data_collector - [DataCollector_DATA_COLLECTOR] [THREAD_START] price_data_fetch | Status: running
+1970-01-01 08:00:00,000 - INFO - OperationLogger.src.data.data_collector - [DataCollector_DATA_COLLECTOR] [THREAD_START] price_data_fetch | Status: running
+1970-01-01 08:00:00,000 - INFO - OperationLogger.src.data.data_processor - [DataProcessor_DATA_PROCESSOR] [THREAD_START] index_thread | Status: running
+1970-01-01 08:00:00,000 - INFO - OperationLogger.src.data.data_processor - [DataProcessor_DATA_PROCESSOR] [THREAD_START] index_thread | Status: running
+1970-01-01 08:00:00,000 - INFO - OperationLogger.src.data.data_processor - [DataProcessor_DATA_PROCESSOR] [DATA_INIT] DATA_PROCESSOR | Status: ready
+1970-01-01 08:00:00,000 - INFO - OperationLogger.src.data.data_manager - [DataManager_BACKTEST_DATA_MANAGER] [DATA_INIT] BACKTEST_DATA_MANAGER | Status: ready
+1970-01-01 08:00:00,000 - INFO - OperationLogger.src.strategy.strategy_fetcher - [StrategyFetcher_STRATEGY_FETCHER] [STRATEGY_LOAD] Count: 14 | Source: config/strategies.json
+1970-01-01 08:00:00,000 - INFO - OperationLogger.src.strategy.strategy_manager - [StrategyManager_STRATEGY_MANAGER] [THREAD_START] golden_cross_signal_generator | Status: ready
+1970-01-01 08:00:00,000 - INFO - OperationLogger.src.strategy.strategy_manager - [StrategyManager_STRATEGY_MANAGER] [THREAD_START] death_cross_signal_generator | Status: ready
+1970-01-01 08:00:00,000 - INFO - OperationLogger.src.strategy.strategy_manager - [StrategyManager_STRATEGY_MANAGER] [THREAD_START] ema_trend_follow_signal_generator | Status: ready
+1970-01-01 08:00:00,000 - INFO - OperationLogger.src.strategy.strategy_manager - [StrategyManager_STRATEGY_MANAGER] [THREAD_START] ema_trend_follow_sell_signal_generator | Status: ready
+1970-01-01 08:00:00,000 - INFO - OperationLogger.src.strategy.strategy_manager - [StrategyManager_STRATEGY_MANAGER] [THREAD_START] price_moving_average_buy_signal_generator | Status: ready
+1970-01-01 08:00:00,000 - INFO - OperationLogger.src.strategy.strategy_manager - [StrategyManager_STRATEGY_MANAGER] [THREAD_START] price_moving_average_sell_signal_generator | Status: ready
+1970-01-01 08:00:00,000 - INFO - OperationLogger.src.strategy.strategy_manager - [StrategyManager_STRATEGY_MANAGER] [THREAD_START] ema_sma_divergence_signal_generator | Status: ready
+1970-01-01 08:00:00,000 - INFO - OperationLogger.src.strategy.strategy_manager - [StrategyManager_STRATEGY_MANAGER] [THREAD_START] StrategyManager_StatusLogger | Status: ready
+1970-01-01 08:00:00,000 - INFO - OperationLogger.src.strategy.strategy_manager - [THREAD_START] golden_cross_signal_generator | Status: running
+1970-01-01 08:00:00,000 - INFO - OperationLogger.src.strategy.strategy_manager - [THREAD_START] death_cross_signal_generator | Status: running
+1970-01-01 08:00:00,000 - INFO - OperationLogger.src.strategy.strategy_manager - [THREAD_START] ema_trend_follow_signal_generator | Status: running
+1970-01-01 08:00:00,000 - INFO - OperationLogger.src.strategy.strategy_manager - [THREAD_START] ema_trend_follow_sell_signal_generator | Status: running
+1970-01-01 08:00:00,000 - INFO - OperationLogger.src.strategy.strategy_manager - [THREAD_START] price_moving_average_buy_signal_generator | Status: running
+1970-01-01 08:00:00,000 - INFO - OperationLogger.src.strategy.strategy_manager - [THREAD_START] price_moving_average_sell_signal_generator | Status: running
+1970-01-01 08:00:00,000 - INFO - OperationLogger.src.strategy.strategy_manager - [THREAD_START] ema_sma_divergence_signal_generator | Status: running
+1970-01-01 08:00:00,000 - INFO - OperationLogger.src.strategy.strategy_manager - [THREAD_START] StrategyManager_StatusLogger | Status: running
+1970-01-01 08:00:00,000 - INFO - OperationLogger.src.strategy.strategy_manager - [StrategyManager_STRATEGY_MANAGER] [STRATEGY_INIT] STRATEGY_MANAGER | Global Period: 0.75 s| Status: ready
+1970-01-01 08:00:00,000 - INFO - OperationLogger.src.trading.signal_generator - [SignalGenerator_BACKTEST_SIGNAL_GEN] [THREAD_START] index_data_getter | Status: ready
+1970-01-01 08:00:00,000 - INFO - OperationLogger.src.trading.signal_generator - [SignalGenerator_BACKTEST_SIGNAL_GEN] [THREAD_START] status_logger | Status: ready
+1970-01-01 08:00:00,000 - INFO - OperationLogger.src.trading.signal_generator - [SignalGenerator_BACKTEST_SIGNAL_GEN] [THREAD_START] index_data_getter | Status: running
+1970-01-01 08:00:00,000 - INFO - OperationLogger.src.trading.signal_generator - [SignalGenerator_BACKTEST_SIGNAL_GEN] [THREAD_START] status_logger | Status: running
+1970-01-01 08:00:00,000 - INFO - OperationLogger.src.trading.signal_generator - [SignalGenerator_BACKTEST_SIGNAL_GEN] [COMPONENT_INIT] BACKTEST_SIGNAL_GEN | Status: ready
+1970-01-01 08:00:00,000 - INFO - OperationLogger.src.trading.trade_manager - [TradeManager_BACKTEST_TRADE_MANAGER] [THREAD_START] Thread-Get-Signal | Status: running
+1970-01-01 08:00:00,000 - INFO - OperationLogger.src.trading.trade_manager - [TradeManager_BACKTEST_TRADE_MANAGER] [THREAD_START] Thread-Decide-Trade | Status: running
+1970-01-01 08:00:00,000 - INFO - OperationLogger.src.trading.trade_manager - [TradeManager_BACKTEST_TRADE_MANAGER] [THREAD_START] Thread-Log-Status | Status: running
+1970-01-01 08:00:00,000 - INFO - OperationLogger.src.trading.trade_manager - [TradeManager_BACKTEST_TRADE_MANAGER] [INIT_COMPLETE] Ready | Pair: BTC/USDT | Leverage: 10 | Window: 120000ms
+
+[RUNNING] Pumping data...
+2020-09-13 20:26:42,000 - INFO - OperationLogger.src.data.data_manager - [DataManager_BACKTEST_DATA_MANAGER] [DATA_CLEANUP] Action: skipped | Rows: 2 | All within 1h retention window
+2020-09-13 20:31:46,000 - INFO - OperationLogger.src.data.data_manager - [DataManager_BACKTEST_DATA_MANAGER] [DATA_CLEANUP] Action: skipped | Rows: 305 | All within 1h retention window
+2020-09-13 20:32:44,000 - INFO - TradingLogger.src.trading.trade_manager - [TradeManager_BACKTEST_TRADE_MANAGER] Trade Signal: SELL Entry Price: 65565.1 Amount: 1500.0 USDT or 0.229 BTC It is a NEW order.
+2020-09-13 20:36:47,000 - INFO - OperationLogger.src.data.data_manager - [DataManager_BACKTEST_DATA_MANAGER] [DATA_CLEANUP] Action: skipped | Rows: 606 | All within 1h retention window
+2020-09-13 20:39:11,000 - INFO - TradingLogger.src.trading.trade_manager - [TradeManager_BACKTEST_TRADE_MANAGER] Trade Signal: BUY Entry Price: 67061.5 Amount: 2773.66 USDT or 0.419 BTC It is a REVERSE order.
+2020-09-13 20:41:48,000 - INFO - OperationLogger.src.data.data_manager - [DataManager_BACKTEST_DATA_MANAGER] [DATA_CLEANUP] Action: skipped | Rows: 907 | All within 1h retention window
+2020-09-13 20:44:45,000 - INFO - TradingLogger.src.trading.trade_manager - [TradeManager_BACKTEST_TRADE_MANAGER] Trade Signal: SELL Entry Price: 65793.3 Amount: 2584.44 USDT or 0.389 BTC It is a REVERSE order.
+DataLoader finished. Processed 288 15m intervals.
+[FINISHED] Processed 3 files in 1600001152.00 seconds.
+
+==================================================
+BACKTEST PERFORMANCE REPORT
+==================================================
+Initial Balance:  $10,000.00
+Final Balance:    $9,965.65

@@ -36,6 +36,10 @@ def _make_trade_manager(**overrides) -> TradeManager:
         stop_loss_rate=0.2,
         trade_cooldown_ms=300_000,  # 5 min default
         name="TEST",
+        # Lower density thresholds for unit tests — production uses 350/70,
+        # but tests inject ~60 signals so these must be ≤ 60.
+        min_history_density=60,
+        min_short_term_density=60,
     )
     defaults.update(overrides)
     with patch.object(TradeManager, "start", return_value=None):
@@ -140,33 +144,35 @@ class TestAnalyzeSignals(unittest.TestCase):
     # --- EXIT tests ---
 
     def test_long_exit_on_momentum_flip(self):
-        """LONG position + momentum turns bearish → EXIT"""
+        """LONG position + all 3 windows flip bearish (but not strongly enough for reversal) → EXIT"""
         pos = _make_position(side=Side.BUY)
         with self.tm.lock_current_position:
             self.tm.current_position = pos
 
-        # Warmup & Structural bullish bias
-        self._inject_signals([TradeSignal.LONG_TERM_BUY] * 30, offset_ms=570_000)
+        # Structural: 50 LONG_TERM_SELL at 570,000ms ago (outside mid/short windows)
+        self._inject_signals([TradeSignal.LONG_TERM_SELL] * 50, offset_ms=570_000)
 
-        # Inject 60 bearish signals (Density 60 met)
-        # Consensus around -0.6 (meets EXIT > -0.5, but fails REVERSE > -0.8)
-        # 48 SELL (weight -96), 12 BUY (weight +24) -> Net -72, Total 120 -> Consensus -0.6
-        self._inject_signals([TradeSignal.SHORT_TERM_SELL] * 48 + [TradeSignal.SHORT_TERM_BUY] * 12)
+        # Recent: 56 SELL + 4 BUY = 60 signals → consensus = (4-56)/60 = -0.867
+        # This is < -0.85 (exit threshold) but > -0.90 (reversal threshold), so:
+        #   exit_from_buy() → True   (all 3 windows < exit thresholds)
+        #   is_sell/reversal  → False (short_term -0.867 > -0.90, blocks reversal)
+        self._inject_signals([TradeSignal.LONG_TERM_SELL] * 56 + [TradeSignal.LONG_TERM_BUY] * 4)
 
         result = self.tm._analyze_signals()
         self.assertEqual(result, TradeState.EXIT)
 
     def test_short_exit_on_momentum_flip(self):
-        """SHORT position + momentum turns bullish → EXIT"""
+        """SHORT position + all 3 windows flip bullish (but not strongly enough for reversal) → EXIT"""
         pos = _make_position(side=Side.SELL)
         with self.tm.lock_current_position:
             self.tm.current_position = pos
 
-        self._inject_signals([TradeSignal.LONG_TERM_SELL] * 30, offset_ms=570_000)
+        # Structural: 50 LONG_TERM_BUY at 570,000ms ago (outside mid/short windows)
+        self._inject_signals([TradeSignal.LONG_TERM_BUY] * 50, offset_ms=570_000)
 
-        # Inject 60 signals, consensus ~ +0.6
-        # 48 BUY (weight +96), 12 SELL (weight -24) -> Net 72, Total 120 -> Consensus 0.6
-        self._inject_signals([TradeSignal.SHORT_TERM_BUY] * 48 + [TradeSignal.SHORT_TERM_SELL] * 12)
+        # Recent: 56 BUY + 4 SELL = 60 signals → consensus = (56-4)/60 = +0.867
+        # +0.867 > +0.85 (exit threshold) but < +0.90 (reversal threshold)
+        self._inject_signals([TradeSignal.LONG_TERM_BUY] * 56 + [TradeSignal.LONG_TERM_SELL] * 4)
 
         result = self.tm._analyze_signals()
         self.assertEqual(result, TradeState.EXIT)

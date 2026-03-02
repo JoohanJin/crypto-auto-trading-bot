@@ -83,7 +83,7 @@ class SignalGenerator:
         
         # data pipeline to get the indicators
         self.data_pipeline_controller: PipelineController[dict[str, int | IndexType, dict[int, float]]] = data_pipeline_controller
-        self.signal_pipeline_controller: PipelineController[dict[str, int | object.TradeSignal]] = signal_pipeline_controller
+        self.signal_pipeline_controller: PipelineController[dict[str, int | TradeSignal]] = signal_pipeline_controller
 
         # telegram bot manager to send the notification.
         self.__telegram_bot: CustomTelegramBot = custom_telegram_bot

@@ -33,14 +33,15 @@ class MockBinanceFutureHttpClient:
 
     def get_account_balance(self, asset: str = "USDT") -> AccountInformation:
         """Mock implementation of get_account_balance."""
+        from src.backtesting.time_manager import MockTimeManager
         return AccountInformation(
+            timestamp=MockTimeManager.generate_timestamp(),
+            source="BACKTEST_MOCK",
+            id="BACKTEST_ID",
             asset=asset,
             balance=self.balance,
-            cross_wallet_balance=self.balance,
-            cross_un_pnl=0.0,  # Could be calculated dynamically based on open positions and current_mark_price
+            unrealized_pnl=0.0,
             available_balance=self.available_balance,
-            max_withdraw_amount=self.available_balance,
-            margin_available=True
         )
 
     def get_open_orders(self, symbol: TradePair) -> list[Position]:
@@ -50,15 +51,12 @@ class MockBinanceFutureHttpClient:
 
     def get_mark_price(self, symbol: TradePair) -> MarkPrice:
         """Mock implementation of get_mark_price."""
+        from src.backtesting.time_manager import MockTimeManager
         return MarkPrice(
-            symbol=symbol.ticker + symbol.quote,
-            mark_price=self.current_mark_price,
-            index_price=self.current_mark_price,
-            estimated_settle_price=self.current_mark_price,
-            last_funding_rate=0.0,
-            next_funding_time=0,
-            interest_rate=0.0,
-            time=0
+            timestamp=MockTimeManager.generate_timestamp(),
+            source="BACKTEST_MOCK",
+            ticker=symbol,
+            mark_price=self.current_mark_price
         )
 
     def order(self, order: Order) -> dict:
@@ -99,14 +97,35 @@ class MockBinanceFutureHttpClient:
             self.logger.info(f"[MOCK_EXECUTION] EXIT. PnL: {pnl_amount:.2f}, Fee: {fee:.2f}, New Balance: {self.balance:.2f}")
             self.trade_history.append({"type": "EXIT", "pnl": pnl_amount, "fee": fee, "balance": self.balance})
 
-        else:
-            # We are opening a new position (or reversing into a new one)
-            # Deduct the fee from balance
-            self.balance -= fee
+        elif is_reverse:
+            # REVERSE = atomically close old position + open new base position.
+            # Order notional is 2x (old_size + new_size). We need to:
+            #   1. Return the old position's margin to available_balance
+            #   2. Charge fee on full 2x notional
+            #   3. Deduct the new (base) position's margin
+            base_ticker = order.meta_data.get("base_ticker_size", order.ticker_size / 2)
+            old_ticker = order.ticker_size - base_ticker
+            old_margin = old_ticker * order.entry_price / order.leverage
+            new_margin = base_ticker * order.entry_price / order.leverage
 
-            # Deduct the margin used from available balance
+            self.balance -= fee
+            self.available_balance += old_margin   # release old margin
+            self.available_balance -= new_margin   # lock new margin
+            self.available_balance -= fee
+
+            self.logger.info(
+                f"[MOCK_EXECUTION] REVERSE ({order.side_str}). "
+                f"Old Margin Released: {old_margin:.2f}, New Margin: {new_margin:.2f}, "
+                f"Fee: {fee:.2f}, Balance: {self.balance:.2f}"
+            )
+            self.trade_history.append({"type": "REVERSE", "side": order.side_str, "fee": fee, "balance": self.balance})
+
+        else:
+            # NEW position: deduct fee + margin
             margin_used = notional_size / order.leverage
+            self.balance -= fee
             self.available_balance -= margin_used
+            self.available_balance -= fee
 
             self.logger.info(f"[MOCK_EXECUTION] ENTRY ({order.side_str}). Margin Used: {margin_used:.2f}, Fee: {fee:.2f}, Balance: {self.balance:.2f}")
             self.trade_history.append({"type": "ENTRY", "side": order.side_str, "fee": fee, "balance": self.balance})

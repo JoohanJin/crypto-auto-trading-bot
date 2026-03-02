@@ -413,16 +413,26 @@ class StrategyManager:
 
     def _get_indicators_safely(
         self,
-        *indicator_types: IndexType,
+        *indicator_types: IndexType | str,
     ) -> dict[IndexType, Index | float | None]:
         """
         Thread-safe retrieval of multiple indicators.
 
-        param indicator_types: IndexType
+        param indicator_types: IndexType or str
             - Variable number of indicator types to retrieve
 
         return dict[IndexType, Index | None]
             - Dictionary mapping indicator types to their Index objects
         """
         with self.indicators_lock:
-            return {idx_type: self.indicators.get(idx_type) for idx_type in indicator_types}
+            result = {}
+            for idx_type in indicator_types:
+                if isinstance(idx_type, str):
+                    try:
+                        idx = IndexType[idx_type]
+                    except KeyError:
+                        continue
+                else:
+                    idx = idx_type
+                result[idx] = self.indicators.get(idx)
+            return result

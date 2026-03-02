@@ -2,6 +2,7 @@ import time
 import threading
 import pandas as pd
 from queue import Queue
+import queue
 
 from src.interfaces.websocket_interface import WebSocketInterface
 from src.infrastructure.logging.set_logger import get_logger, get_adapter

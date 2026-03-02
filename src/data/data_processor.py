@@ -151,12 +151,11 @@ class DataProcessor:
             - Tuple of SMA and EMA values
         """
         try:
-            current_ts = self.generate_timestamp()
-            cutoff_ts = current_ts - (periods[-1] * 1_000)
-
             with self.lock_price_data:
                 if self.price_data.shape[0] == 0:
                     return None
+                current_ts = int(self.price_data.index.max())
+                cutoff_ts = current_ts - (periods[-1] * 1_000)
                 mask = (self.price_data.index >= cutoff_ts)
                 tmp_dataframe = self.price_data.loc[mask, "price"].copy()
 
@@ -188,7 +187,7 @@ class DataProcessor:
                 sma[period] = float(window.mean())
                 ema[period] = float(window.ewm(span=period, adjust=False).mean().iloc[-1])
 
-            timestamp: int = self.generate_timestamp()
+            timestamp: int = current_ts
 
             smas: Dict[str, float | IndexType | Dict[int, float]] = {
                 "data": sma,
@@ -277,7 +276,21 @@ class DataProcessor:
             - when the data is available, push the data to the data pipeline.
         """
         # TODO: Need to change this.
+        last_processed_ts = 0
         while True:
+            # Check if there is actual new data before pushing
+            with self.lock_price_data:
+                if self.price_data.shape[0] == 0:
+                    time.sleep(2)
+                    continue
+                current_ts = int(self.price_data.index.max())
+                
+            if current_ts <= last_processed_ts:
+                time.sleep(2)
+                continue
+                
+            last_processed_ts = current_ts
+
             data: (
                 Tuple[
                     Dict[int, float],

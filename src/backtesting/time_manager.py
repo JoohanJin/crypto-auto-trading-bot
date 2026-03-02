@@ -39,6 +39,14 @@ def patch_system_time():
 
     # Overwrite python's built-in time.time() and time.sleep()
     time.time = MockTimeManager.get_time_seconds
-    time.sleep = lambda secs: None  # Instantly return, no physical sleeping!
+    original_sleep = time.sleep
+    
+    def smart_mock_sleep(secs):
+        if secs >= 60:
+            original_sleep(0.01) # Heartbeats yield
+        else:
+            original_sleep(0.0001) # 100 microsecond yield for logic loops
+            
+    time.sleep = smart_mock_sleep
 
     print("[BACKTEST] Time and Sleep have been successfully mocked.")

@@ -14,15 +14,23 @@ from src.pipeline.data_pipeline import DataPipeline
 from src.pipeline.signal_pipeline import SignalPipeline
 from src.trading.signal_generator import SignalGenerator
 from src.trading.trade_manager import TradeManager
+from src.strategy.strategy_manager import StrategyManager
 
 patch_system_time()
+TradeManager.verify_signal = lambda self, signal_data, timestamp_window=5000: True
+StrategyManager._StrategyManager__verify_index = lambda self, index, time_window=5000: True
+
+# Silence Heartbeat threads for speed
+TradeManager._thread_log_status = lambda self: None
+SignalGenerator._thread_log_status = lambda self: None
+StrategyManager._thread_log_status = lambda self: None
 
 # Core components
 
 
 class BacktestRunner:
-    def __init__(self, data_path: str, path_type: MockPathType = MockPathType.OHLC):
-        self.data_path = data_path
+    def __init__(self, data_dir: str, path_type: MockPathType = MockPathType.OHLC):
+        self.data_dir = data_dir
         self.path_type = path_type
 
         print("\n" + "="*50)
@@ -41,7 +49,8 @@ class BacktestRunner:
         self.signal_controller = PipelineController(pipeline=self.signal_pipeline)
 
         # 2. Data Loader (Acts as the WebSocket)
-        self.data_loader = DataLoader(csv_path=data_path, path_type=path_type)
+        self.data_loader = DataLoader(data_dir=data_dir, path_type=path_type)
+        self.data_loader.runner = self
 
         # We need a custom mock WebSocketInterface to inject the data_loader's callbacks
         class MockWebSocketInterface:
@@ -93,6 +102,7 @@ class BacktestRunner:
         # Since 1 tick = 1 second, 10 minutes = 600 ticks.
         # 4 ticks per CSV day. 600 ticks = 150 days of data for the structural backbone.
         # We can tweak these to find the sweet spot!
+        
         self.trade_manager = TradeManager(
             signal_pipeline_controller=self.signal_controller,
             http_interface=None,  # Mocked via binance_client
@@ -102,9 +112,9 @@ class BacktestRunner:
             trade_pair=TradePair(ticker="BTC", quote="USDT"),
             leverage=10,
             trade_weight=0.15,
-            history_window_ms=120_000,  # 2 minutes of ticks = 120 ticks = 30 days
-            min_history_density=60,  # 60 signals required in 30 days
-            min_short_term_density=10,
+            history_window_ms=120_000,  # 120 ticks
+            min_history_density=10,  # lowered so it can actually trigger with 6s cooldowns
+            min_short_term_density=2, # lowered accordingly
             name="BACKTEST_TRADE_MANAGER"
         )
 
@@ -118,12 +128,8 @@ class BacktestRunner:
         # Blocking run
         self.data_loader.run(mock_broker=self.mock_broker, time_manager=MockTimeManager)
 
-        # Wait a bit for final signals to process
-        import time as real_time
-        real_time.sleep(3)
-
         end_real_time = time.time()
-        print(f"[FINISHED] Processed {len(self.data_loader.data)} days in {end_real_time - start_real_time:.2f} seconds.")
+        print(f"[FINISHED] Processed {len(self.data_loader.csv_files)} files in {end_real_time - start_real_time:.2f} seconds.")
         self.analyze_performance()
 
     def analyze_performance(self):
@@ -145,13 +151,13 @@ class BacktestRunner:
 
 if __name__ == "__main__":
     import os
-    csv_path = "data/historical/BTC_USDT-Day1_20230101_20260302.csv"
+    data_dir = "data/historical"
 
-    if not os.path.exists(csv_path):
-        print("ERROR: Historical data file not found!")
+    if not os.path.exists(data_dir):
+        print("ERROR: Historical data directory not found!")
     else:
         # Run Test 1: OHLC
-        runner_ohlc = BacktestRunner(data_path=csv_path, path_type=MockPathType.OHLC)
+        runner_ohlc = BacktestRunner(data_dir=data_dir, path_type=MockPathType.OHLC)
         runner_ohlc.run()
 
         # Optional: Run Test 2: OLHC
