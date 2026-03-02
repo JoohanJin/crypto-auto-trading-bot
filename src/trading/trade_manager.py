@@ -465,8 +465,10 @@ class TradeManager:
 
             # Determine quantities
             is_reverse = (
-                buy_or_sell in (TradeState.REVERSE_BUY, TradeState.REVERSE_SELL)
-                and current_pos is not None
+                buy_or_sell in (
+                    TradeState.REVERSE_BUY,
+                    TradeState.REVERSE_SELL
+                ) and current_pos is not None
             )
 
             if is_reverse:
@@ -475,8 +477,8 @@ class TradeManager:
                 # But the actual new position will be base_size (tracked by PositionState)
                 base_quote = self._get_trade_quote_amt()
                 base_ticker = self._get_trade_ticker_amt(entry_price)
-                ticker_size = current_pos.ticker_size + base_ticker
-                quote_size = current_pos.quote_size + base_quote
+                ticker_size = round(current_pos.ticker_size + base_ticker, 3)
+                quote_size = round(current_pos.quote_size + base_quote, 2)
                 meta_data = dict(
                     reverse=True,
                     base_ticker_size=base_ticker,
@@ -485,8 +487,6 @@ class TradeManager:
             elif buy_or_sell in (
                 TradeState.NEW_BUY,
                 TradeState.NEW_SELL,
-                TradeState.REVERSE_BUY,
-                TradeState.REVERSE_SELL,
             ):
                 # NEW order (explicitly NEW_* or REVERSE with no active position)
                 quote_size = self._get_trade_quote_amt()
@@ -1265,156 +1265,3 @@ class TradeManager:
             call_name="_get_mark_price",
             initial_delay=initial_delay,
         )
-
-
-if __name__ == "__main__":
-    """
-    ####################################################################################################################
-    #                          Build TradeManager with all dependencies (no start)                                     #
-    #                                                                                                                  #
-    # Mimics how SystemManager wires TradeManager. All components are initialized but threads are NOT started.         #
-    # User can manually call functions to test if they work.                                                           #
-    ####################################################################################################################
-    """
-    import os
-    from unittest.mock import MagicMock, patch
-
-    from dotenv import load_dotenv
-
-    from src.brokers.binance.http_client import BinanceFutureHttpClient
-
-    print("\n" + "=" * 80)
-    print("BUILDING BinanceFutureHttpClient")
-    print("=" * 80 + "\n")
-
-    load_dotenv()
-
-    bak = os.getenv("BINANCE_HMAC_API_KEY")
-    bsk = os.getenv("BINANCE_HMAC_SECRET_KEY")
-
-    bfhc = BinanceFutureHttpClient(api_key=bak, secret_key=bsk)
-
-    # =========================================================================
-    # 1. Create Pipelines
-    # =========================================================================
-    print("[1/8] Creating pipelines...")
-    from src.pipeline.data_pipeline import DataPipeline
-    from src.pipeline.signal_pipeline import SignalPipeline
-
-    data_pipeline = DataPipeline()
-    signal_pipeline = SignalPipeline()
-    print("     ✓ DataPipeline created")
-    print("     ✓ SignalPipeline created")
-
-    # =========================================================================
-    # 2. Create PipelineControllers
-    # =========================================================================
-    print("\n[2/8] Creating pipeline controllers...")
-
-    signal_pipeline_controller = PipelineController(
-        pipeline=signal_pipeline, name="TEST_SIGNAL_PC"
-    )
-    print("     ✓ PipelineController[Signal] created")
-
-    # =========================================================================
-    # 3. Create ScoreMapper
-    # =========================================================================
-    print("\n[3/8] Creating score mapper...")
-
-    delta_mapper = ScoreMapper()
-    print("\n✓ ScoreMapper created")
-
-    # =========================================================================
-    # 4. Mock Telegram Bot (avoid env var dependency)
-    # =========================================================================
-    print("\n[4/8] Setting up telegram bot (mocked)...")
-
-    telegram_bot = MagicMock(spec=CustomTelegramBot)
-    telegram_bot.send_text = MagicMock(return_value=None)
-
-    api_key = os.getenv("TELEGRAM_API_KEY")
-    channel_id = os.getenv("TELEGRAM_CHANNEL_ID")
-    telegram_bot = CustomTelegramBot(
-        api_key=api_key,
-        channel_id=channel_id,
-    )
-    print("✓ CustomTelegramBot mocked")
-
-    # =========================================================================
-    # 6. Build TradeManager with patched start()
-    # =========================================================================
-    print("\n[6/8] Building TradeManager...\n")
-
-    with patch.object(TradeManager, "start", return_value=None):
-        tm = TradeManager(
-            signal_pipeline_controller=signal_pipeline_controller,
-            http_interface=None,
-            binance_future_client=bfhc,
-            delta_mapper=delta_mapper,
-            telegram_bot=telegram_bot,
-            trade_pair=TradePair(ticker="BTC", quote="USDT"),
-            leverage=10,
-            trade_weight=0.1,
-            take_profit_rate=0.10,
-            stop_loss_rate=0.05,
-            name="TEST_TRADE_MANAGER",
-        )
-        print(tm._get_account_info())
-
-        print(tm._get_open_orders())
-
-        mark_price: MarkPrice = tm._get_mark_price()
-        print(mark_price)
-
-        print(tm._get_trade_ticker_amt(ticker_price=mark_price.mark_price))
-
-        print(tm._get_trade_quote_amt())
-
-        print(tm._construct_new_order(buy_or_sell=2))  # NEW_BUY
-        print(tm._construct_new_order(buy_or_sell=4))  # NEW_SELL
-        print(tm._construct_new_order(buy_or_sell=8))  # REVERSE_BUY
-        print(tm._construct_new_order(buy_or_sell=16))  # REVERSE_SELL
-
-        print("\n===================== construct order test =========================")
-        buy_or_sell: TradeState = TradeState.NEW_BUY
-        order: Order = tm._construct_new_order(buy_or_sell)
-        print(order, "\n")
-
-        # message: str | None = tm._format_trade_message(order)
-        # print(message)
-
-        # res = tm._make_order(order)
-        # print(res)
-
-        # buy_or_sell: TradeState = TradeState.REVERSE_BUY
-        # order: Order = tm._construct_new_order(buy_or_sell)
-        # print(order, "\n")
-
-        buy_or_sell: TradeState = TradeState.NEW_SELL
-        order: Order = tm._construct_new_order(buy_or_sell)
-        print(order, "\n")
-
-        # buy_or_sell: TradeState = TradeState.REVERSE_SELL
-        # order: Order = tm._construct_new_order(buy_or_sell)
-        # print(order, "\n")
-
-        print("\n===================== trade message test =========================")
-        # message: str | None = tm._format_trade_message(order)
-        # print(message)
-
-        # order trigger to the telegram bot
-        # async def test_telegram_send_text(msg: str):
-        #     await tm.telegram_bot.send_text(message)
-
-        # asyncio.run(test_telegram_send_text(message))
-        tm.telegram_bot.send_text("사랑해")
-
-        # print("\n===================== make order test =========================")
-        # res = tm._make_order(order)
-        # print(res)
-        # for r in res:
-        #     print(r)
-        #     print()
-
-    # Replace the binance_client with our mock for get_available_quote()
-    print("\n✓ TradeManager instantiated (threads NOT started)")

@@ -6,6 +6,7 @@ Mocks external dependencies (Binance API, Telegram, pipelines) to test logic in 
 """
 import time
 import unittest
+from tkinter import W
 from unittest.mock import MagicMock, patch
 
 from src.core.models.order import Order, Side
@@ -319,10 +320,17 @@ class TestFormatTradeMessage(unittest.TestCase):
         self.assertIn("EXIT", msg)
         self.assertIn("5.0%", msg)
 
+    def test_reverse_message(self):
+        order = _make_order(meta_data={"reverse": True})
+        msg = self.tm._format_trade_message(order)
+        print(msg)
+        self.assertIn("REVERSE", msg)
 
 # =============================================================================
 # 6. _make_order() Tests
 # =============================================================================
+
+
 class TestMakeOrder(unittest.TestCase):
     """Test order placement and current_position update."""
 
@@ -395,3 +403,6 @@ class TestTradeCooldown(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+    # tm = _make_trade_manager()
+    # order = tm._construct_new_order(TradeState.REVERSE_BUY)
+    # print(tm._format_trade_message(order))
