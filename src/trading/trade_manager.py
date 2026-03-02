@@ -164,9 +164,9 @@ class TradeManager:
         # --- Entry thresholds (require all 3 windows) ---
         # TODO: need to test the correct value with back-testing facilities
         # Loosened to avoid entering too late after the move is already underway.
-        self.consensus_short_term_threshold: float = 0.90
-        self.consensus_mid_term_threshold: float = 0.65
-        self.consensus_threshold: float = 0.45  # structural: just needs directional agreement
+        self.consensus_short_term_threshold: float = 1.0
+        self.consensus_mid_term_threshold: float = 0.7
+        self.consensus_threshold: float = 0.75  # structural: just needs directional agreement
 
         # --- Exit thresholds (require all 3 windows) ---
         # Tightened so normal retracements don't trigger panic exits.
@@ -814,17 +814,17 @@ class TradeManager:
 
         if current_pos is None:  # NEW Order
             if is_buy():
-                return TradeState.BUY
+                return TradeState.NEW_BUY
             elif is_sell():
-                return TradeState.SELL
+                return TradeState.NEW_SELL
             return TradeState.HOLD
         else:  # current_pos is not None — EXIT or REVERSE
             if is_reversal_buy():  # stronger condition than exit condition: opposite position + buy signal
                 return TradeState.REVERSE_BUY
             elif is_reversal_sell():  # stronger condition than exit condition: oppstie position + sell signal
                 return TradeState.REVERSE_SELL
-            elif is_exit():
-                return TradeState.EXIT
+            # elif is_exit():
+            #     return TradeState.EXIT
         return TradeState.HOLD
 
     def _thread_decide_trade(
