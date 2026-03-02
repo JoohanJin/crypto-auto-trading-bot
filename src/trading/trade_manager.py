@@ -167,8 +167,9 @@ class TradeManager:
         self.min_short_term_density: int = min_short_term_density
 
         # --- Entry thresholds (require all 3 windows) ---
+        # TODO: need to test the correct value with back-testing facilities
         # Loosened to avoid entering too late after the move is already underway.
-        self.consensus_short_term_threshold: float = 0.80
+        self.consensus_short_term_threshold: float = 0.90
         self.consensus_mid_term_threshold: float = 0.65
         self.consensus_threshold: float = 0.45  # structural: just needs directional agreement
 
@@ -777,47 +778,20 @@ class TradeManager:
                 self.current_position.copy() if self.current_position else None
             )
 
-        # 5. Decision Logic
-        # --- 5a. REVERSE / NEW ENTRY LOGIC (High Conviction Bursts) ---
-        # We only enter if we see a 'Burst' (Density > threshold).
-        # This filters out stray signals that don't represent a collective move.
-
-        # if density_momentum >= self.density_threshold:
-        # BULLISH BURST: Momentum must agree with or create a strong trend.
         def is_buy() -> bool:
             return (
-                (consensus_short_term >= self.consensus_short_term_threshold) and (
-                    consensus_mid_term >= self.consensus_mid_term_threshold) and (
-                    consensus_structural >= self.consensus_threshold
-                )
+                (consensus_short_term >= self.consensus_short_term_threshold) and
+                (consensus_mid_term >= self.consensus_mid_term_threshold) and
+                (consensus_structural >= self.consensus_threshold)
             )
 
         def is_sell() -> bool:
             return (
-                (consensus_short_term <= -self.consensus_short_term_threshold) and (
-                    consensus_mid_term <= -self.consensus_mid_term_threshold) and (
-                    consensus_structural <= -self.consensus_threshold)
+                (consensus_short_term <= -self.consensus_short_term_threshold) and
+                (consensus_mid_term <= -self.consensus_mid_term_threshold) and
+                (consensus_structural <= -self.consensus_threshold)
             )
 
-        if is_buy():
-            if current_pos is None:
-                return TradeState.NEW_BUY
-            if current_pos.side == Side.SELL:
-                return TradeState.REVERSE_BUY
-
-        # BEARISH BURST
-        if is_sell():
-            if current_pos is None:
-                return TradeState.NEW_SELL
-            if current_pos.side == Side.BUY:
-                return TradeState.REVERSE_SELL
-
-        # --- 5b. EXIT LOGIC (Panic/Exhaustion) ---
-        # Immediate exit to protect capital if momentum flips against us,
-        # OR if the 10m structural bias shifts to the opposite direction.
-        #
-        # NOTE: Threshold set to 30 signals (Density) within the 1m window to
-        # filter out the high-frequency noise.
         def is_exit_from_buy() -> bool:
             # Require ALL 3 windows to flip against us — prevents premature exits on normal pullbacks
             return (current_pos.side == Side.BUY) and (
@@ -834,12 +808,28 @@ class TradeManager:
                 (consensus_structural > self.exit_consensus_threshold)
             )
 
-        if current_pos is not None:
-            # Long Exit: Momentum flips strongly OR Structural bias flips with history (min 10)
-            # Short Exit: Momentum flips strongly OR Structural bias flips with history (min 10)
-            if is_exit_from_buy() or is_exit_from_sell():
-                return TradeState.EXIT
+        def is_exit() -> bool:
+            return is_exit_from_buy() or is_exit_from_sell()
 
+        def is_reversal_buy() -> bool:
+            return (current_pos.side == Side.SELL) and (is_buy())
+
+        def is_reversal_sell() -> bool:
+            return (current_pos.side == Side.BUY) and (is_sell())
+
+        if current_pos is None:  # NEW Order
+            if is_buy():
+                return TradeState.BUY
+            elif is_sell():
+                return TradeState.SELL
+            return TradeState.HOLD
+        else:  # current_pos is not None — EXIT or REVERSE
+            if is_reversal_buy():  # stronger condition than exit condition: opposite position + buy signal
+                return TradeState.REVERSE_BUY
+            elif is_reversal_sell():  # stronger condition than exit condition: oppstie position + sell signal
+                return TradeState.REVERSE_SELL
+            elif is_exit():
+                return TradeState.EXIT
         return TradeState.HOLD
 
     def _thread_decide_trade(
@@ -880,7 +870,7 @@ class TradeManager:
                     else:
                         self.trade_cooldown_ms = self.default_trade_cooldown_ms  # Restore configured cooldown
 
-                time.sleep(0.25)
+                time.sleep(1)
 
             except Exception as e:
                 self.logger.error(
