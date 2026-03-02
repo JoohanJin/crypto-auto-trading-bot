@@ -164,9 +164,9 @@ class TradeManager:
         # --- Entry thresholds (require all 3 windows) ---
         # TODO: need to test the correct value with back-testing facilities
         # Loosened to avoid entering too late after the move is already underway.
-        self.consensus_short_term_threshold: float = 1.0
+        self.consensus_short_term_threshold: float = 0.95
         self.consensus_mid_term_threshold: float = 0.7
-        self.consensus_threshold: float = 0.75  # structural: just needs directional agreement
+        self.consensus_threshold: float = 0.60  # structural: just needs directional agreement
 
         # --- Exit thresholds (require all 3 windows) ---
         # Tightened so normal retracements don't trigger panic exits.
