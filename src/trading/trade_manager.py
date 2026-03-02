@@ -100,6 +100,9 @@ class TradeManager:
         trade_cooldown_ms: int = 30_000,  # minimum milliseconds between consecutive trades
         name: str | None = None,
         disable_trade: bool = False,
+        history_window_ms: int = 600_000,
+        min_history_density: int = 350,
+        min_short_term_density: int = 70,
     ) -> None:
         """
         func __init__():
@@ -157,9 +160,11 @@ class TradeManager:
             deque()
         )  # (timestamp, TradeSignal)
         self.signal_history_lock: threading.Lock = threading.Lock()
-        self.history_window_ms: int = 600_000  # 10 minutes (structural backbone)
+        self.history_window_ms: int = history_window_ms  # typically 10 minutes (structural backbone)
         self.mid_term_window_ms: int = self.history_window_ms // 2  # 5 minutes
         self.short_term_window_ms: int = self.history_window_ms // 5  # 2 minutes
+        self.min_history_density: int = min_history_density
+        self.min_short_term_density: int = min_short_term_density
 
         # --- Entry thresholds (require all 3 windows) ---
         # Loosened to avoid entering too late after the move is already underway.
@@ -751,7 +756,7 @@ class TradeManager:
         short_term_density: int = len(short_term_momentum_signals)
 
         # Minimum boundary — use density thresholds
-        if history_density < 350 or short_term_density < 70:
+        if history_density < self.min_history_density or short_term_density < self.min_short_term_density:
             return TradeState.HOLD
 
         # 4. Calculate Metrics

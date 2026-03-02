@@ -160,6 +160,9 @@ class DataProcessor:
                 mask = (self.price_data.index >= cutoff_ts)
                 tmp_dataframe = self.price_data.loc[mask, "price"].copy()
 
+            if tmp_dataframe.empty:
+                return None
+
             sma: dict[int, float] = {}  # make the dictionary object and put it.
             ema: dict[int, float] = {}
             price: dict[int, float] = {
