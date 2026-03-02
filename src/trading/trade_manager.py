@@ -139,6 +139,7 @@ class TradeManager:
 
         self.telegram_bot: CustomTelegramBot = telegram_bot
 
+        self.default_trade_cooldown_ms: int = trade_cooldown_ms
         self.trade_cooldown_ms: int = trade_cooldown_ms
         self.last_trade_timestamp: int = 0  # epoch ms of the last executed trade
 
@@ -151,29 +152,26 @@ class TradeManager:
         self.disable_trade: bool = disable_trade
 
         # --- Weighted Signal Density & Consensus (WSDC) Settings ---
-        # These strict settings are designed to filter high-frequency noise
-        # (multiple signals per second) and reduce trading frequency.
+        # These settings balance noise filtering with timely responsiveness.
         self.signal_history: deque[tuple[int, TradeSignal]] = (
             deque()
         )  # (timestamp, TradeSignal)
         self.signal_history_lock: threading.Lock = threading.Lock()
-        self.history_window_ms: int = 900_000  # 15 minutes (structural backbone)
-        self.mid_term_window_ms: int = self.history_window_ms * 0.5
-        self.short_term_window_ms: int = self.history_window_ms * 0.2
+        self.history_window_ms: int = 600_000  # 10 minutes (structural backbone)
+        self.mid_term_window_ms: int = self.history_window_ms // 2  # 5 minutes
+        self.short_term_window_ms: int = self.history_window_ms // 5  # 2 minutes
 
-        # Thresholds for decision making
-        # Entry/Reverse requires 60 signals in 1m with 80% agreement.
-        # TODO: Need to decide the value
-        self.consensus_short_term_threshold: float = 0.9
-        self.consensus_mid_term_threshold: float = 0.75
-        self.consensus_threshold: float = 0.6
-        self.exit_consensus_threshold: float = self.consensus_short_term_threshold * 0.5
-        self.exit_mid_term_threshold: float = self.consensus_short_term_threshold * 0.7
-        self.exit_short_term_consensus_threshold: float = self.consensus_short_term_threshold * 0.9
+        # --- Entry thresholds (require all 3 windows) ---
+        # Loosened to avoid entering too late after the move is already underway.
+        self.consensus_short_term_threshold: float = 0.80
+        self.consensus_mid_term_threshold: float = 0.65
+        self.consensus_threshold: float = 0.45  # structural: just needs directional agreement
 
-        self.density_threshold: int = 50
-        self.trade_cooldown_ms: int = 300_000  # 5 minutes minimum between trades
-        self.last_trade_timestamp: int = 0
+        # --- Exit thresholds (require all 3 windows) ---
+        # Tightened so normal retracements don't trigger panic exits.
+        self.exit_short_term_consensus_threshold: float = 0.85
+        self.exit_mid_term_threshold: float = 0.70
+        self.exit_consensus_threshold: float = 0.50
 
         # Set the thread pool as a member function.
         self.threads: list[threading.Thread] = []
@@ -752,7 +750,7 @@ class TradeManager:
         mid_term_density: int = len(mid_term_momentum_signals)
         short_term_density: int = len(short_term_momentum_signals)
 
-        # Minimum boundary
+        # Minimum boundary — use density thresholds
         if history_density < 350 or short_term_density < 70:
             return TradeState.HOLD
 
@@ -816,18 +814,20 @@ class TradeManager:
         # NOTE: Threshold set to 30 signals (Density) within the 1m window to
         # filter out the high-frequency noise.
         def is_exit_from_buy() -> bool:
+            # Require ALL 3 windows to flip against us — prevents premature exits on normal pullbacks
             return (current_pos.side == Side.BUY) and (
-                (consensus_short_term < -(self.exit_short_term_consensus_threshold)) +
-                (consensus_mid_term < -(self.exit_mid_term_threshold)) +
+                (consensus_short_term < -(self.exit_short_term_consensus_threshold)) and
+                (consensus_mid_term < -(self.exit_mid_term_threshold)) and
                 (consensus_structural < -(self.exit_consensus_threshold))
-            ) >= 2
+            )
 
         def is_exit_from_sell() -> bool:
+            # Require ALL 3 windows to flip against us — prevents premature exits on normal pullbacks
             return (current_pos.side == Side.SELL) and (
-                (consensus_short_term > self.exit_short_term_consensus_threshold) +
-                (consensus_mid_term > self.exit_mid_term_threshold) +
+                (consensus_short_term > self.exit_short_term_consensus_threshold) and
+                (consensus_mid_term > self.exit_mid_term_threshold) and
                 (consensus_structural > self.exit_consensus_threshold)
-            ) >= 2
+            )
 
         if current_pos is not None:
             # Long Exit: Momentum flips strongly OR Structural bias flips with history (min 10)
@@ -871,9 +871,9 @@ class TradeManager:
                         self.logger.warning(
                             "[WHIPSAW_PROTECTION] Panic exit triggered! Extending cooldown to 10 minutes."
                         )
-                        self.trade_cooldown_ms = self.history_window_ms * 0.5  # Pause for 10 full minutes
+                        self.trade_cooldown_ms = self.history_window_ms  # Pause for full structural window
                     else:
-                        self.trade_cooldown_ms = 0  # Standard 5 minute cooldown
+                        self.trade_cooldown_ms = self.default_trade_cooldown_ms  # Restore configured cooldown
 
                 time.sleep(0.25)
 
