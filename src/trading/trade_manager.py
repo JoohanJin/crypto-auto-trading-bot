@@ -162,6 +162,7 @@ class TradeManager:
         self.short_term_window_ms: int = self.history_window_ms // 5  # 2 minutes
 
         # --- Entry thresholds (require all 3 windows) ---
+        # TODO: need to test the correct value with back-testing facilities
         # Loosened to avoid entering too late after the move is already underway.
         self.consensus_short_term_threshold: float = 0.90
         self.consensus_mid_term_threshold: float = 0.65
