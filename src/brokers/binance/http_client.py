@@ -1,26 +1,19 @@
 # Standard Library
 from typing import Literal, Union
 
-# logger
-from src.core.models.order import Order, Side
-from src.infrastructure.logging.set_logger import get_logger, get_adapter
-
-# Custom Library
-from src.core.models.trade import PositionType, TimeInForce, TradePair
-
 # RESTful Client
 from src.brokers.base.http_client import HttpClient
 from src.brokers.base.http_service import HttpService
 from src.brokers.binance.http_gateway import BinanceFutureGateway
-
+# logger
+from src.core.models.order import Order, Side
 # Data Structure
-from src.core.models.service_dto import (
-    AccountInformation,
-    MarkPrice,
-    Ping,
-    Ticker,
-    Position
-)
+from src.core.models.service_dto import (AccountInformation, MarkPrice, Ping,
+                                         Position, Ticker)
+# Custom Library
+from src.core.models.trade import (PositionState, PositionType, TimeInForce,
+                                   TradePair)
+from src.infrastructure.logging.set_logger import get_adapter, get_logger
 
 logger = get_logger(__name__)
 
@@ -48,12 +41,12 @@ class BinanceFutureHttpClient(HttpClient):
 
         # Common quote currencies in Binance futures
         quote_currencies = ["USDT"]
-        
+
         for quote in quote_currencies:
             if symbol.endswith(quote):
                 ticker = symbol[:-len(quote)]
                 return TradePair(ticker, quote)
-        
+
         # Fallback: if no common quote found, return None
         return None
 
@@ -65,14 +58,14 @@ class BinanceFutureHttpClient(HttpClient):
     ) -> None:
         if name is None:
             name = "BINANCE_FUTURE_CLIENT"
-        
+
         super().__init__(
             name=name.upper(),
         )
 
         self.source = "BINANCE"
         self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
-        
+
         self.gateway: HttpService = BinanceFutureGateway(
             name=f"{name.upper()}_GATEWAY",
             api_key=api_key,
@@ -92,6 +85,7 @@ class BinanceFutureHttpClient(HttpClient):
     probably need to change this to "BTCUSDC" in the future.
     """
     # PUBLIC ENDPOINT
+
     def ping(
         self,
     ) -> dict:
@@ -819,6 +813,7 @@ class BinanceFutureHttpClient(HttpClient):
         "recvWindow": 5000
     }
     """
+
     def order(
         self,
         order: Order,
@@ -1140,7 +1135,7 @@ class BinanceFutureHttpClient(HttpClient):
 
         if not isinstance(orders, list) or len(orders) == 0:
             return []
-        
+
         return generate_position_dto(orders)
 
     def query_account_trades(self,):
@@ -1258,7 +1253,7 @@ class BinanceFutureHttpClient(HttpClient):
                     return construct_account_information_dto(balance)
             return {}
         return
-            
+
     def get_account_information_v2(
         self,
         url: str = "/fapi/v2/account",
@@ -1303,6 +1298,7 @@ class BinanceFutureHttpClient(HttpClient):
         symbol: TradePair | None = None,
         recv_window: int = 5_000,
     ):
+        raise NotImplementedError
         params: dict[str, int | float] = {
             "symbol": self._parse_trade_pair(symbol),
             "recv_window": recv_window,
@@ -1319,7 +1315,7 @@ class BinanceFutureHttpClient(HttpClient):
         self,
         url: str = "/fapi/v1/openOrders",
         symbol: TradePair | None = None,
-        recv_window = 5_000,
+        recv_window=5_000,
     ):
         params: dict[str, int | float] = {
             "symbol": self._parse_trade_pair(symbol),
@@ -1333,10 +1329,45 @@ class BinanceFutureHttpClient(HttpClient):
             params=params,
         )
 
+    def get_current_position_state(
+        self,
+        symbol: TradePair | None = None,
+        recv_window: int = 5_000,
+    ) -> PositionState | None:
+        positions = self.get_position_information_v2(symbol=symbol, recv_window=recv_window)
+
+        symbol: TradePair = symbol if symbol is not None else TradePair("BTC", "USDT")
+
+        for position in positions:
+            if isinstance(position, dict):
+                trade_pair: TradePair = self._construct_trade_pair(position.get("symbol", None))
+                if (trade_pair.quote == symbol.quote and trade_pair.ticker == symbol.ticker) and (position.get('positionAmt') != 0.0):
+                    side_str: str = position.get("positionAmt").upper()
+
+                    entry_price: float = float(position.get("entryPrice", 0.0))
+                    break_even_price: float = float(position.get("breakEvenPrice", 0.0))
+
+                    if (side_str == "BUY" or side_str == "SELL"):
+                        side: Side = Side.BUY if side_str == "BUY" else Side.SELL
+                    else:
+                        if (break_even_price - entry_price) > 0:
+                            side: Side = Side.BUY
+                        else:
+                            side: Side = Side.SELL
+                    return PositionState(
+                        side=side,
+                        ticker_size=abs(float(position.get("positionAmt", 0.0))),
+                        quote_size=abs(float(position.get("isolatedWallet", 0.0))),
+                        entry_price=float(position.get("entryPrice", 0.0)),
+                        timestamp=self.generate_timestamp(),
+                    )
+        return None
+
 
 if __name__ == "__main__":
-    from dotenv import load_dotenv
     import os
+
+    from dotenv import load_dotenv
 
     load_dotenv()
 
@@ -1346,7 +1377,9 @@ if __name__ == "__main__":
         secret_key=os.getenv("BINANCE_HMAC_SECRET_KEY"),
     )
 
-    print(bfc.get_mark_price())
+    # print(bfc.get_mark_price())
     # response = bfc.get_all_orders()
     # for res in response:
     #     print(res)
+
+    print(bfc.get_current_position_state(symbol=TradePair("BTC", "USDT")))

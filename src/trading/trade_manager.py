@@ -178,7 +178,9 @@ class TradeManager:
         self.threads: list[threading.Thread] = []
 
         self.lock_current_position: threading.Lock = threading.Lock()
-        self.current_position: PositionState | None = None
+        self.current_position: PositionState | None = self.binance_client.get_current_position_state(
+            symbol=self.trade_pair
+        )
 
         # self.signal_cnt: int = 0
         # self.start_time: int
