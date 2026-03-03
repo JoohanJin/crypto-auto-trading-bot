@@ -867,6 +867,7 @@ class TradeManager:
                     else:
                         self.trade_cooldown_ms = self.default_trade_cooldown_ms  # Restore configured cooldown
 
+                # Decision making is deon every one second
                 time.sleep(1)
 
             except Exception as e:
