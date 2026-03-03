@@ -1341,8 +1341,11 @@ class BinanceFutureHttpClient(HttpClient):
         for position in positions:
             if isinstance(position, dict):
                 trade_pair: TradePair = self._construct_trade_pair(position.get("symbol", None))
-                if (trade_pair.quote == symbol.quote and trade_pair.ticker == symbol.ticker) and (position.get('positionAmt') != 0.0):
-                    side_str: str = position.get("positionAmt").upper()
+                if (
+                    (trade_pair.quote == symbol.quote and trade_pair.ticker == symbol.ticker)
+                    and (float(position.get('positionAmt')) != 0.0)
+                ):
+                    side_str: str = position.get("positionSide").upper()
 
                     entry_price: float = float(position.get("entryPrice", 0.0))
                     break_even_price: float = float(position.get("breakEvenPrice", 0.0))
