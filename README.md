@@ -95,21 +95,21 @@ A personal crypto trading bot project built to automate trading strategies using
 
 <!-- [![Product Name Screen Shot][product-screenshot]](https://example.com) -->
 
-This bot connects to the MEXC Broker via WebSocket, processes market data, and is desinged to execute trades based on predefined strategies. Currently under development, with order placement and strategy refinedment in progress.
+This bot connects to Cryptocurrency Exchanges (Binance and MEXC) via WebSocket, processes market data in real-time, and executes trades based on a highly optimized **Weighted Signal Density & Consensus (WSDC)** strategy. 
 
-It is not a high-frequency trading system; rather, it is a simple tool that will execute orders based on a trading strategy I have been used.
-Potentially, a high frequency trading can be developed in the future based on the needs.
+It is designed as an "Always-in-Market" trend-following system. It utilizes a multi-threaded architecture to separate data ingestion, technical indicator processing, and trade orchestration to maximize speed and reliability.
 
-Recently deployed v1_0 on my home server.
+Currently, the bot is successfully deployed and running 24/7 on **Google Cloud Platform (GCP)** via Container-Optimized OS.
 
 ---
 
 ## 🛠️ Features
-- Real-time market data fetching via websocket api.
-- Strategy logic for automated decision-making.
-- Future support for order placement.
-- Modular design for testing and expansion.
-- Order placement is enabled on Binance Broker.
+- **WSDC Trading Brain**: Utilizes Weighted Signal Density & Consensus to mathematically filter out market noise and liquidation wicks.
+- **Ultra-Fast Vectorized Backtesting**: Custom Numpy/Pandas grid-search optimizer to simulate months of OHLC data in seconds to find the perfect strategy thresholds.
+- **Cloud-Native Deployment**: Containerized for Google Cloud Platform (Artifact Registry & Compute Engine).
+- **Multi-Threaded Architecture**: Independent threads for WebSocket data fetching, signal generation, and trade execution.
+- **Live Trading**: Fully automated order placement (Market/Reversal) on Binance Futures.
+- **Telegram Integration**: Real-time push notifications for every trade execution.
 
 <!-- <p align="right">(<a href="#readme-top">back to top</a>)</p> -->
 ---
@@ -127,15 +127,15 @@ Recently deployed v1_0 on my home server.
 
 ## 🧰 Tech Stack
 
-* **Lanauge**: [![Python3][Python3-img]][Python3-url]
-* **Exchange**: MEXC, Binance
-* **libraires**:
+* **Language**: [![Python3][Python3-img]][Python3-url]
+* **Exchanges**: Binance (Futures), MEXC
+* **Libraries**:
   * [![Pandas][Pandas-img]][Pandas-url]
   * [![NumPy][Numpy-img]][Numpy-url]
-* **Tools**:
-  * [![Jupyter Notebook][Jupyter-img]][Jupyter-url]
-  * Github Actions (CI)
-  * Docker
+* **Infrastructure**:
+  * Google Cloud Platform (Artifact Registry, Compute Engine)
+  * Docker (Container-Optimized OS)
+  * Github Actions (CI - Implemented)
 
 <!-- <p align="right">(<a href="#readme-top">back to top</a>)</p> -->
 
@@ -144,11 +144,11 @@ Recently deployed v1_0 on my home server.
 ## Branch Structure
 
 ```text
-stable
-└── dev
-    ├── dev-feature1
-    ├── dev-feature2
-    └── dev-feature3
+stable (Production)
+└── dev (Main Development)
+    ├── dev-unit_testing (CI & Testing Infrastructure)
+    ├── dev-data_models (Core DTO & Model Refactor)
+    └── backtesting (Vectorized Engine & Simulation)
 ```
 
 ---
@@ -233,6 +233,23 @@ Before getting started, ensure you have:
 - **Telegram**: Required for trade notifications (can be optional in future versions)
 - **API Keys**: Ensure you use keys with appropriate permissions (trading enabled, IP whitelisting recommended)
 - **For Production**: Use environment variables instead of storing credentials in `.env` files
+
+---
+
+## 🧪 Testing
+
+We use `pytest` for unit and integration testing. The CI pipeline automatically runs these tests on every push.
+
+- **Unit Tests**: Fast, mocked tests for core logic.
+- **Integration Tests**: Connectivity tests for real exchange APIs.
+- **Data Flow Tests**: E2E verification of the multi-threaded pipeline.
+
+For detailed documentation on the testing strategy, see [Testing Architecture](Docs/Testing/testing_architecture.md).
+
+```bash
+# Run all fast unit tests
+pytest -m "not integration" -v
+```
 
 <!-- MARKDOWN LINKS & IMAGES -->
 <!-- https://www.markdownguide.org/basic-syntax/#reference-style-links -->

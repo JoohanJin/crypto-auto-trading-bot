@@ -1,14 +1,15 @@
 # Standard Library
-import requests
-import hmac
 import hashlib
+import hmac
 import time
-from typing import Any, Union, Literal, Type, TypeVar
 from abc import ABC, abstractmethod
+from typing import Any, Literal, TypeVar
+
+import requests
 from pydantic import BaseModel, ValidationError
 
 # Logger
-from src.infrastructure.logging.set_logger import get_logger, get_adapter
+from src.infrastructure.logging.set_logger import get_adapter, get_logger
 
 
 logger = get_logger(__name__)
@@ -21,12 +22,13 @@ class HttpService(ABC):
     A common base class for handling API requests, signature generation, and session management
     for different exchange SDKs (e.g., MEXC and Binance).
     """
+
     @staticmethod
     def snake_to_camel(
         s: str,
     ) -> str:
         parts = s.split("_")
-        return parts[0].lower() + ''.join(word.capitalize() for word in parts[1:])
+        return parts[0].lower() + "".join(word.capitalize() for word in parts[1:])
 
     def generate_timestamp(self) -> int:
         return int(time.time() * 1_000)
@@ -34,7 +36,7 @@ class HttpService(ABC):
     def parse_response(
         self,
         response: requests.Response,
-        model: Type[TBaseModel] | None = None,
+        model: type[TBaseModel] | None = None,
     ) -> TBaseModel | list[TBaseModel] | dict[str, Any] | list[Any] | str | None:
         """Parse an HTTP response into structured data.
 
@@ -67,11 +69,11 @@ class HttpService(ABC):
         except ValidationError as e:  # pragma: no cover - pydantic detail
             self.logger.critical(
                 f"[INVALID_RESPONSE] parse_response() | Expected: {model.__name__} | "
-                f"Error: {type(e).__name__}: {str(e)}"
+                f"Error: {type(e).__name__}: {e!s}"
             )
 
             raise ValueError(
-                f"{__name__} - {self.__class__.__name__} - {self.name} - Failed to parse response into {model.__name__}: {str(e)}"
+                f"{__name__} - {self.__class__.__name__} - {self.name} - Failed to parse response into {model.__name__}: {e!s}"
             ) from e
 
         self.logger.critical(
@@ -100,14 +102,10 @@ class HttpService(ABC):
 
         # Class-Level Logger
         self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
-        
-        self.logger.info(f"[SERVICE_INIT] {self.name} initialized")
-        return
 
-    def set_content_type(
-        self,
-        content_type: str
-    ):
+        self.logger.info(f"[SERVICE_INIT] {self.name} initialized")
+
+    def set_content_type(self, content_type: str):
         """
         Set the Content-Type header for the session.
         """
@@ -147,12 +145,7 @@ class HttpService(ABC):
     @abstractmethod
     def call(
         self,
-        method: Union[
-            Literal["GET"],
-            Literal["POST"],
-            Literal["PUT"],
-            Literal["DELETE"],
-        ],
+        method: Literal["GET"] | Literal["POST"] | Literal["PUT"] | Literal["DELETE"],
         url: str,
         api_key_title: str,
         params: dict | None = None,

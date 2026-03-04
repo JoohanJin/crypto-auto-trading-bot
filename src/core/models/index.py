@@ -1,18 +1,17 @@
+import time
 from dataclasses import dataclass, field
 from enum import IntFlag
-import time
-from typing import Dict
 
 
 class IndexType(IntFlag):
-    EMA = 1 << 0    # 0001
-    SMA = 1 << 1    # 0010
+    EMA = 1 << 0  # 0001
+    SMA = 1 << 1  # 0010
     PRICE = 1 << 2  # 0100
 
 
 @dataclass
 class Index:
-    '''
+    """
     data_struct = {
         "timestamp" = <int>, # int(time.time() * 1_000)
         "type" = "ema" || "sma",
@@ -36,9 +35,10 @@ class Index:
             "0" = <float>,
         }
     }
-    '''
+    """
+
     index_type: IndexType
-    data: Dict[str, Dict[int, float]]
+    data: dict[str, dict[int, float]]
     timestamp: int = field(default_factory=lambda: int(time.time() * 1_000))
 
     @classmethod

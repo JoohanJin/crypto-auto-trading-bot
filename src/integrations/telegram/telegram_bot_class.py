@@ -1,10 +1,11 @@
-from typing import Tuple
-from telegram import Bot
 import asyncio
 import threading
 
+from telegram import Bot
+
 # Custom Module
-from src.infrastructure.logging.set_logger import get_logger, get_adapter
+from src.infrastructure.logging.set_logger import get_adapter, get_logger
+
 
 logger = get_logger(__name__)
 
@@ -73,18 +74,19 @@ class CustomTelegramBot:
 
         self.logger.info(f"[INTEGRATION_INIT] {self.name} | Status: ready")
 
-        return
-
     def send_text(self, message: str) -> None:
         try:
-            self._run_async(self._bot.send_message(
-                chat_id=self.__channel_id,
-                text=message,
-            ))
+            self._run_async(
+                self._bot.send_message(
+                    chat_id=self.__channel_id,
+                    text=message,
+                )
+            )
             self.logger.info("[MSG_SEND] Platform: Telegram | Status: sent")
         except Exception as e:
-            self.logger.error(f"[MSG_ERROR] Platform: Telegram | Error: {type(e).__name__}: {str(e)}")
-        return
+            self.logger.error(
+                f"[MSG_ERROR] Platform: Telegram | Error: {type(e).__name__}: {e!s}"
+            )
 
     @classmethod
     def _run_async(cls, coro) -> None:
@@ -106,9 +108,11 @@ class CustomTelegramBot:
 """
 
 if __name__ == "__main__":
-    def get_credentials() -> Tuple[str, str]:
-        from dotenv import load_dotenv
+
+    def get_credentials() -> tuple[str, str]:
         import os
+
+        from dotenv import load_dotenv
 
         load_dotenv()
 
@@ -130,5 +134,4 @@ if __name__ == "__main__":
             test.send_text(f"test messaging {i}")
             time.sleep(2.0)
 
-        return
     asyncio.run(main())

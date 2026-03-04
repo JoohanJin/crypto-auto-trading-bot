@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import unittest
 
+from src.core.models.index import IndexType  # type: ignore
 
-from src.core.models.constants import IndexType  # type: ignore
 
 try:
-    from data_processor import (  # type: ignore
+    from src.data.data_processor import (  # type: ignore
         DataProcessor,
         IndexFactory,
     )

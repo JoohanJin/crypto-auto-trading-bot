@@ -13,28 +13,33 @@ Verifies:
 - Graceful handling of errors
 """
 
-import time
-import sys
 import os
+import sys
 import threading
+import time
 import unittest
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+import pytest
 
+from src.brokers.binance.ws_client import BinanceWebSocketClient
+from src.brokers.mexc.ws_client import MexcWebSocketClient
+from src.core.models.service_dto import Ticker
+from src.core.models.trade import TradePair
 from src.interfaces.websocket_interface import WebSocketInterface
 from src.interfaces.ws_client_registry import WebSocketClientRegistry
-from src.brokers.mexc.ws_client import MexcWebSocketClient
-from src.brokers.binance.ws_client import BinanceWebSocketClient
-from src.core.models.trade import TradePair
-from src.core.models.service_dto import Ticker
+
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 
 # ──────────────────────────────────────────────
 # Shared State for Callback Collection
 # ──────────────────────────────────────────────
 
+
 class TickerCollector:
     """Thread-safe collector for Ticker callbacks."""
+
     def __init__(self):
         self._lock = threading.Lock()
         self._tickers: list[Ticker] = []
@@ -62,6 +67,7 @@ class TickerCollector:
 # ──────────────────────────────────────────────
 # Unit Tests: Interface Setup (no network)
 # ──────────────────────────────────────────────
+
 
 class TestWebSocketInterfaceSetup(unittest.TestCase):
     """Unit tests for WebSocketInterface construction and registry operations."""
@@ -147,6 +153,9 @@ class TestWebSocketInterfaceSetup(unittest.TestCase):
 # Integration Tests: Live WebSocket (network)
 # ──────────────────────────────────────────────
 
+
+@pytest.mark.slow
+@pytest.mark.integration
 class TestWebSocketInterfaceLive(unittest.TestCase):
     """
     Integration tests with real Mexc and Binance WebSocket connections.
@@ -186,8 +195,7 @@ class TestWebSocketInterfaceLive(unittest.TestCase):
     def test_11_received_ticker_data(self):
         """Should receive at least one Ticker after subscribing."""
         self.assertGreater(
-            self.collector.count, 0,
-            "Should have received at least one Ticker"
+            self.collector.count, 0, "Should have received at least one Ticker"
         )
 
     def test_12_all_tickers_are_dto(self):
@@ -219,8 +227,12 @@ class TestWebSocketInterfaceLive(unittest.TestCase):
     def test_17_ticker_trade_pair_is_btc_usdt(self):
         """TradePair should be BTC/USDT (what we subscribed to)."""
         for t in self.collector.tickers:
-            self.assertEqual(t.ticker.ticker.upper(), "BTC", f"Expected BTC, got {t.ticker.ticker}")
-            self.assertEqual(t.ticker.quote.upper(), "USDT", f"Expected USDT, got {t.ticker.quote}")
+            self.assertEqual(
+                t.ticker.ticker.upper(), "BTC", f"Expected BTC, got {t.ticker.ticker}"
+            )
+            self.assertEqual(
+                t.ticker.quote.upper(), "USDT", f"Expected USDT, got {t.ticker.quote}"
+            )
 
     # ── Multi-Source Tests ──
 
@@ -228,16 +240,18 @@ class TestWebSocketInterfaceLive(unittest.TestCase):
         """Should receive tickers sourced from MEXC."""
         sources = self.collector.sources
         self.assertIn(
-            "MEXC", {s.upper() for s in sources},
-            f"Expected MEXC in sources, got {sources}"
+            "MEXC",
+            {s.upper() for s in sources},
+            f"Expected MEXC in sources, got {sources}",
         )
 
     def test_19_receives_from_binance(self):
         """Should receive tickers sourced from Binance."""
         sources = self.collector.sources
         self.assertIn(
-            "BINANCE", {s.upper() for s in sources},
-            f"Expected BINANCE in sources, got {sources}"
+            "BINANCE",
+            {s.upper() for s in sources},
+            f"Expected BINANCE in sources, got {sources}",
         )
 
     def test_20_both_sources_present(self):
@@ -245,7 +259,7 @@ class TestWebSocketInterfaceLive(unittest.TestCase):
         sources = {s.upper() for s in self.collector.sources}
         self.assertTrue(
             {"MEXC", "BINANCE"}.issubset(sources),
-            f"Expected both MEXC and BINANCE, got {sources}"
+            f"Expected both MEXC and BINANCE, got {sources}",
         )
 
     # ── Data Quality Tests ──
@@ -262,15 +276,15 @@ class TestWebSocketInterfaceLive(unittest.TestCase):
         time.sleep(3)
         count_after = self.collector.count
         self.assertGreater(
-            count_after, count_before,
-            "Ticker count should increase over time"
+            count_after, count_before, "Ticker count should increase over time"
         )
 
     def test_23_multiple_tickers_received(self):
         """Should receive many tickers over 12+ seconds (at least 5)."""
         self.assertGreater(
-            self.collector.count, 5,
-            f"Expected at least 5 tickers, got {self.collector.count}"
+            self.collector.count,
+            5,
+            f"Expected at least 5 tickers, got {self.collector.count}",
         )
 
     # ── Thread Safety Tests ──

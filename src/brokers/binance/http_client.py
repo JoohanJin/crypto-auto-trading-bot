@@ -1,26 +1,27 @@
 # Standard Library
-from typing import Literal, Union
-
-# logger
-from src.core.models.order import Order, Side
-from src.infrastructure.logging.set_logger import get_logger, get_adapter
-
-# Custom Library
-from src.core.models.trade import PositionType, TimeInForce, TradePair
+from typing import Literal
 
 # RESTful Client
 from src.brokers.base.http_client import HttpClient
 from src.brokers.base.http_service import HttpService
 from src.brokers.binance.http_gateway import BinanceFutureGateway
 
+# logger
+from src.core.models.order import Order, Side
+
 # Data Structure
 from src.core.models.service_dto import (
     AccountInformation,
     MarkPrice,
     Ping,
+    Position,
     Ticker,
-    Position
 )
+
+# Custom Library
+from src.core.models.trade import PositionState, PositionType, TimeInForce, TradePair
+from src.infrastructure.logging.set_logger import get_adapter, get_logger
+
 
 logger = get_logger(__name__)
 
@@ -33,8 +34,12 @@ class BinanceFutureHttpClient(HttpClient):
         capitalize: bool = True,
     ) -> str:
         if isinstance(trade_pair, TradePair):
-            ticker: str = trade_pair.ticker.upper() if capitalize else trade_pair.ticker.lower()
-            quote: str = trade_pair.quote.upper() if capitalize else trade_pair.quote.lower()
+            ticker: str = (
+                trade_pair.ticker.upper() if capitalize else trade_pair.ticker.lower()
+            )
+            quote: str = (
+                trade_pair.quote.upper() if capitalize else trade_pair.quote.lower()
+            )
             return f"{ticker}{quote}"
         return "BTCUSDT" if capitalize else "btcusdt"
 
@@ -48,12 +53,12 @@ class BinanceFutureHttpClient(HttpClient):
 
         # Common quote currencies in Binance futures
         quote_currencies = ["USDT"]
-        
+
         for quote in quote_currencies:
             if symbol.endswith(quote):
-                ticker = symbol[:-len(quote)]
+                ticker = symbol[: -len(quote)]
                 return TradePair(ticker, quote)
-        
+
         # Fallback: if no common quote found, return None
         return None
 
@@ -65,14 +70,14 @@ class BinanceFutureHttpClient(HttpClient):
     ) -> None:
         if name is None:
             name = "BINANCE_FUTURE_CLIENT"
-        
+
         super().__init__(
             name=name.upper(),
         )
 
         self.source = "BINANCE"
         self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
-        
+
         self.gateway: HttpService = BinanceFutureGateway(
             name=f"{name.upper()}_GATEWAY",
             api_key=api_key,
@@ -80,8 +85,6 @@ class BinanceFutureHttpClient(HttpClient):
         )
 
         self.logger.info(f"[SERVICE_INIT] {self.name} initialized")
-
-        return
 
     """
     REST API Version 1 for Binance Futures.
@@ -92,6 +95,7 @@ class BinanceFutureHttpClient(HttpClient):
     probably need to change this to "BTCUSDC" in the future.
     """
     # PUBLIC ENDPOINT
+
     def ping(
         self,
     ) -> dict:
@@ -102,8 +106,9 @@ class BinanceFutureHttpClient(HttpClient):
 
         return: The response from the server as a dictionary.
         """
+
         def construct_ping_dto(msg: dict) -> Ping | None:
-            ''' if dict msg is empty then it is successful, otherwise reutrn None'''
+            """if dict msg is empty then it is successful, otherwise reutrn None"""
             return Ping(
                 timestamp=self.generate_timestamp(),
                 success=msg == {},
@@ -484,19 +489,22 @@ class BinanceFutureHttpClient(HttpClient):
 
         return: The response from the server as a dictionary.
         """
+
         def construct_mark_price_dto(data: dict) -> MarkPrice | list[MarkPrice]:
             if isinstance(data, dict):
                 try:
                     return MarkPrice(
                         timestamp=data.get("time", self.generate_timestamp()),
                         source=self.source,
-                        ticker=self._construct_trade_pair(symbol=data.get('symbol', "BTCUSDT")),
+                        ticker=self._construct_trade_pair(
+                            symbol=data.get("symbol", "BTCUSDT")
+                        ),
                         mark_price=round(float(data.get("markPrice", 0.0)), 2),
                     )
                 except Exception as e:
                     self.logger.warning(
                         f"[INVALID_RESPONSE] construct_mark_price_dto() | "
-                        f"Error: {type(e).__name__}: {str(e)}"
+                        f"Error: {type(e).__name__}: {e!s}"
                     )
             elif isinstance(data, list):
                 res: list[MarkPrice] = []
@@ -506,17 +514,20 @@ class BinanceFutureHttpClient(HttpClient):
                             MarkPrice(
                                 timestamp=data.get("time", self.generate_timestamp()),
                                 source=self.source,
-                                ticker=self._construct_trade_pair(symbol=data.get('symbol', "BTCUSDT")),
+                                ticker=self._construct_trade_pair(
+                                    symbol=data.get("symbol", "BTCUSDT")
+                                ),
                                 mark_price=data.get("markPrice"),
                             )
                         )
                     except Exception as e:
                         self.logger.warning(
                             f"[INVALID_RESPONSE] construct_mark_price_dto() | "
-                            f"Error: {type(e).__name__}: {str(e)}"
+                            f"Error: {type(e).__name__}: {e!s}"
                         )
                 return res
             return
+
         url: str = "/fapi/v1/premiumIndex"
         params: dict[str, str] = {
             "symbol": self._parse_trade_pair(symbol),
@@ -595,7 +606,7 @@ class BinanceFutureHttpClient(HttpClient):
 
         return: The response from the server as a dictionary.
         """
-        symbol = symbol if symbol else TradePair('BTC', 'USDT')
+        symbol = symbol if symbol else TradePair("BTC", "USDT")
 
         def construct_ticker_dto(data: dict) -> Ticker | None:
             if isinstance(data, dict):
@@ -603,7 +614,7 @@ class BinanceFutureHttpClient(HttpClient):
                     timestamp=self.generate_timestamp(),
                     source=self.source,
                     ticker=symbol,
-                    price=data.get('lastPrice', 0.0),
+                    price=data.get("lastPrice", 0.0),
                 )
             else:
                 return
@@ -819,19 +830,20 @@ class BinanceFutureHttpClient(HttpClient):
         "recvWindow": 5000
     }
     """
+
     def order(
         self,
         order: Order,
         recv_window: int = 5_000,
     ) -> None:
-        '''
+        """
         - Call three different place_order():
             - one for the original position
             - Others for TP and SL
 
         - calculating the btc quantity:
             - NUM_OF_BTC = floor((USDT_AMT) / (markPrice) to stepSize)
-        '''
+        """
         # ORDER
 
         res: list[dict] = []
@@ -849,7 +861,7 @@ class BinanceFutureHttpClient(HttpClient):
             order=order,
             recv_window=recv_window,
         )
-        if (response.get("status") == "NEW"):
+        if response.get("status") == "NEW":
             self.logger.info("The new order has been opened.")
         else:
             return
@@ -893,15 +905,20 @@ class BinanceFutureHttpClient(HttpClient):
         self,
         order: Order,
         recv_window: int,  # 5_000 ms is the default value, i.e., 5 sec.
-        side: str | None = None,  # Override order.side_str (needed for SL/TP opposite side)
+        side: str
+        | None = None,  # Override order.side_str (needed for SL/TP opposite side)
         position_side: str | None = None,  # "BOTH", "LONG", "SHORT", None
-        type: Union[Literal["MARKET"], Literal["TAKE_PROFIT_MARKET"], Literal["STOP_MARKET"]] = "MARKET",
+        type: Literal["MARKET"]
+        | Literal["TAKE_PROFIT_MARKET"]
+        | Literal["STOP_MARKET"] = "MARKET",
         reduce_only: str | None = None,
         time_in_force: str | None = None,
         price: float | None = None,
         new_client_order_id: str | None = None,
         stop_price: float | None = None,
-        close_position: Union[Literal["true"], Literal["false"]] | None = None,  # bool: true or false
+        close_position: Literal["true"]
+        | Literal["false"]
+        | None = None,  # bool: true or false
         activation_price: float | None = None,
         callback_rate: float | None = None,
         working_type: str | None = None,
@@ -912,7 +929,7 @@ class BinanceFutureHttpClient(HttpClient):
         good_till_date: int | None = None,
         url: str = "/fapi/v1/order",
     ) -> dict | None:
-        '''
+        """
         - new_order()
             - make a new order in the Binance FUTURE Market
 
@@ -925,7 +942,7 @@ class BinanceFutureHttpClient(HttpClient):
         - NOTE: quantity and closePosition are mutually exclusive.
             - When closePosition="true", quantity must NOT be sent.
         - NOTE: timeInForce is NOT valid for STOP_MARKET / TAKE_PROFIT_MARKET.
-        '''
+        """
         # Use overridden side if provided, otherwise use order's side
         order_side = side if side else order.side_str
 
@@ -966,51 +983,46 @@ class BinanceFutureHttpClient(HttpClient):
         self,
     ):
         raise NotImplementedError
-        return
 
     def change_order(
         self,
     ):
         raise NotImplementedError
-        return
 
     def change_multiple_orders(
         self,
     ):
         raise NotImplementedError
-        return
 
     def get_order_change_history(
         self,
     ):
         raise NotImplementedError
-        return
 
     def cancel_order(
         self,
     ):
         raise NotImplementedError
-        return
 
-    def cancel_multiple_orders(self,):
+    def cancel_multiple_orders(
+        self,
+    ):
         raise NotImplementedError
-        return
 
     def cancel_all_orders(
         self,
     ):
         raise NotImplementedError
-        return
 
     def auto_cancel_all_open_orders(
         self,
     ):
         raise NotImplementedError
-        return
 
-    def query_order(self,):
+    def query_order(
+        self,
+    ):
         raise NotImplementedError
-        return
 
     def get_all_orders(
         self,
@@ -1040,7 +1052,9 @@ class BinanceFutureHttpClient(HttpClient):
         url: str = "/fapi/v1/allOrders"
         params: dict[str, int | str] = {
             "symbol": self._parse_trade_pair(symbol),
-            "timestamp": timestamp if timestamp is not None else self.generate_timestamp(),
+            "timestamp": timestamp
+            if timestamp is not None
+            else self.generate_timestamp(),
         }
 
         # Add optional parameters if provided
@@ -1061,9 +1075,10 @@ class BinanceFutureHttpClient(HttpClient):
             params=params,
         )
 
-    def get_open_order(self,):
+    def get_open_order(
+        self,
+    ):
         raise NotImplementedError
-        return
 
     def get_open_orders(
         self,
@@ -1081,6 +1096,7 @@ class BinanceFutureHttpClient(HttpClient):
 
         return: List of open Position objects.
         """
+
         def generate_position_dto(orders: list[dict]) -> list[Position]:
             positions: list[Position] = []
             for order in orders:
@@ -1116,11 +1132,17 @@ class BinanceFutureHttpClient(HttpClient):
                     client_order_id=order.get("clientOrderId", ""),
                     working_type=order.get("workingType", "CONTRACT_PRICE"),
                     price_match=order.get("priceMatch", "NONE"),
-                    self_trade_prevention_mode=order.get("selfTradePreventionMode", "NONE"),
+                    self_trade_prevention_mode=order.get(
+                        "selfTradePreventionMode", "NONE"
+                    ),
                     good_till_date=order.get("goodTillDate", 0),
                     price_protect=order.get("priceProtect", False),
-                    activate_price=float(order.get("activatePrice", 0)) if "activatePrice" in order else 0.0,
-                    price_rate=float(order.get("priceRate", 0)) if "priceRate" in order else 0.0,
+                    activate_price=float(order.get("activatePrice", 0))
+                    if "activatePrice" in order
+                    else 0.0,
+                    price_rate=float(order.get("priceRate", 0))
+                    if "priceRate" in order
+                    else 0.0,
                 )
                 positions.append(position)
 
@@ -1140,24 +1162,28 @@ class BinanceFutureHttpClient(HttpClient):
 
         if not isinstance(orders, list) or len(orders) == 0:
             return []
-        
+
         return generate_position_dto(orders)
 
-    def query_account_trades(self,):
+    def query_account_trades(
+        self,
+    ):
         raise NotImplementedError
-        return
 
-    def query_user_force_orders(self,):
+    def query_user_force_orders(
+        self,
+    ):
         raise NotImplementedError
-        return
 
-    def change_margin_type(self,):
+    def change_margin_type(
+        self,
+    ):
         raise NotImplementedError
-        return
 
-    def change_position_mode(self,):
+    def change_position_mode(
+        self,
+    ):
         raise NotImplementedError
-        return
 
     def change_initial_leverage(
         self,
@@ -1179,34 +1205,40 @@ class BinanceFutureHttpClient(HttpClient):
             params=params,
         )
 
-    def change_multi_assets_mode(self,):
+    def change_multi_assets_mode(
+        self,
+    ):
         raise NotImplementedError
-        return
 
     def change_isolated_position_margin(
         self,
     ):
         raise NotImplementedError
-        return
 
-    def postion_info_v2(self,):
+    def postion_info_v2(
+        self,
+    ):
         raise NotImplementedError
-        return
 
-    def position_info_v3(self,):
+    def position_info_v3(
+        self,
+    ):
         raise NotImplementedError
-        return
 
-    def position_adl_quantile_estimation(self,):
+    def position_adl_quantile_estimation(
+        self,
+    ):
         raise NotImplementedError
+
+    def get_position_margin_history(
+        self,
+    ):
         return
 
-    def get_position_margin_history(self,):
-        return
-
-    def test_new_order(self,):
+    def test_new_order(
+        self,
+    ):
         raise NotImplementedError
-        return
 
     def get_account_balance(
         self,
@@ -1217,18 +1249,20 @@ class BinanceFutureHttpClient(HttpClient):
         def construct_account_information_dto(data: dict):
             try:
                 return AccountInformation(
-                    timestamp=int(data.get('updateTime', None) or self.generate_timestamp()),
+                    timestamp=int(data.get("updateTime") or self.generate_timestamp()),
                     source=self.source,
-                    id=data.get('accountAlias', None),
-                    asset=data.get('asset'),
-                    balance=round(float(data.get('balance', 0.0)), 2),
-                    unrealized_pnl=round(float(data.get('crossUnPnl', 0.0)), 2),
-                    available_balance=round(float(data.get('availableBalance', 0.0)), 2)
+                    id=data.get("accountAlias"),
+                    asset=data.get("asset"),
+                    balance=round(float(data.get("balance", 0.0)), 2),
+                    unrealized_pnl=round(float(data.get("crossUnPnl", 0.0)), 2),
+                    available_balance=round(
+                        float(data.get("availableBalance", 0.0)), 2
+                    ),
                 )
             except Exception as e:
                 self.logger.warning(
                     f"[INVALID_RESPONSE] construct_account_information_dto() | "
-                    f"Error: {type(e).__name__}: {str(e)}"
+                    f"Error: {type(e).__name__}: {e!s}"
                 )
                 return
             return
@@ -1254,11 +1288,11 @@ class BinanceFutureHttpClient(HttpClient):
             return res
         else:
             for balance in balances:
-                if balance.get('asset', None) == asset.strip().upper():
+                if balance.get("asset", None) == asset.strip().upper():
                     return construct_account_information_dto(balance)
             return {}
         return
-            
+
     def get_account_information_v2(
         self,
         url: str = "/fapi/v2/account",
@@ -1303,10 +1337,11 @@ class BinanceFutureHttpClient(HttpClient):
         symbol: TradePair | None = None,
         recv_window: int = 5_000,
     ):
+        raise NotImplementedError
         params: dict[str, int | float] = {
             "symbol": self._parse_trade_pair(symbol),
             "recv_window": recv_window,
-            "timestamp": self.generate_timestamp()
+            "timestamp": self.generate_timestamp(),
         }
 
         return self.gateway.call(
@@ -1319,7 +1354,7 @@ class BinanceFutureHttpClient(HttpClient):
         self,
         url: str = "/fapi/v1/openOrders",
         symbol: TradePair | None = None,
-        recv_window = 5_000,
+        recv_window=5_000,
     ):
         params: dict[str, int | float] = {
             "symbol": self._parse_trade_pair(symbol),
@@ -1333,10 +1368,51 @@ class BinanceFutureHttpClient(HttpClient):
             params=params,
         )
 
+    def get_current_position_state(
+        self,
+        symbol: TradePair | None = None,
+        recv_window: int = 5_000,
+    ) -> PositionState | None:
+        positions = self.get_position_information_v2(
+            symbol=symbol, recv_window=recv_window
+        )
+
+        symbol: TradePair = symbol if symbol is not None else TradePair("BTC", "USDT")
+
+        for position in positions:
+            if isinstance(position, dict):
+                trade_pair: TradePair = self._construct_trade_pair(
+                    position.get("symbol", None)
+                )
+                if (
+                    trade_pair.quote == symbol.quote
+                    and trade_pair.ticker == symbol.ticker
+                ) and (float(position.get("positionAmt")) != 0.0):
+                    side_str: str = position.get("positionSide").upper()
+
+                    entry_price: float = float(position.get("entryPrice", 0.0))
+                    break_even_price: float = float(position.get("breakEvenPrice", 0.0))
+
+                    if side_str == "BUY" or side_str == "SELL":
+                        side: Side = Side.BUY if side_str == "BUY" else Side.SELL
+                    elif (break_even_price - entry_price) > 0:
+                        side: Side = Side.BUY
+                    else:
+                        side: Side = Side.SELL
+                    return PositionState(
+                        side=side,
+                        ticker_size=abs(float(position.get("positionAmt", 0.0))),
+                        quote_size=abs(float(position.get("isolatedWallet", 0.0))),
+                        entry_price=float(position.get("entryPrice", 0.0)),
+                        timestamp=self.generate_timestamp(),
+                    )
+        return None
+
 
 if __name__ == "__main__":
-    from dotenv import load_dotenv
     import os
+
+    from dotenv import load_dotenv
 
     load_dotenv()
 
@@ -1346,7 +1422,9 @@ if __name__ == "__main__":
         secret_key=os.getenv("BINANCE_HMAC_SECRET_KEY"),
     )
 
-    print(bfc.get_mark_price())
+    # print(bfc.get_mark_price())
     # response = bfc.get_all_orders()
     # for res in response:
     #     print(res)
+
+    print(bfc.get_current_position_state(symbol=TradePair("BTC", "USDT")))

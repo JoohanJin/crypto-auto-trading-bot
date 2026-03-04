@@ -1,14 +1,14 @@
-from typing import Tuple
-import telegram
-import json
 import asyncio
+import json
 import os
 
+import telegram
 
-def get_credential() -> Tuple[str, ...]:
-    '''
+
+def get_credential() -> tuple[str, ...]:
+    """
     get the telegram bot credential stored locally.
-    '''
+    """
     api_key = os.getenv("TELEGRAM_API_KEY")
     channel_id = os.getenv("TELEGRAM_CHANNEL_ID")
     if (not api_key) or (not channel_id):  # if there is no environment variable
@@ -23,7 +23,6 @@ async def send_message(bot: telegram.Bot, channel_id: str, message: str) -> None
         chat_id=channel_id,
         text=message,
     )
-    return
 
 
 async def main() -> None:
@@ -33,10 +32,10 @@ async def main() -> None:
 
     async with bot:
         await send_message(bot, channel_id, "Test Message 1, 2, 3")
-    return
 
-'''
+
+"""
 # Testing code
-'''
+"""
 if __name__ == "__main__":
     asyncio.run(main())

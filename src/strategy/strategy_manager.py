@@ -1,30 +1,30 @@
 # STANDARD LIBRARY
 import threading
-from pathlib import Path
-from typing import Any, Callable, Dict
 import time
+from collections.abc import Callable
+from pathlib import Path
+from typing import Any
+
+from src.core.models.index import Index, IndexType
+from src.core.models.signal import Signal, TradeSignal
 
 # CUSTOM LIBRARY
-from src.infrastructure.logging.set_logger import get_logger, get_adapter
-from src.core.models.index import IndexType, Index
-from src.core.models.signal import TradeSignal, Signal
+from src.infrastructure.logging.set_logger import get_adapter, get_logger
 from src.strategy import (
+    StrategyCondition,
+    StrategyConfig,
     StrategyExecutor,
     StrategyFactory,
     StrategyFetcher,
-    StrategyConfig,
-    StrategyCondition,
 )
+
 
 logger = get_logger(__name__)
 
 
 class StrategyManager:
-    SLEEP_INTERVAL: float = 1.5
-    STRATEGY_CONFIG_PATH: Path = Path("config/strategies.json")
-
-    @staticmethod
-    def generate_timestamp() -> int:
+    @classmethod
+    def generate_timestamp(cls) -> int:
         """
         static func generate_timestamp():
             - Generate the timestamp using the current time, in the form of epoch in ms.
@@ -43,14 +43,17 @@ class StrategyManager:
                 thread.start()
                 logger.info(f"[THREAD_START] {thread.name} | Status: running")
             except RuntimeError as e:
-                logger.critical(f"[THREAD_ERROR] {thread.name} failed | Error: {type(e).__name__}: {str(e)}")
-                raise RuntimeError(f"Failed to start thread '{thread.name}': {str(e)}")
-            except Exception as e:
-                logger.critical(f"[THREAD_ERROR] {thread.name} failed | Error: {type(e).__name__}: {str(e)}")
-                raise Exception(
-                    f"Unexpected error starting thread: '{thread.name}': {str(e)}"
+                logger.critical(
+                    f"[THREAD_ERROR] {thread.name} failed | Error: {type(e).__name__}: {e!s}"
                 )
-        return
+                raise RuntimeError(f"Failed to start thread '{thread.name}': {e!s}")
+            except Exception as e:
+                logger.critical(
+                    f"[THREAD_ERROR] {thread.name} failed | Error: {type(e).__name__}: {e!s}"
+                )
+                raise Exception(
+                    f"Unexpected error starting thread: '{thread.name}': {e!s}"
+                )
 
     def __init__(
         self,
@@ -59,14 +62,26 @@ class StrategyManager:
         push_signal_callback: Callable[[Signal], None],
         signal_window: int = 5_000,
         name: str | None = None,
+        strategy_path: str | None = None,
+        sleep_interval: float = 0.75,
+        strategy_fetcher: StrategyFetcher | None = None,
+        strategy_factory: StrategyFactory | None = None,
+        strategy_executor: StrategyExecutor | None = None,
     ) -> None:
         self.name: str = name if name else "STRATEGY_MANAGER"
         self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
-        self.trading_logger = get_adapter(get_logger(__name__, "trading"), f"{self.__class__.__name__}_{self.name}")
+        self.trading_logger = get_adapter(
+            get_logger(__name__, "trading"), f"{self.__class__.__name__}_{self.name}"
+        )
 
         # shared data structure to store Timestamp of the previoius invokation of each signal.
         self.signal_timestamps: dict[str, int] = dict()
         self.signal_timestamps_lock: threading.Lock = threading.Lock()
+
+        # Statistics for heartbeat logging
+        self.signal_counts: dict[str, int] = {}
+        self.signal_counts_lock: threading.Lock = threading.Lock()
+
         self.signal_window: int = signal_window
         self.threads: list[threading.Thread] = []
 
@@ -76,42 +91,110 @@ class StrategyManager:
         self.strategy_executor: StrategyExecutor | None = None
         self.strategy_configs: list[StrategyConfig] = []
 
+        self.sleep_interval: float = sleep_interval
+        self.strategy_path: Path = (
+            Path(strategy_path)
+            if strategy_path is not None
+            else Path("config/strategies.json")
+        )
+
+        self._load_strategies(strategy_fetcher, strategy_factory, strategy_executor)
+
         self.start()
-        
-        self.logger.info(f"[STRATEGY_INIT] {self.name} | Status: ready")
-        return
+
+        self.logger.info(
+            f"[STRATEGY_INIT] {self.name} | Global Period: {self.sleep_interval} s| Status: ready"
+        )
 
     def start(self) -> None:
         # if this is the thread-based class
-        self._load_strategies()
         self.__init_threads()
         self.start_threads(self.threads)
 
     def push_signal(self, signal: Signal, details: str) -> None:
         try:
             self._push_signal_callback(signal)
-            self.trading_logger.info(f"[SIGNAL_GEN] Strategy: {details} | Signal: {signal.signal.name} | Status: success")
-        except Exception as e:
-            self.logger.critical(f"[STRATEGY_ERROR] push_signal() | Error: {type(e).__name__}: {str(e)}")
 
-    def _load_strategies(self) -> None:
-        fetcher = StrategyFetcher(self.STRATEGY_CONFIG_PATH)
-        raw_config = fetcher.load_strategies()
+            # Update statistics
+            with self.signal_counts_lock:
+                self.signal_counts[details] = self.signal_counts.get(details, 0) + 1
+
+            # Log at DEBUG level to reduce noise
+            self.trading_logger.debug(
+                f"[SIGNAL_GEN] Strategy: {details} | Signal: {signal.signal.name} | Status: success"
+            )
+        except Exception as e:
+            self.logger.critical(
+                f"[STRATEGY_ERROR] push_signal() | Error: {type(e).__name__}: {e!s}"
+            )
+
+    def _thread_log_status(self) -> None:
+        """
+        Periodically logs aggregated signal statistics to reduce log noise.
+        """
+        while True:
+            try:
+                time.sleep(60)
+
+                with self.signal_counts_lock:
+                    if not self.signal_counts:
+                        self.logger.info(
+                            "[STRATEGY_STATS] No signals generated in last interval."
+                        )
+                    else:
+                        stats_str = ", ".join(
+                            [f"{k}: {v}" for k, v in self.signal_counts.items()]
+                        )
+                        self.logger.info(
+                            f"[STRATEGY_STATS] Signal Counts (1m): {stats_str}"
+                        )
+                        self.signal_counts.clear()  # Reset for next interval
+
+            except Exception as e:
+                self.logger.error(
+                    f"[STATUS_LOG_ERROR] Failed to log status | Error: {type(e).__name__}: {e!s}"
+                )
+                time.sleep(10)
+
+    def _load_strategies(
+        self,
+        strategy_fetcher: StrategyFetcher | None,
+        strategy_factory: StrategyFactory | None,
+        strategy_executor: StrategyExecutor | None,
+    ) -> None:
+        # StrategyFetcher
+        self.fetcher: StrategyFetcher = strategy_fetcher or StrategyFetcher(
+            self.strategy_path
+        )
+        """
+        raw_config = {
+            "strategies": []
+            "global_settings: {}
+        }
+        """
+        raw_config: dict = self.fetcher.load_strategies()
 
         # Align sleep interval with config if provided
-        global_settings: Dict[str, Any] = raw_config.get("global_settings", {})
-        self.SLEEP_INTERVAL = global_settings.get("sleep_interval", self.SLEEP_INTERVAL)
+        global_settings: dict[str, Any] = raw_config.get(
+            "global_settings", {}
+        )  # => Strategy
+        self.sleep_interval = global_settings.get("sleep_interval", self.sleep_interval)
 
-        factory = StrategyFactory()
-        self.strategy_configs = factory.build_all(raw_config)
+        # StrategyFactory
+        factory: StrategyFactory = strategy_factory or StrategyFactory()
+        # Get the list of StrategyConfig
+        self.strategy_configs: list[StrategyConfig] = factory.build_all(raw_config)
 
-        self.strategy_executor = StrategyExecutor(
+        # StrategyExecutor
+        self.strategy_executor = strategy_executor or StrategyExecutor(
             push_signal=self.push_signal,
-            get_indicators=lambda indicator_types: self._get_indicators_safely(*indicator_types),
+            get_indicators=lambda indicator_types: self._get_indicators_safely(
+                *indicator_types
+            ),
             should_generate=self._should_generate_signal,
             update_timestamp=self.__update_signal_timestamp,
             verify_index=self.__verify_index,
-            sleep_interval=self.SLEEP_INTERVAL,
+            sleep_interval=self.sleep_interval,
         )
 
     def __init_threads(self) -> None:
@@ -134,15 +217,25 @@ class StrategyManager:
             self.threads.append(thread)
             self.logger.info(f"[THREAD_START] {name} | Status: ready")
 
+        # Start the heartbeat/status logger
+        status_thread = threading.Thread(
+            name="StrategyManager_StatusLogger",
+            target=self._thread_log_status,
+            daemon=True,
+        )
+        self.threads.append(status_thread)
+        self.logger.info(f"[THREAD_START] {status_thread.name} | Status: ready")
+
+        return
+
     def __verify_index(
         self,
         index: Index,
         time_window: int = 5_000,
     ) -> bool:
-        if (StrategyManager.generate_timestamp() - index.timestamp < time_window):
+        if self.generate_timestamp() - index.timestamp < time_window:
             return True
-        else:
-            return False
+        return False
 
     def __extract_data(
         self,
@@ -150,8 +243,7 @@ class StrategyManager:
     ) -> dict[int, float] | None:
         if index:
             return index.data
-        else:
-            return None
+        return None
 
     def _get_indicator_value(
         self,
@@ -176,7 +268,9 @@ class StrategyManager:
         try:
             idx_type = IndexType[indicator_name]
         except KeyError:
-            self.logger.critical(f"[STRATEGY_ERROR] _resolve_indicator_value() | Error: Unknown indicator: {indicator_name}")
+            self.logger.critical(
+                f"[STRATEGY_ERROR] _resolve_indicator_value() | Error: Unknown indicator: {indicator_name}"
+            )
             return None
 
         indicator_obj = indicators.get(idx_type)
@@ -209,6 +303,7 @@ class StrategyManager:
         condition: StrategyCondition,
         indicators: dict[IndexType, Index | float | None],
         strategy: StrategyConfig,
+        previous_indicators: dict[IndexType, Index | float | None] | None = None,
     ) -> TradeSignal | None:
         payload = condition.payload
 
@@ -217,12 +312,47 @@ class StrategyManager:
             right_cfg = payload.get("right", {})
             operator = payload.get("operator", "")
 
-            left_val = self._resolve_indicator_value(indicators, left_cfg.get("indicator", ""), left_cfg.get("window"))
-            right_val = self._resolve_indicator_value(indicators, right_cfg.get("indicator", ""), right_cfg.get("window"))
+            # Current values
+            left_val = self._resolve_indicator_value(
+                indicators, left_cfg.get("indicator", ""), left_cfg.get("window")
+            )
+            right_val = self._resolve_indicator_value(
+                indicators, right_cfg.get("indicator", ""), right_cfg.get("window")
+            )
 
             if left_val is None or right_val is None:
                 return None
 
+            # Crossover Logic
+            if operator in ("cross_above", "cross_below"):
+                if previous_indicators is None:
+                    return None
+
+                prev_left = self._resolve_indicator_value(
+                    previous_indicators,
+                    left_cfg.get("indicator", ""),
+                    left_cfg.get("window"),
+                )
+                prev_right = self._resolve_indicator_value(
+                    previous_indicators,
+                    right_cfg.get("indicator", ""),
+                    right_cfg.get("window"),
+                )
+
+                if prev_left is None or prev_right is None:
+                    return None
+
+                if operator == "cross_above":
+                    # Was below or equal, now above
+                    if (prev_left <= prev_right) and (left_val > right_val):
+                        return strategy.signal_type
+                elif operator == "cross_below":
+                    # Was above or equal, now below
+                    if (prev_left >= prev_right) and (left_val < right_val):
+                        return strategy.signal_type
+                return None
+
+            # Standard Logic
             if self._compare(left_val, right_val, operator):
                 return strategy.signal_type
 
@@ -254,8 +384,12 @@ class StrategyManager:
             right_cfg = payload.get("right", {})
             operator = payload.get("operator", "")
 
-            left_val = self._resolve_indicator_value(indicators, left_cfg.get("indicator", ""), left_cfg.get("window"))
-            right_val = self._resolve_indicator_value(indicators, right_cfg.get("indicator", ""), right_cfg.get("window"))
+            left_val = self._resolve_indicator_value(
+                indicators, left_cfg.get("indicator", ""), left_cfg.get("window")
+            )
+            right_val = self._resolve_indicator_value(
+                indicators, right_cfg.get("indicator", ""), right_cfg.get("window")
+            )
 
             if left_val is None or right_val is None:
                 return None
@@ -274,10 +408,23 @@ class StrategyManager:
     def _build_strategy_logic(
         self,
         strategy: StrategyConfig,
-    ) -> Callable[[dict[IndexType, Index | float | None], StrategyConfig], TradeSignal | None]:
-        def logic(indicators: dict[IndexType, Index | float | None], cfg: StrategyConfig) -> TradeSignal | None:
+    ) -> Callable[
+        [
+            dict[IndexType, Index | float | None],
+            dict[IndexType, Index | float | None] | None,
+            StrategyConfig,
+        ],
+        TradeSignal | None,
+    ]:
+        def logic(
+            indicators: dict[IndexType, Index | float | None],
+            previous_indicators: dict[IndexType, Index | float | None] | None,
+            cfg: StrategyConfig,
+        ) -> TradeSignal | None:
             for condition in cfg.conditions:
-                signal = self._evaluate_condition(condition, indicators, cfg)
+                signal = self._evaluate_condition(
+                    condition, indicators, cfg, previous_indicators
+                )
                 if signal:
                     return signal
             return None
@@ -289,13 +436,15 @@ class StrategyManager:
         key: str,
     ) -> None:
         with self.signal_timestamps_lock:
-            self.signal_timestamps[key] = StrategyManager.generate_timestamp()
-        return
+            self.signal_timestamps[key] = self.generate_timestamp()
 
     def __get_signal_timestamp(
         self,
         key: str,
     ) -> int:
+        """
+        ;func __get_signal_timestamp()
+        """
         with self.signal_timestamps_lock:
             return self.signal_timestamps.get(key, 0)
 
@@ -315,7 +464,7 @@ class StrategyManager:
         """
         prev_timestamp: int = self.__get_signal_timestamp(key)
         window = signal_window if signal_window is not None else self.signal_window
-        return StrategyManager.generate_timestamp() - prev_timestamp > window
+        return self.generate_timestamp() - prev_timestamp > window
 
     def _get_indicators_safely(
         self,
@@ -331,4 +480,6 @@ class StrategyManager:
             - Dictionary mapping indicator types to their Index objects
         """
         with self.indicators_lock:
-            return {idx_type: self.indicators.get(idx_type) for idx_type in indicator_types}
+            return {
+                idx_type: self.indicators.get(idx_type) for idx_type in indicator_types
+            }

@@ -290,7 +290,7 @@
   ],
   "global_settings": {
     "default_signal_window": 5000,
-    "sleep_interval": 1.5,
+    "sleep_interval": 0.75,
     "enable_all_strategies": true
   }
 }

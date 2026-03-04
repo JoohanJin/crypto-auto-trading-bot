@@ -22,14 +22,17 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
+import argparse
+
 # Standard Library
 import sys
 import time
-import argparse
 
 # Custom Library
-from src.infrastructure.system_manager import SystemManager
+from src import VERSION
 from src.infrastructure.logging.set_logger import get_logger, set_global_log_level
+from src.infrastructure.system_manager import SystemManager
+
 
 logger = get_logger(__name__)
 
@@ -37,17 +40,25 @@ logger = get_logger(__name__)
 def main():
     parser = argparse.ArgumentParser(description="AutoCryptoTrading Bot")
     parser.add_argument(
-        "--debug", "-d", 
-        action="store_true", 
-        help="Enable debug logging (overrides .env)"
+        "--debug",
+        "-d",
+        action="store_true",
+        help="Enable debug logging (overrides .env)",
     )
     parser.add_argument(
-        "--log-level", "-l",
+        "--log-level",
+        "-l",
         type=str,
         choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-        help="Set specific log level"
+        help="Set specific log level",
     )
-    
+    parser.add_argument(
+        "--disable-trade",
+        "-dt",
+        action="store_true",
+        help="Disable trade execution (Dry Run)",
+    )
+
     args = parser.parse_args()
 
     try:
@@ -61,11 +72,18 @@ def main():
             set_global_log_level("INFO")
 
         # Load environment variables
-        logger.info("[APP_START] Application starting | Loading environment configuration")
+        logger.info(
+            f"[APP_START] AutoCryptoTrading Bot Version: {VERSION} | Loading environment configuration"
+        )
 
         # Initialize SystemManager
-        main_system_manager: SystemManager = SystemManager(name="MAIN_APP")  # noqa: F841
-        logger.info("[APP_INIT_COMPLETE] Application initialized | Status: ready")
+        # Pass disable_trade flag to SystemManager
+        main_system_manager: SystemManager = SystemManager(
+            name="MAIN_APP", disable_trade=args.disable_trade
+        )
+        logger.info(
+            f"[APP_INIT_COMPLETE] Application initialized | Status: ready | Trade Execution: {'DISABLED' if args.disable_trade else 'ENABLED'}"
+        )
 
         # Start main event loop
         logger.info("[APP_LOOP_START] Entering main event loop")
@@ -73,17 +91,20 @@ def main():
             time.sleep(0.5)  # Sleep to reduce CPU usage
 
     except KeyboardInterrupt:
-        logger.warning("[APP_SHUTDOWN] User interrupt received | Action: graceful shutdown")
+        logger.warning(
+            "[APP_SHUTDOWN] User interrupt received | Action: graceful shutdown"
+        )
         sys.exit(0)
     except RuntimeError as e:
-        logger.critical(f"[MAIN_RUNTIME_ERROR] RuntimeError | Error: RuntimeError: {str(e)}")
+        logger.critical(
+            f"[MAIN_RUNTIME_ERROR] RuntimeError | Error: RuntimeError: {e!s}"
+        )
         sys.exit(1)
     except Exception as e:
         logger.critical(
-            f"[APP_STARTUP_ERROR] Unexpected error during startup | Error: {type(e).__name__}: {str(e)}"
+            f"[APP_STARTUP_ERROR] Unexpected error during startup | Error: {type(e).__name__}: {e!s}"
         )
         sys.exit(1)
-    return
 
 
 if __name__ == "__main__":

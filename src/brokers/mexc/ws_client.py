@@ -1,17 +1,19 @@
 # Standard Library
 import time
-from typing import Literal, Union, Callable
+from collections.abc import Callable
+from typing import Literal
 
-# Logger
-from src.infrastructure.logging.set_logger import get_logger, get_adapter
+# WebSocket
+from src.brokers.base.ws_client import WebSocketClient
+from src.brokers.mexc.ws_gateway import MexcWebSocket
 
 # Models
 from src.core.models.service_dto import OrderBook, Ticker
 from src.core.models.trade import TradePair
 
-# WebSocket
-from src.brokers.base.ws_client import WebSocketClient
-from src.brokers.mexc.ws_gateway import MexcWebSocket
+# Logger
+from src.infrastructure.logging.set_logger import get_adapter, get_logger
+
 
 logger = get_logger(__name__)
 
@@ -29,9 +31,7 @@ class MexcWebSocketClient(WebSocketClient):
         ping_interval: int | None = 20,  # as it is recommended
         default_callback: Callable | None = None,
     ) -> None:
-        super().__init__(
-            name = name if name else "MEXC_FUTURE_WEBSOCKET_CLIENT"
-        )
+        super().__init__(name=name if name else "MEXC_FUTURE_WEBSOCKET_CLIENT")
         self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
 
         self.ws: MexcWebSocket = MexcWebSocket(
@@ -42,19 +42,13 @@ class MexcWebSocketClient(WebSocketClient):
             ping_interval=ping_interval,
             default_callback=default_callback,
         )
-        return
 
     def start(self) -> None:
         try:
             self.ws.start()
-            self.logger.info(
-                f"[WS_OPEN] MexC | URL: {self.ws.url} | Status: opened"
-            )
+            self.logger.info(f"[WS_OPEN] MexC | URL: {self.ws.url} | Status: opened")
         except Exception as e:
-            self.logger.info(
-                f"[WS_OPEN] MexC | Error: {type(e).__name__}: {str(e)}"
-            )
-        return
+            self.logger.info(f"[WS_OPEN] MexC | Error: {type(e).__name__}: {e!s}")
 
     @classmethod
     def _parse_trade_pair(
@@ -80,7 +74,7 @@ class MexcWebSocketClient(WebSocketClient):
         symbol: str = self._parse_trade_pair(trade_pair)
 
         res = dict(param) if param else {}
-        res['symbol'] = symbol
+        res["symbol"] = symbol
         return res
 
     """
@@ -94,6 +88,7 @@ class MexcWebSocketClient(WebSocketClient):
         - Index Price
         - Fair Price
     """
+
     def tickers(
         self,
         callback: Callable,
@@ -104,8 +99,7 @@ class MexcWebSocketClient(WebSocketClient):
         - Send once a second after subscribing
         """
         topic = "tickers"
-        self.ws.subscribe(topic = topic, callback = callback, param = {})
-        return
+        self.ws.subscribe(topic=topic, callback=callback, param={})
 
     # Essential Function
     def ticker(
@@ -119,30 +113,32 @@ class MexcWebSocketClient(WebSocketClient):
         - of a contract, send the transaction data without users' login.
         - Send once a second after subscription.
         """
+
         def ticker_wrapper(msg: dict) -> None:
             data = msg.get("data", {})
 
             # Parse symbol string back to TradePair (e.g., "BTC_USDT" -> "BTC", "USDT")
-            trade_pair: TradePair = self._construct_trade_pair(msg.get("symbol", data.get("symbol", "")))
+            trade_pair: TradePair = self._construct_trade_pair(
+                msg.get("symbol", data.get("symbol", ""))
+            )
 
             ticker_dto: Ticker = Ticker(
                 ticker=trade_pair,
                 timestamp=data.get("timestamp", self.generate_timestamp()),
                 source="MEXC",
-                price=float(data.get("lastPrice", 0.0))
+                price=float(data.get("lastPrice", 0.0)),
             )
             callback(ticker_dto)
 
         topic: str = "ticker"
         self.ws.subscribe(
-            topic = topic,
-            callback = ticker_wrapper,
-            param = self._generate_param(
+            topic=topic,
+            callback=ticker_wrapper,
+            param=self._generate_param(
                 trade_pair=trade_pair,
                 param=param,
             ),
         )
-        return
 
     def deal(
         self,
@@ -162,7 +158,6 @@ class MexcWebSocketClient(WebSocketClient):
                 param=param,
             ),
         )
-        return
 
     def order_book(
         self,
@@ -172,17 +167,18 @@ class MexcWebSocketClient(WebSocketClient):
     ):
         def order_book_wrapper(msg: dict) -> None:
             data: dict = msg.get("data", {})
-            ticker_part, quote_part = self._construct_trade_pair(msg.get("symbol", data.get("symbol", "")))
+            ticker_part, quote_part = self._construct_trade_pair(
+                msg.get("symbol", data.get("symbol", ""))
+            )
 
             depth_dto: OrderBook = OrderBook(
                 ticker=TradePair(ticker=ticker_part, quote=quote_part),
                 timestamp=data.get("timestamp", self.generate_timestamp()),
                 source="MEXC",
-                asks = [],
-                bids = [],
+                asks=[],
+                bids=[],
             )
             callback(depth_dto)
-            return
 
         topic = "depth"
         self.ws.subscribe(
@@ -193,24 +189,22 @@ class MexcWebSocketClient(WebSocketClient):
                 param=param,
             ),
         )
-        return
 
     def kline(
         self,
         callback: Callable,
         trade_pair: TradePair | None = None,
-        interval: Union[
-            Literal["Min1"],
-            Literal["Min5"],
-            Literal["Min15"],
-            Literal["Min30"],
-            Literal["Min60"],
-            Literal["Hour4"],
-            Literal["Hour8"],
-            Literal["Day1"],
-            Literal["Week1"],
-            Literal["Month1"],
-        ] | None = "Min1",
+        interval: Literal["Min1"]
+        | Literal["Min5"]
+        | Literal["Min15"]
+        | Literal["Min30"]
+        | Literal["Min60"]
+        | Literal["Hour4"]
+        | Literal["Hour8"]
+        | Literal["Day1"]
+        | Literal["Week1"]
+        | Literal["Month1"]
+        | None = "Min1",
     ):
         """
         - Get the k-line data of the contract and keep updating.
@@ -231,7 +225,6 @@ class MexcWebSocketClient(WebSocketClient):
         param = dict(symbol=symbol, interval=interval)
         topic = "kline"
         self.ws.subscribe(topic=topic, callback=callback, param=param)
-        return
 
     def funding_rate(
         self,
@@ -251,7 +244,6 @@ class MexcWebSocketClient(WebSocketClient):
                 param=param,
             ),
         )
-        return
 
     def index_price(
         self,
@@ -271,7 +263,6 @@ class MexcWebSocketClient(WebSocketClient):
                 param=param,
             ),
         )
-        return
 
     def fair_price(
         self,
@@ -286,12 +277,11 @@ class MexcWebSocketClient(WebSocketClient):
         self.ws.subscribe(
             topic=topic,
             callback=callback,
-            param = self._generate_param(
+            param=self._generate_param(
                 trade_pair=trade_pair,
                 param=param,
             ),
         )
-        return
 
     """
     ####################################################################################
@@ -326,7 +316,6 @@ class MexcWebSocketClient(WebSocketClient):
                 param=param,
             ),
         )
-        return
 
     def asset(
         self,
@@ -354,7 +343,6 @@ class MexcWebSocketClient(WebSocketClient):
             callback=callback,
             param=param,
         )
-        return None
 
     def position(
         self,
@@ -363,40 +351,24 @@ class MexcWebSocketClient(WebSocketClient):
     ) -> None:
         # TODO: Need to implement the position function
         raise NotImplementedError
-        return
 
-    def risk_limitation(
-        self,
-        callback: Callable,
-        param: dict | None = {}
-    ) -> None:
+    def risk_limitation(self, callback: Callable, param: dict | None = {}) -> None:
         # TODO: Need to implement the risk_limitation function
         raise NotImplementedError
-        return
 
-    def adl(
-        self,
-        callback: Callable,
-        param: dict | None = {}
-    ) -> None:
+    def adl(self, callback: Callable, param: dict | None = {}) -> None:
         # TODO: Need to implement the adl function
         raise NotImplementedError
-        return
 
-    def position_mode(
-        self,
-        callback: Callable,
-        param: dict | None = {}
-    ) -> None:
+    def position_mode(self, callback: Callable, param: dict | None = {}) -> None:
         # TODO: Need to implement the position_mode function
         raise NotImplementedError
-        return
 
 
 if __name__ == "__main__":
+
     def print_msg(msg):
         print(msg)
-        return
 
     mwc = MexcWebSocketClient(default_callback=print_msg)
     mwc.start()

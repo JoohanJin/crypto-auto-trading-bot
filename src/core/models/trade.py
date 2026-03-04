@@ -1,14 +1,16 @@
 from __future__ import annotations
+
 from dataclasses import dataclass
 from enum import IntFlag
 
-from src.core.models.base import ImmutableModel, Side, TradePair
+from src.core.models.base import Side, TradePair
 
 
 class TradeState(IntFlag):
-    '''
+    """
     - Data structure used in trade_manager (ENUM)
-    '''
+    """
+
     HOLD = 1 << 0  # 1
     NEW_BUY = 1 << 1  # 2
     NEW_SELL = 1 << 2  # 4
@@ -19,8 +21,12 @@ class TradeState(IntFlag):
 
 class TimeInForce(IntFlag):
     GTC = 1 << 0  # Good Til Canceled -> until fully fulfilled or manually cancel it.
-    FOK = 1 << 1  # Fill-Or-Kill -> the order must be executed immedately, otherwise be canceled -> no partially filled
-    IOC = 1 << 2  # Immediate or Cancel -> the order must be executed immedately, but can be partially filled.
+    FOK = (
+        1 << 1
+    )  # Fill-Or-Kill -> the order must be executed immedately, otherwise be canceled -> no partially filled
+    IOC = (
+        1 << 2
+    )  # Immediate or Cancel -> the order must be executed immedately, but can be partially filled.
 
 
 class PositionType(IntFlag):
@@ -59,6 +65,7 @@ class PositionState:
         timestamp: int
             - The timestamp (ms) when the position was opened.
     """
+
     side: int | Side  # Side.BUY or Side.SELL (IntFlag, int-compatible)
     ticker_size: float
     quote_size: float

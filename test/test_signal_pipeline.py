@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import sys
-from pathlib import Path
 import unittest
+from pathlib import Path
+
 
 # NOTE: Converted the legacy script into focused queue semantics tests for the
 # signal pipeline so CI can run without external brokers.
@@ -32,7 +33,7 @@ class SignalPipelineTest(unittest.TestCase):
         """pop should return the same signal previously enqueued."""
         signal = Signal(TradeSignal.LONG_TERM_SELL)
         self.pipeline.push(signal)
-        self.assertEqual(self.pipeline.pop(block = False), signal)
+        self.assertEqual(self.pipeline.pop(block=False), signal)
 
 
 if __name__ == "__main__":

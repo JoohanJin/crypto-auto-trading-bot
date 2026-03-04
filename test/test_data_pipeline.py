@@ -1,7 +1,8 @@
 from __future__ import annotations
+
 import unittest
 
-from src.core.models.constants import IndexType  # type: ignore
+from src.core.models.index import IndexType  # type: ignore
 from src.pipeline.data_pipeline import DataPipeline  # type: ignore
 
 
@@ -19,7 +20,7 @@ class DataPipelineTest(unittest.TestCase):
             "type": IndexType.SMA,
             "data": {5: 1.0},
         }
-        self.assertTrue(self.pipeline.push(payload, block = False))
+        self.assertTrue(self.pipeline.push(payload, block=False))
 
     def test_pop_returns_recent_payload(self) -> None:
         """Verify pop retrieves the same payload that was just queued."""
@@ -28,8 +29,8 @@ class DataPipelineTest(unittest.TestCase):
             "type": IndexType.EMA,
             "data": {10: 2.0},
         }
-        self.pipeline.push(payload, block = False)
-        result = self.pipeline.pop(block = False)
+        self.pipeline.push(payload, block=False)
+        result = self.pipeline.pop(block=False)
         self.assertEqual(result, payload)
 
 

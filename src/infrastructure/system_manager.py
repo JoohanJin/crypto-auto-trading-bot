@@ -1,37 +1,39 @@
 # STANDARD LIBRARY
 import os
-import time
 import sys
 import threading
+import time
+
 from dotenv import load_dotenv
-
-# CUSTOM LIBRARY
-from src.infrastructure.logging.set_logger import get_logger, get_adapter
-from src.integrations.telegram.telegram_bot_class import CustomTelegramBot
-from src.data.data_manager import DataManager
-from src.trading.signal_generator import SignalGenerator
-from src.trading.trade_manager import TradeManager
-from src.pipeline.data_pipeline import DataPipeline
-from src.pipeline.signal_pipeline import SignalPipeline
-from src.interfaces.pipeline_interface import PipelineController
-from src.core.models.score_mapping import ScoreMapper
-from src.core.models.index import Index
-from src.core.models.signal import Signal
-
-# Service
-# Interface
-from src.interfaces.ws_client_registry import WebSocketClientRegistry
-from src.interfaces.http_client_registry import HttpClientRegistry
-from src.interfaces.http_interface import HttpInterface
-from src.interfaces.websocket_interface import WebSocketInterface
-
-# MEXC
-from src.brokers.mexc.http_client import MexcFutureHttpClient
-from src.brokers.mexc.ws_client import MexcWebSocketClient
 
 # BINANCE
 from src.brokers.binance.http_client import BinanceFutureHttpClient
 from src.brokers.binance.ws_client import BinanceWebSocketClient
+
+# MEXC
+from src.brokers.mexc.http_client import MexcFutureHttpClient
+from src.brokers.mexc.ws_client import MexcWebSocketClient
+from src.core.models.index import Index
+from src.core.models.score_mapping import ScoreMapper
+from src.core.models.signal import Signal
+from src.data.data_manager import DataManager
+
+# CUSTOM LIBRARY
+from src.infrastructure.logging.set_logger import get_adapter, get_logger
+from src.integrations.telegram.telegram_bot_class import CustomTelegramBot
+from src.interfaces.http_client_registry import HttpClientRegistry
+from src.interfaces.http_interface import HttpInterface
+from src.interfaces.pipeline_interface import PipelineController
+from src.interfaces.websocket_interface import WebSocketInterface
+
+# Service
+# Interface
+from src.interfaces.ws_client_registry import WebSocketClientRegistry
+from src.pipeline.data_pipeline import DataPipeline
+from src.pipeline.signal_pipeline import SignalPipeline
+from src.trading.signal_generator import SignalGenerator
+from src.trading.trade_manager import TradeManager
+
 
 # Logger
 logger = get_logger(__name__)
@@ -41,6 +43,7 @@ class SystemManager:
     def __init__(
         self,
         name: str | None = None,
+        disable_trade: bool = False,
     ):
         """
         func __init__():
@@ -48,6 +51,8 @@ class SystemManager:
 
         param self: SystemManager
             - class object
+        param disable_trade: bool
+            - If True, actual trade execution is disabled (dry run).
 
         return None
         """
@@ -58,13 +63,14 @@ class SystemManager:
         self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
 
         self._stop = threading.Event()
+        self.disable_trade = disable_trade
 
         load_dotenv()
 
         try:
-            '''
+            """
             # Sub Components
-            '''
+            """
             # Telegram Bot for Messaging
             self.telegram_bot: CustomTelegramBot = self._set_up_telegram_bot()
             self.logger.info("[COMPONENT_INIT] Telegram Bot | Status: ready")
@@ -76,13 +82,15 @@ class SystemManager:
             self.logger.info("[COMPONENT_INIT] SignalPipeline | Status: active")
 
             # PipelineController
-            self.data_pipeline_controller: PipelineController[Index] = PipelineController(
-                pipeline = self.data_pipeline
+            self.data_pipeline_controller: PipelineController[Index] = (
+                PipelineController(pipeline=self.data_pipeline)
             )
-            self.signal_pipeline_controller: PipelineController[Signal] = PipelineController(
-                pipeline = self.signal_pipline
+            self.signal_pipeline_controller: PipelineController[Signal] = (
+                PipelineController(pipeline=self.signal_pipline)
             )
-            self.logger.info("[COMPONENT_INIT] PipelineControllers | Count: 2 | Status: ready")
+            self.logger.info(
+                "[COMPONENT_INIT] PipelineControllers | Count: 2 | Status: ready"
+            )
 
             # ScoreMapper
             self.mapper: ScoreMapper = ScoreMapper()
@@ -90,48 +98,59 @@ class SystemManager:
 
             # Service
             # Websocket
-            self.websocket_interface: WebSocketInterface = self._construct_ws_interface()
+            self.websocket_interface: WebSocketInterface = (
+                self._construct_ws_interface()
+            )
             self.logger.info("[SERVICE_INIT] WebSocketInterface initialized")
             # self.http_interface: HttpInterface = self._construct_http_interface()
             self.http_interface: HttpInterface | None = None
             # self.logger.info("[SERVICE_INIT] HttpInterface initialized")
-            self.binance_http_client: BinanceFutureHttpClient = self._construct_binance_future()
+            self.binance_http_client: BinanceFutureHttpClient = (
+                self._construct_binance_future()
+            )
             self.logger.info("[SERVICE_INIT] BinanceFutureHttpInterface initialized")
 
-            '''
+            """
             # Main Components
-            '''
+            """
             self.data_manager: DataManager = DataManager(
                 websocket_interface=self.websocket_interface,
                 pipeline_controller=self.data_pipeline_controller,
             )
 
             self.signal_generator: SignalGenerator = SignalGenerator(
-                data_pipeline_controller = self.data_pipeline_controller,
-                custom_telegram_bot = self.telegram_bot,
-                signal_pipeline_controller = self.signal_pipeline_controller,
+                data_pipeline_controller=self.data_pipeline_controller,
+                custom_telegram_bot=self.telegram_bot,
+                signal_pipeline_controller=self.signal_pipeline_controller,
             )
 
             # one more classs: trade_manager -> it will have the FutureMarket SDWK
             self.trade_manager: TradeManager = TradeManager(
-                signal_pipeline_controller = self.signal_pipeline_controller,
+                signal_pipeline_controller=self.signal_pipeline_controller,
                 http_interface=self.http_interface,
                 binance_future_client=self.binance_http_client,
-                delta_mapper = self.mapper,
-                telegram_bot = self.telegram_bot,
+                delta_mapper=self.mapper,
+                telegram_bot=self.telegram_bot,
+                disable_trade=self.disable_trade,
             )
-            self.logger.info("[COMPONENT_INIT] TradeManager | Status: ready")
+            self.logger.info(
+                f"[COMPONENT_INIT] TradeManager | Status: ready | Trade Execution: {'DISABLED' if self.disable_trade else 'ENABLED'}"
+            )
 
-            self.logger.info("[SYSTEM_INIT_COMPLETE] Ready | Components: 7 | Status: operational")
+            self.logger.info(
+                "[SYSTEM_INIT_COMPLETE] Ready | Components: 7 | Status: operational"
+            )
 
         except KeyboardInterrupt:
-            self.logger.warning("[SYSTEM_SHUTDOWN] User interrupt signal received | Action: exiting")
+            self.logger.warning(
+                "[SYSTEM_SHUTDOWN] User interrupt signal received | Action: exiting"
+            )
             sys.exit(0)
         except Exception as e:
-            self.logger.critical(f"[SYSTEM_INIT_ERROR] Initialization failed | Error: {type(e).__name__}: {str(e)}")
-            raise Exception(f"Program encounters critical errors.{str(e)}\n Exiting...")
-
-        return
+            self.logger.critical(
+                f"[SYSTEM_INIT_ERROR] Initialization failed | Error: {type(e).__name__}: {e!s}"
+            )
+            raise Exception(f"Program encounters critical errors.{e!s}\n Exiting...")
 
     def start(self) -> None:
         self.logger.info("[SYSTEM_START] Starting main event loop")
@@ -139,28 +158,46 @@ class SystemManager:
             while not self._stop.is_set():
                 time.sleep(0.5)  # Sleep to reduce the cpu usage.
         except KeyboardInterrupt:
-            self.logger.warning("[SYSTEM_SHUTDOWN] User interrupt signal received | Action: exiting")
+            self.logger.warning(
+                "[SYSTEM_SHUTDOWN] User interrupt signal received | Action: exiting"
+            )
             sys.exit(0)
         except Exception as e:
-            self.logger.critical(f"[SYSTEM_RUNTIME_ERROR] Runtime error | Error: {type(e).__name__}: {str(e)}")
-            raise Exception(f"System runtime error: {str(e)}") from e
-        return
+            self.logger.critical(
+                f"[SYSTEM_RUNTIME_ERROR] Runtime error | Error: {type(e).__name__}: {e!s}"
+            )
+            raise Exception(f"System runtime error: {e!s}") from e
 
     def stop(self) -> None:
         if self._stop.is_set():
             self.logger.info("[SYSTEM_SHUTDOWN] Already stopped, skipping")
             return
-        self.logger.warning("[SYSTEM_SHUTDOWN] Initiating graceful shutdown | Action: stopping")
+        self.logger.warning(
+            "[SYSTEM_SHUTDOWN] Initiating graceful shutdown | Action: stopping"
+        )
         self._stop.set()
-        # TODO: add the stop for other components (DataManager, SignalGenerator, TradeManager)
+
+        # Stop sub-components to kill background threads
+        if hasattr(self, "trade_manager") and hasattr(self.trade_manager, "stop"):
+            self.trade_manager.stop()
+        if hasattr(self, "signal_generator") and hasattr(self.signal_generator, "stop"):
+            self.signal_generator.stop()
+        if hasattr(self, "data_manager") and hasattr(self.data_manager, "stop"):
+            self.data_manager.stop()
+        if hasattr(self, "websocket_interface") and hasattr(
+            self.websocket_interface, "stop"
+        ):
+            self.websocket_interface.stop()
+
     """
     ####################################################################################
     #                                      HELPER Method                               #
     ####################################################################################
     """
-    '''
+    """
     # TELEGRAM BOT
-    '''
+    """
+
     def _get_telegram_credentials(self):
         api_key = os.getenv("TELEGRAM_API_KEY")
         channel_id = os.getenv("TELEGRAM_CHANNEL_ID")
@@ -191,29 +228,32 @@ class SystemManager:
             )
         except ValueError as e:
             self.logger.critical(
-                f"[TELEGRAM_INIT_ERROR] Credentials missing | Error: ValueError: {str(e)}"
+                f"[TELEGRAM_INIT_ERROR] Credentials missing | Error: ValueError: {e!s}"
             )
             return None
         except Exception as e:
             self.logger.critical(
-                f"[TELEGRAM_INIT_ERROR] Initialization failed | Error: {type(e).__name__}: {str(e)}"
+                f"[TELEGRAM_INIT_ERROR] Initialization failed | Error: {type(e).__name__}: {e!s}"
             )
             return None
 
-    '''
+    """
     # MEXC
-    '''
+    """
+
     def _get_mexc_future_credentials(self) -> tuple[str, str]:
         try:
             api_key = os.getenv("MEXC_HMAC_API_KEY")
             secret_key = os.getenv("MEXC_HMAC_SECRET_KEY")
             if not api_key or not secret_key:
-                self.logger.critical("[CREDENTIAL_ERROR] MEXC Future | Missing: API_KEY or SECRET_KEY")
+                self.logger.critical(
+                    "[CREDENTIAL_ERROR] MEXC Future | Missing: API_KEY or SECRET_KEY"
+                )
                 raise ValueError("MEXC Future credentials not configured")
             return api_key, secret_key
         except Exception as e:
             self.logger.critical(
-                f"[CREDENTIAL_ERROR] MEXC Future | Error: {type(e).__name__}: {str(e)}"
+                f"[CREDENTIAL_ERROR] MEXC Future | Error: {type(e).__name__}: {e!s}"
             )
             return None, None
 
@@ -231,7 +271,7 @@ class SystemManager:
             return client
         except Exception as e:
             self.logger.critical(
-                f"[SERVICE_INIT_ERROR] MEXC WebSocket Client failed | Error: {type(e).__name__}: {str(e)}"
+                f"[SERVICE_INIT_ERROR] MEXC WebSocket Client failed | Error: {type(e).__name__}: {e!s}"
             )
             return None
 
@@ -249,43 +289,48 @@ class SystemManager:
             return client
         except Exception as e:
             self.logger.critical(
-                f"[SERVICE_INIT_ERROR] MEXC Future HTTP Client failed | Error: {type(e).__name__}: {str(e)}"
+                f"[SERVICE_INIT_ERROR] MEXC Future HTTP Client failed | Error: {type(e).__name__}: {e!s}"
             )
             return None
 
-    '''
+    """
     # BINANCE
-    '''
+    """
+
     def _get_binance_http_credentials(self) -> tuple[str, str]:
         try:
             api_key: str = os.getenv("BINANCE_HMAC_API_KEY")
             secret_key: str = os.getenv("BINANCE_HMAC_SECRET_KEY")
             if not api_key or not secret_key:
-                self.logger.critical("[CREDENTIAL_ERROR] Binance HTTP | Missing: API_KEY or SECRET_KEY")
+                self.logger.critical(
+                    "[CREDENTIAL_ERROR] Binance HTTP | Missing: API_KEY or SECRET_KEY"
+                )
                 raise ValueError("Binance HTTP credentials not configured")
             return api_key, secret_key
         except Exception as e:
             self.logger.critical(
-                f"[CREDENTIAL_ERROR] Binance HTTP | Error: {type(e).__name__}: {str(e)}"
+                f"[CREDENTIAL_ERROR] Binance HTTP | Error: {type(e).__name__}: {e!s}"
             )
         return
-    
+
     def _get_binance_ws_credentials(self) -> tuple[str, str]:
         try:
             api_key: str = os.getenv("BINANCE_ED25519_API_KEY")
             secret_key: str = os.getenv("BINANCE_ED25519_SECRET_KEY")
             if not api_key or not secret_key:
-                self.logger.critical("[CREDENTIAL_ERROR] Binance WebSocket | Missing: API_KEY or SECRET_KEY")
+                self.logger.critical(
+                    "[CREDENTIAL_ERROR] Binance WebSocket | Missing: API_KEY or SECRET_KEY"
+                )
                 raise ValueError("Binance WebSocket credentials not configured")
-            
+
             # GCP Deployment fix: handle literal "\n" and extra quotes in multi-line keys
             if "\\n" in secret_key:
                 secret_key = secret_key.replace("\\n", "\n").strip('"').strip("'")
-                
+
             return api_key, secret_key
         except Exception as e:
             self.logger.critical(
-                f"[CREDENTIAL_ERROR] Binance WebSocket | Error: {type(e).__name__}: {str(e)}"
+                f"[CREDENTIAL_ERROR] Binance WebSocket | Error: {type(e).__name__}: {e!s}"
             )
         return
 
@@ -303,7 +348,7 @@ class SystemManager:
             return client
         except Exception as e:
             self.logger.critical(
-                f"[SERVICE_INIT_ERROR] Binance Future HTTP Client failed | Error: {type(e).__name__}: {str(e)}"
+                f"[SERVICE_INIT_ERROR] Binance Future HTTP Client failed | Error: {type(e).__name__}: {e!s}"
             )
         return
 
@@ -321,13 +366,14 @@ class SystemManager:
             return client
         except Exception as e:
             self.logger.critical(
-                f"[SERVICE_INIT_ERROR] Binance WebSocket Client failed | Error: {type(e).__name__}: {str(e)}"
+                f"[SERVICE_INIT_ERROR] Binance WebSocket Client failed | Error: {type(e).__name__}: {e!s}"
             )
         return
-    
-    '''
+
+    """
     # Service Interface
-    '''
+    """
+
     def _construct_http_client_registry(self, name: str) -> HttpClientRegistry:
         return HttpClientRegistry(name=name)
 
@@ -336,20 +382,26 @@ class SystemManager:
         try:
             hi: HttpInterface = HttpInterface(
                 name=_name,
-                client_registry=self._construct_http_client_registry(name=f"{_name}_REGISTRY"),
+                client_registry=self._construct_http_client_registry(
+                    name=f"{_name}_REGISTRY"
+                ),
             )
             binance_client = self._construct_binance_future()
             if binance_client:
                 hi.push_client("binance", binance_client)
-                self.logger.info("[SERVICE_INTERFACE] HTTP Interface | Clients registered: 1")
+                self.logger.info(
+                    "[SERVICE_INTERFACE] HTTP Interface | Clients registered: 1"
+                )
             return hi
         except Exception as e:
             self.logger.critical(
-                f"[SERVICE_INIT_ERROR] HTTP Interface failed | Error: {type(e).__name__}: {str(e)}"
+                f"[SERVICE_INIT_ERROR] HTTP Interface failed | Error: {type(e).__name__}: {e!s}"
             )
             raise
-        
-    def _construct_ws_client_registry(self, name: str | None) -> WebSocketClientRegistry:
+
+    def _construct_ws_client_registry(
+        self, name: str | None
+    ) -> WebSocketClientRegistry:
         return WebSocketClientRegistry(
             name=name or "WEBSOCKET_CLIENT_REGISTRY",
         )
@@ -359,7 +411,9 @@ class SystemManager:
         try:
             wi: WebSocketInterface = WebSocketInterface(
                 name=_name,
-                client_registry=self._construct_ws_client_registry(name=f"{_name}_REGISTRY")
+                client_registry=self._construct_ws_client_registry(
+                    name=f"{_name}_REGISTRY"
+                ),
             )
             binance_wsc = self._construct_binance_wsc()
             mexc_wsc = self._construct_mexc_wsc()
@@ -370,12 +424,14 @@ class SystemManager:
             if mexc_wsc:
                 wi.push_client("mexc", mexc_wsc)
                 clients_count += 1
-            self.logger.info(f"[SERVICE_INTERFACE] WebSocket Interface | Clients registered: {clients_count}")
+            self.logger.info(
+                f"[SERVICE_INTERFACE] WebSocket Interface | Clients registered: {clients_count}"
+            )
             wi.start()
             return wi
         except Exception as e:
             self.logger.critical(
-                f"[SERVICE_INIT_ERROR] WebSocket Interface failed | Error: {type(e).__name__}: {str(e)}"
+                f"[SERVICE_INIT_ERROR] WebSocket Interface failed | Error: {type(e).__name__}: {e!s}"
             )
             raise
 
@@ -386,6 +442,7 @@ class SystemManager:
 ########################################################################################
 """
 if __name__ == "__main__":
+
     def main():  # to test run the system manager.
         # ! make the start, stop and terminate command for the SystemManager
         SystemManager()
