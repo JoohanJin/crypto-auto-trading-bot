@@ -6,10 +6,8 @@ from collections import deque
 from src.brokers.binance.http_client import BinanceFutureHttpClient
 from src.core.models.order import Order, Side
 from src.core.models.score_mapping import ScoreMapper
-
 # Custom Library
 from src.core.models.service_dto import AccountInformation, MarkPrice, Position
-
 # Core Models
 from src.core.models.signal import Signal, TradeSignal
 from src.core.models.trade import PositionState, TradePair, TradeState
@@ -17,7 +15,6 @@ from src.infrastructure.logging.set_logger import get_adapter, get_logger
 from src.integrations.telegram.telegram_bot_class import CustomTelegramBot
 from src.interfaces.http_interface import HttpInterface
 from src.interfaces.pipeline_interface import PipelineController
-
 
 logger = get_logger(__name__)
 
@@ -195,6 +192,7 @@ class TradeManager:
             f"[INIT_COMPLETE] Ready | Pair: {self.trade_pair.ticker}/{self.trade_pair.quote} | "
             f"Leverage: {self.leverage} | Window: {self.history_window_ms}ms"
         )
+        return
 
     def __del__(
         self,
@@ -208,6 +206,7 @@ class TradeManager:
         self.logger.info(
             f"[SHUTDOWN] Cleanup initiated | Threads: {len(self.threads)} | History Size: {len(self.signal_history)}",
         )
+        return
 
     """
     #########################
@@ -235,6 +234,7 @@ class TradeManager:
         # Start the threads
         self._start_threads()
 
+        return
 
     def _thread_log_status(
         self,
@@ -292,10 +292,11 @@ class TradeManager:
 
             except Exception as e:
                 self.logger.error(
-                    f"[STATUS_LOG_ERROR] Failed to log status | Error: {type(e).__name__}: {e!s}"
+                    f"[STATUS_LOG_ERROR] Failed to log status | Error: {type(e).__name__}: {str(e)}"
                 )
                 # Avoid excessive error logging if it's a persistent issue
                 time.sleep(10)  # Wait a bit before next attempt if logging fails
+        return
 
     def stop(
         self,
@@ -307,6 +308,7 @@ class TradeManager:
         # Since threads are likely daemon threads or running infinite loops without stop flags,
         # we rely on the main process termination for now.
         # Ideally, we should implement threading.Event based stopping.
+        return
 
     def _initialize_threads(
         self,
@@ -337,6 +339,7 @@ class TradeManager:
 
         # initialize the threads for the operations
         self.threads.extend([thread_get_signal, thread_decide_trade, thread_log_status])
+        return
 
     def _start_threads(
         self,
@@ -359,20 +362,21 @@ class TradeManager:
 
             except RuntimeError as e:  # If there is an error during the runtime
                 self.logger.critical(
-                    f"[THREAD_ERROR] {thread.name} failed | Error: RuntimeError: {e!s}"
+                    f"[THREAD_ERROR] {thread.name} failed | Error: RuntimeError: {str(e)}"
                 )
                 raise RuntimeError(
-                    f"{__name__}: Failed to start thread '{thread.name}': {e!s}"
+                    f"{__name__}: Failed to start thread '{thread.name}': {str(e)}"
                 )
 
             except Exception as e:  # Unknown Exception
                 self.logger.error(
-                    f"[THREAD_ERROR] {thread.name} failed | Error: {type(e).__name__}: {e!s}"
+                    f"[THREAD_ERROR] {thread.name} failed | Error: {type(e).__name__}: {str(e)}"
                 )
                 raise Exception(
-                    f"{__name__}: Failed to start thread '{thread.name}': {e!s}"
+                    f"{__name__}: Failed to start thread '{thread.name}': {str(e)}"
                 )
 
+        return
 
     """
     ##########################
@@ -421,7 +425,7 @@ class TradeManager:
                         current_pos.entry_price - entry_price
                     ) / current_pos.entry_price
 
-                meta_data = {"exit": True, "pnl_rate": round(pnl_rate, 6)}
+                meta_data = dict(exit=True, pnl_rate=round(pnl_rate, 6))
 
                 return Order(
                     side=order_side,
@@ -472,11 +476,11 @@ class TradeManager:
                 base_ticker = self._get_trade_ticker_amt(entry_price)
                 ticker_size = round(current_pos.ticker_size + base_ticker, 3)
                 quote_size = round(current_pos.quote_size + base_quote, 2)
-                meta_data = {
-                    "reverse": True,
-                    "base_ticker_size": base_ticker,
-                    "base_quote_size": base_quote,
-                }
+                meta_data = dict(
+                    reverse=True,
+                    base_ticker_size=base_ticker,
+                    base_quote_size=base_quote,
+                )
             elif buy_or_sell in (
                 TradeState.NEW_BUY,
                 TradeState.NEW_SELL,
@@ -484,7 +488,7 @@ class TradeManager:
                 # NEW order (explicitly NEW_* or REVERSE with no active position)
                 quote_size = self._get_trade_quote_amt()
                 ticker_size = self._get_trade_ticker_amt(entry_price)
-                meta_data = {}
+                meta_data = dict()
             else:  # Invalid trade state
                 raise ValueError(f"Invalid TradeState: {buy_or_sell}")
 
@@ -504,7 +508,7 @@ class TradeManager:
             )
         except Exception as e:
             self.logger.critical(
-                f"[ORDER_CONSTRUCTION_ERROR] Trade: {buy_or_sell.name if hasattr(buy_or_sell, 'name') else buy_or_sell} | Error: {type(e).__name__}: {e!s}"
+                f"[ORDER_CONSTRUCTION_ERROR] Trade: {buy_or_sell.name if hasattr(buy_or_sell, 'name') else buy_or_sell} | Error: {type(e).__name__}: {str(e)}"
             )
             raise e
 
@@ -619,10 +623,10 @@ class TradeManager:
         except Exception as e:
             self.logger.critical(
                 f"[ORDER_REGISTRATION_ERROR] Type: {order.side_str } "
-                f"| Price: {order.entry_price} | Error: {type(e).__name__}: {e!s}"
+                f"| Price: {order.entry_price} | Error: {type(e).__name__}: {str(e)}"
             )
             raise Exception(
-                f"{__name__} - {self.__class__.__name__} - Unexpected Error while ordering: {e!s}"
+                f"{__name__} - {self.__class__.__name__} - Unexpected Error while ordering: {str(e)}"
             ) from e
         return
 
@@ -660,7 +664,7 @@ class TradeManager:
                 self.trading_logger.info("[DRY_RUN] " + message.replace("\n", " "))
         except Exception as e:
             self.logger.error(
-                f"[TRADE_EXECUTION_ERROR] Trade: {buy_or_sell.name} | Error: {type(e).__name__}: {e!s}"
+                f"[TRADE_EXECUTION_ERROR] Trade: {buy_or_sell.name} | Error: {type(e).__name__}: {str(e)}"
             )
             raise Exception
         return
@@ -672,6 +676,7 @@ class TradeManager:
                 now - self.signal_history[0][0] > self.history_window_ms
             ):
                 self.signal_history.popleft()
+        return
 
     def _analyze_signals(self) -> TradeState:
         """
@@ -725,7 +730,6 @@ class TradeManager:
             # before making any decisions. This prevents premature actions on cold starts.
             oldest_signal_time = self.signal_history[0][0]
             if (now - oldest_signal_time) < (self.history_window_ms * 0.95):
-                print(f"DEBUG: Failed warmup check: now={now}, oldest={oldest_signal_time}, diff={now - oldest_signal_time} < {self.history_window_ms * 0.95}")
                 self.logger.debug(
                     f"[WARMUP] Gathering data... {int((now - oldest_signal_time)/1000)}s / {int(self.history_window_ms/1000)}s"
                 )
@@ -765,7 +769,6 @@ class TradeManager:
             f"Mid Term Momentum ({(self.history_window_ms * 0.5) / 1_000} s): {consensus_mid_term:+.2f} [D={mid_term_density}] | "
             f"Structure({self.history_window_ms / 1_000} s): {consensus_structural:+.2f} [H={len(history)}]"
         )
-        print(f"DEBUG: Short={consensus_short_term}, Mid={consensus_mid_term}, Struct={consensus_structural}")
 
         with self.lock_current_position:
             current_pos = (
@@ -817,10 +820,11 @@ class TradeManager:
             elif is_sell():
                 return TradeState.NEW_SELL
             return TradeState.HOLD
-        elif is_reversal_buy():  # stronger condition than exit condition: opposite position + buy signal
-            return TradeState.REVERSE_BUY
-        elif is_reversal_sell():  # stronger condition than exit condition: oppstie position + sell signal
-            return TradeState.REVERSE_SELL
+        else:  # current_pos is not None — EXIT or REVERSE
+            if is_reversal_buy():  # stronger condition than exit condition: opposite position + buy signal
+                return TradeState.REVERSE_BUY
+            elif is_reversal_sell():  # stronger condition than exit condition: oppstie position + sell signal
+                return TradeState.REVERSE_SELL
             # elif is_exit():
             #     return TradeState.EXIT
         return TradeState.HOLD
@@ -863,13 +867,13 @@ class TradeManager:
                     else:
                         self.trade_cooldown_ms = self.default_trade_cooldown_ms  # Restore configured cooldown
 
-                # Decision making is deon every one second
                 time.sleep(1)
 
             except Exception as e:
                 self.logger.error(
-                    f"[TRADE_DECISION_ERROR] Failed | Error: {type(e).__name__}: {e!s}"
+                    f"[TRADE_DECISION_ERROR] Failed | Error: {type(e).__name__}: {str(e)}"
                 )
+        return
 
     def _get_signal(
         self,
@@ -933,8 +937,9 @@ class TradeManager:
 
             except Exception as e:
                 self.logger.error(
-                    f"[SIGNAL_ERROR] Failed to fetch | Error: {type(e).__name__}: {e!s}"
+                    f"[SIGNAL_ERROR] Failed to fetch | Error: {type(e).__name__}: {str(e)}"
                 )
+        return None
 
     """
     - Execute Trade Utility Function
@@ -958,7 +963,7 @@ class TradeManager:
             return self._get_mark_price().mark_price
         except Exception as e:
             self.logger.critical(
-                f"[PRICE_FETCH_ERROR] Mark price unavailable | Error: {type(e).__name__}: {e!s}"
+                f"[PRICE_FETCH_ERROR] Mark price unavailable | Error: {type(e).__name__}: {str(e)}"
             )
             raise Exception
 
@@ -1024,10 +1029,12 @@ class TradeManager:
             # positions: list[Position] = self._get_open_orders()  # TODO: need to check with it.
             account_info: AccountInformation = self._get_account_info()
 
-            return account_info.balance == account_info.available_balance
+            if account_info.balance == account_info.available_balance:
+                return True
+            return False
         except Exception as e:
             self.logger.error(
-                f"[TRADE_DECISION_CHECK_ERROR] Position check failed | Error: {type(e).__name__}: {e!s}"
+                f"[TRADE_DECISION_CHECK_ERROR] Position check failed | Error: {type(e).__name__}: {str(e)}"
             )
             return False
 
@@ -1084,7 +1091,7 @@ class TradeManager:
             )  # we need the current
         except Exception as e:
             self.logger.critical(
-                f"[QUANTITY_CALC_ERROR] Ticker: {self.trade_pair.ticker} | Price: {ticker_price} | Error: {type(e).__name__}: {e!s}"
+                f"[QUANTITY_CALC_ERROR] Ticker: {self.trade_pair.ticker} | Price: {ticker_price} | Error: {type(e).__name__}: {str(e)}"
             )
             raise
 
@@ -1107,7 +1114,7 @@ class TradeManager:
             return round(account_info.available_balance, 4)
         except Exception as e:
             self.logger.critical(
-                f"[BALANCE_FETCH_ERROR] Quote: {self.trade_pair.quote} | Error: {type(e).__name__}: {e!s}"
+                f"[BALANCE_FETCH_ERROR] Quote: {self.trade_pair.quote} | Error: {type(e).__name__}: {str(e)}"
             )
             raise
 
@@ -1174,7 +1181,7 @@ class TradeManager:
             except Exception as e:
                 self.logger.warning(
                     f"[RETRY] {call_name}() | Attempt: {attempt + 1} | "
-                    f"Error: {type(e).__name__}: {e!s} | "
+                    f"Error: {type(e).__name__}: {str(e)} | "
                     f"Next Retry: {delay:.2f}s"
                 )
                 time.sleep(delay)

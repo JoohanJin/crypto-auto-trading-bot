@@ -1,15 +1,14 @@
 # STANDARD LIBRARY
-import copy
 import time
-from collections.abc import Callable
-
-from src.core.models.index import Index, IndexType
-from src.core.models.signal import Signal, TradeSignal
+import copy
+from typing import Callable, Dict
 
 # CUSTOM LIBRARY
-from src.infrastructure.logging.set_logger import get_adapter, get_logger
+from src.infrastructure.logging.set_logger import get_logger, get_adapter
+from src.core.models.index import IndexType, Index
+from src.core.models.signal import Signal
+from src.core.models.signal import TradeSignal
 from src.strategy.strategy_config import StrategyConfig
-
 
 logger = get_logger(__name__)
 
@@ -45,13 +44,13 @@ class StrategyExecutor:
     def execute(
         self,
         strategy: StrategyConfig,
-        logic: Callable[[dict[IndexType, Index | float | None], dict[IndexType, Index | float | None] | None, StrategyConfig], TradeSignal | None],
+        logic: Callable[[Dict[IndexType, Index | float | None], Dict[IndexType, Index | float | None] | None, StrategyConfig], TradeSignal | None],
     ) -> None:
         """
         Generic execution loop that can be launched in a thread.
         Maintains 'previous_indicators' state for crossover detection.
         """
-        previous_indicators: dict[IndexType, Index | float | None] | None = None
+        previous_indicators: Dict[IndexType, Index | float | None] | None = None
 
         while True:
             indicators = self._get_indicators(strategy.indicators)
