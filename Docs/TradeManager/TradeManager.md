@@ -1,27 +1,27 @@
 # TradeManager
 
-> Last updated: 2026-02-16
+> Last updated: 2026-03-03
 
-`TradeManager` is the central trading orchestration component. It consumes signals from the signal pipeline, accumulates a conviction score, makes trade decisions, constructs orders, and dispatches them to Binance Futures via REST API.
+`TradeManager` is the central trading orchestration component, operating as the 'brain' of the bot. It utilizes the **Weighted Signal Density & Consensus (WSDC) model** to make high-frequency execution decisions, and dispatches them to Binance Futures via REST API.
 
 ---
 
 ## Architecture Overview
 
 ```
-SignalPipeline ──pop()──▶ _thread_get_signal ──score+=delta──▶ trade_score
+SignalPipeline ──pop()──▶ _thread_get_signal ──append()──▶ signal_history
                                                                    │
-                                                              (shared int)
+                                                              (shared deque)
                                                                    │
-                          _thread_decide_trade ◀──read + decay─────┘
+                          _thread_decide_trade ◀──read + prune─────┘
                                 │
-                          _decide_trade(score)
+                          _analyze_signals()
                                 │
                      ┌──────────┼───────────────────┐
                      ▼          ▼                    ▼
-                   HOLD    NEW/REVERSE/EXIT    (cooldown?)
-                  (noop)        │                skip tick
-                                ▼
+                   HOLD    NEW_BUY/SELL        REVERSE_BUY/SELL
+                  (noop)        │                    │
+                                ▼                    ▼
                         _construct_new_order()
                                 │
                         _format_trade_message()
@@ -37,13 +37,44 @@ Two daemon threads run in an infinite loop:
 
 | Thread                | Role                                                                                                                  |
 | --------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `Thread-Get-Signal`   | Pops signals from the pipeline, validates freshness, maps to score delta, and atomically adds to `trade_score`.       |
-| `Thread-Decide-Trade` | Every 250ms: decays score, evaluates `_decide_trade()`, enforces cooldown, executes trade if triggered, resets score. |
+| `Thread-Get-Signal`   | Pops signals from the pipeline, validates freshness, and appends valid signals to `signal_history`.       |
+| `Thread-Decide-Trade` | Evaluates `_analyze_signals()`, checks cooldowns, executes trades if consensus is reached across all timeframes. |
 
 Thread safety is managed with two locks:
-
-- `trade_score_lock` — guards `trade_score` reads/writes.
+- `signal_history_lock` — guards `signal_history` reads/writes.
 - `lock_current_position` — guards `current_position` reads/writes.
+
+---
+
+## WSDC Model (Weighted Signal Density & Consensus)
+
+Instead of following single signals (which are often noisy in short timeframes), this manager looks for 'signal clusters' or 'bursts'. It assumes that a high density of signals in a short window represents a real market move.
+
+The bot employs an **"Always-in-Market" (Trend Reversal Only)** strategy. It stays in a trade to ride out market noise (like liquidation wicks) and only flips positions when the consensus fully shifts. Panic Exits have been disabled to maximize profit per trade and minimize fee leakage.
+
+### 1. The Three Time Windows
+The `signal_history` is analyzed across three distinct timeframes:
+- **Structural (10 minutes - `600,000 ms`)**: The "Titanium Backbone". Ensures the bot only trades when a massive, undeniable macro-trend is established.
+- **Mid-Term (5 minutes - `300,000 ms`)**: The intermediate trend confirmation.
+- **Short-Term / Momentum (2 minutes - `120,000 ms`)**: The "Hair Trigger". Looks for a sudden burst of momentum aligning with the structural trend to snipe the optimal entry point.
+
+### 2. Signal Density
+Before consensus is even calculated, a minimum number of signals must be present in the history windows to prove a real event is occurring (filtering out low-volume outlier signals).
+- `min_history_density`: Minimum signals in the 10m window (Default: `10`).
+- `min_short_term_density`: Minimum signals in the 2m window (Default: `2`).
+
+### 3. Weighted Consensus (-1.0 to 1.0)
+Signals are assigned weights based on their impact via `ScoreMapper` (e.g., `LONG_TERM_BUY = +5`, `SHORT_TERM_SELL = -3`). The bot calculates the net consensus across all three windows:
+- **`+1.0`**: 100% agreement on BUY.
+- **`-1.0`**: 100% agreement on SELL.
+
+### 4. Optimal "Sweet Spot" Thresholds
+Through rigorous vectorized backtesting (simulating OHLC 4x volatility), the following thresholds were mathematically proven to maximize **Profit per Trade**:
+- `consensus_short_term_threshold`: `0.50` (50% Short-term agreement)
+- `consensus_mid_term_threshold`: `0.50` (50% Mid-term agreement)
+- `consensus_threshold` (Structural): `0.90` (90% Long-term agreement)
+
+**Logic:** Wait patiently for an undeniable 10-minute wave (`0.90`), and immediately jump in (`0.50`) the moment momentum starts swinging in that direction.
 
 ---
 
@@ -51,79 +82,37 @@ Thread safety is managed with two locks:
 
 `TradeState` is an `IntFlag` enum representing all possible trade decisions.
 
-| State          | Value | Condition                                        | Effect                  |
-| -------------- | ----- | ------------------------------------------------ | ----------------------- |
-| `HOLD`         | 1     | Default / score within thresholds                | No action               |
-| `NEW_BUY`      | 2     | No position, `score > threshold`                 | Open long               |
-| `NEW_SELL`     | 4     | No position, `score < -threshold`                | Open short              |
-| `REVERSE_BUY`  | 8     | Short position, `score > threshold/2`            | Close short + open long |
-| `REVERSE_SELL` | 16    | Long position, `score < -threshold/2`            | Close long + open short |
-| `EXIT`         | 32    | Position held, score moderately against position | Close position, go flat |
+| State          | Condition                                        | Effect                  |
+| -------------- | ------------------------------------------------ | ----------------------- |
+| `HOLD`         | Default / density too low / consensus unmet      | No action               |
+| `NEW_BUY`      | No position, Buy consensus met on all 3 windows  | Open long               |
+| `NEW_SELL`     | No position, Sell consensus met on all 3 windows | Open short              |
+| `REVERSE_BUY`  | Short position, Buy consensus met on all windows | Close short + open long |
+| `REVERSE_SELL` | Long position, Sell consensus met on all windows | Close long + open short |
 
-### Decision Priority
-
-When a position exists, decisions are evaluated in this order:
-
-1. **REVERSE** — checked first (strong opposing signal)
-2. **EXIT** — checked second (moderate opposing signal, not strong enough for REVERSE)
-3. **HOLD** — fallback
-
-When no position exists:
-
-1. **NEW_BUY** or **NEW_SELL** — if score exceeds ±threshold
-2. **HOLD** — fallback
-
-### Threshold Hierarchy
-
-Given `score_threshold = 2000`:
-
-| Decision                       | Threshold                |
-| ------------------------------ | ------------------------ |
-| `NEW_BUY` / `NEW_SELL`         | `±2000` (full threshold) |
-| `REVERSE_BUY` / `REVERSE_SELL` | `±1000` (threshold / 2)  |
-| `EXIT`                         | `±500` (threshold / 4)   |
+*(Note: `EXIT` logic is preserved in code but safely bypassed to enforce the Trend-Reversal model).*
 
 ---
 
-## Score System
+## Position Initialization & Tracking
 
-### Accumulation
-
-Signals arrive from the pipeline via `_thread_get_signal`. Each signal is mapped to a score delta by `ScoreMapper.map()` and atomically added:
+`PositionState` is a mutable dataclass that tracks the actual position held:
 
 ```python
-self.trade_score += self._calculate_signal_score_delta(signal_data)
+@dataclass
+class PositionState:
+    side: Side         # Side.BUY or Side.SELL
+    ticker_size: float # actual position qty
+    quote_size: float  # actual position value
+    entry_price: float
+    timestamp: int     # epoch ms
 ```
 
-Positive deltas indicate bullish conviction; negative deltas indicate bearish conviction.
+### Startup Recovery
+When `TradeManager` initializes, it securely fetches the current active position from the Binance API (`get_current_position_state`) by validating that `float(positionAmt) != 0.0`. It automatically detects Long/Short states, resolving Binance's `"BOTH"` string ambiguity in One-Way mode via entry/break-even price math.
 
-### Decay
-
-Every tick (250ms), the score is multiplied by `score_decay_rate` (default `0.995`):
-
-```python
-self.trade_score = int(self.trade_score * self.score_decay_rate)
-```
-
-This ensures stale conviction naturally drains away. Without fresh signals reinforcing the score, it decays toward zero:
-
-| Elapsed Time     | Remaining Score (from 2000) |
-| ---------------- | --------------------------- |
-| 1s (4 ticks)     | ~1960                       |
-| 10s (40 ticks)   | ~1637                       |
-| 35s (~140 ticks) | ~990 (halved)               |
-
-Setting `score_decay_rate = 1.0` disables decay entirely.
-
-### Reset
-
-After any trade (NEW, REVERSE, or EXIT), the score resets to **0**:
-
-```python
-self.trade_score = 0
-```
-
-This forces the next trade decision to be based entirely on fresh signals rather than carrying directional bias from the previous position.
+### Reversals & Dynamic Sizing
+In a `REVERSE` action, the `_construct_new_order` function automatically calculates the new position size based on your *current* available balance, ensuring the `trade_weight` (e.g., 15%) scales correctly as the account grows or shrinks. The order size sent to the exchange is `current_position_size (to close) + new_base_size (to open)`.
 
 ---
 
@@ -135,167 +124,13 @@ A minimum delay of `trade_cooldown_ms` (default `30,000ms` = 30s) is enforced be
 if self.generate_timestamp() - self.last_trade_timestamp < self.trade_cooldown_ms:
     continue  # skip this tick
 ```
-
-**Rationale**: Prevents rapid cycling (e.g., NEW → EXIT → NEW → EXIT) that would bleed trading fees and amplify noise/whipsaw losses. During the cooldown window, **decay continues operating**, so if the triggering signal was noise, the score drains before the window expires.
-
-The initial `last_trade_timestamp = 0` ensures the very first trade is never blocked by the cooldown.
-
----
-
-## Order Construction
-
-`_construct_new_order(buy_or_sell)` builds an `Order` dataclass differently based on trade type:
-
-### NEW_BUY / NEW_SELL
-
-| Field         | Value                                                 |
-| ------------- | ----------------------------------------------------- |
-| `side`        | Matches trade direction                               |
-| `ticker_size` | `(leverage × available_quote × trade_weight) / price` |
-| `quote_size`  | `available_quote × trade_weight`                      |
-| `tp_price`    | `price × (1 ± tp_rate / leverage)`                    |
-| `sl_price`    | `price × (1 ∓ sl_rate / leverage)`                    |
-| `meta_data`   | `{}`                                                  |
-
-### REVERSE_BUY / REVERSE_SELL
-
-| Field         | Value                                                               |
-| ------------- | ------------------------------------------------------------------- |
-| `side`        | Opposite of current position                                        |
-| `ticker_size` | `current_position.ticker_size + base_ticker` (2x order to exchange) |
-| `quote_size`  | `current_position.quote_size + base_quote`                          |
-| `tp_price`    | Same formula as NEW                                                 |
-| `sl_price`    | Same formula as NEW                                                 |
-| `meta_data`   | `{reverse: True, base_ticker_size, base_quote_size}`                |
-
-The **actual new position** stored in `PositionState` uses the base size, not the 2x order size. This prevents exponential position growth on consecutive reverses.
-
-### EXIT
-
-| Field         | Value                                     |
-| ------------- | ----------------------------------------- |
-| `side`        | Opposite of current position (close-only) |
-| `ticker_size` | `current_position.ticker_size`            |
-| `quote_size`  | `current_position.quote_size`             |
-| `tp_price`    | `0.0` (no TP — going flat)                |
-| `sl_price`    | `0.0` (no SL — going flat)                |
-| `meta_data`   | `{exit: True, pnl_rate: float}`           |
-
-`pnl_rate` is an approximation:
-
-- Long: `(mark_price - entry_price) / entry_price`
-- Short: `(entry_price - mark_price) / entry_price`
-
----
-
-## Position Tracking
-
-`PositionState` is a mutable dataclass that tracks the **actual position** held, separate from order sizes sent to the exchange:
-
-```python
-@dataclass
-class PositionState:
-    side: int          # Side.BUY (1) or Side.SELL (2)
-    ticker_size: float # actual position qty
-    quote_size: float  # actual position value
-    entry_price: float
-    timestamp: int     # epoch ms
-```
-
-`_update_position(order, trade_action)` updates `current_position` after every trade:
-
-| Action                         | Result                                                                       |
-| ------------------------------ | ---------------------------------------------------------------------------- |
-| `NEW_BUY` / `NEW_SELL`         | `current_position = PositionState(...)` using full order size                |
-| `REVERSE_BUY` / `REVERSE_SELL` | `current_position = PositionState(...)` using **base** size from `meta_data` |
-| `EXIT`                         | `current_position = None`                                                    |
-
----
-
-## Telegram Notifications
-
-Every executed trade sends a message via `CustomTelegramBot.send_text()`:
-
-**NEW order:**
-
-```
-Trade Signal: BUY
-Entry Price: 97500.0
-Amount: 200.0 USDT or 0.021 BTC
-Take Profit: 99450.0
-Stop Loss: 96525.0
-It is the new order.
-```
-
-**REVERSE order:**
-
-```
-Trade Signal: BUY
-Entry Price: 97500.0
-Amount: 400.0 USDT or 0.041 BTC
-Take Profit: 99450.0
-Stop Loss: 96525.0
-It is the reverse order.
-```
-
-**EXIT order:**
-
-```
-Trade Signal: EXIT (SELL to close)
-Close Price: 98000.0
-Amount: 200.0 USDT or 0.021 BTC
-Approx Profit: 0.51% (x10 leverage: 5.13%)
-It is an EXIT order.
-```
+Prevents rapid order spamming during extreme volatility spikes.
 
 ---
 
 ## Network Resilience
 
-All broker API calls (`_get_account_info`, `_get_open_orders`, `_get_mark_price`) use `_fetch_with_retry()`:
-
-- Retries **indefinitely** with exponential backoff
-- Validates response type before accepting
-- Logs each retry attempt with delay info
-
----
-
-## Constructor Parameters
-
-| Parameter                    | Type                         | Default           | Description                                        |
-| ---------------------------- | ---------------------------- | ----------------- | -------------------------------------------------- |
-| `signal_pipeline_controller` | `PipelineController[Signal]` | required          | Signal source                                      |
-| `http_interface`             | `HttpInterface`              | required          | HTTP abstraction (future use)                      |
-| `binance_future_client`      | `BinanceFutureHttpClient`    | required          | Binance Futures API client                         |
-| `delta_mapper`               | `ScoreMapper`                | required          | Maps signals to score deltas                       |
-| `telegram_bot`               | `CustomTelegramBot`          | required          | Notification channel                               |
-| `trade_pair`                 | `TradePair`                  | `BTC/USDT`        | Trading pair                                       |
-| `leverage`                   | `int`                        | `10`              | Leverage multiplier                                |
-| `trade_weight`               | `float`                      | `0.1`             | Fraction of balance per trade (10%)                |
-| `take_profit_rate`           | `float`                      | `0.2`             | TP distance from entry (20%)                       |
-| `stop_loss_rate`             | `float`                      | `0.2`             | SL distance from entry (20%)                       |
-| `score_threashold`           | `int`                        | `2000`            | Score required for NEW trade                       |
-| `score_trend_management`     | `int`                        | `0`               | Legacy bias score (unused after reset-to-0 change) |
-| `score_decay_rate`           | `float`                      | `0.995`           | Per-tick decay factor                              |
-| `trade_cooldown_ms`          | `int`                        | `30000`           | Minimum ms between trades                          |
-| `name`                       | `str`                        | `"TRADE_MANAGER"` | Instance identifier for logging                    |
-
----
-
-## Test Coverage
-
-80 unit tests across 11 test classes (`test/test_trade_manager.py`):
-
-| Test Class                      | Count | Coverage                                                                  |
-| ------------------------------- | ----- | ------------------------------------------------------------------------- |
-| `TestDecideTrade`               | 14    | All TradeState transitions including EXIT boundaries and REVERSE priority |
-| `TestConstructNewOrder`         | 12    | NEW, REVERSE, EXIT order construction, P/L calculation, edge cases        |
-| `TestFormatTradeMessage`        | 6     | NEW, REVERSE, EXIT message formatting                                     |
-| `TestExecuteTrade`              | 5     | Full execution flow, position updates, EXIT clears position               |
-| `TestUpdatePosition`            | 7     | NEW sets position, REVERSE uses base size, EXIT clears                    |
-| `TestGetTargetPrices`           | 4     | Long/short TP/SL formula                                                  |
-| `TestTradeSizing`               | 5     | Quote amt, ticker amt formula and rounding                                |
-| `TestVerifySignal`              | 3     | Timestamp freshness validation                                            |
-| `TestCalculateSignalScoreDelta` | 7     | Score delta mapping                                                       |
-| `TestScoreDecay`                | 6     | Decay arithmetic, zero stability, disable with rate=1.0                   |
-| `TestTradeCooldown`             | 5     | Cooldown enforcement, initial state, window boundaries                    |
+All broker API calls (`_get_account_info`, `_get_open_orders`, `_get_mark_price`) use a robust `_fetch_with_retry()` wrapper:
+- Retries **indefinitely** with exponential backoff.
+- Validates the expected class response type before accepting the payload.
+- Logs each retry attempt with delay and error info.

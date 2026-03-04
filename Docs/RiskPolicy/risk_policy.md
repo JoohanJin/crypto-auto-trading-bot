@@ -49,12 +49,11 @@
 
 ### 1.5 Risk Appetite, Thresholds, & Criteria
 - **Capital at Risk**:
-  - Max 10% of deployable capital per position (leverage x20);
-  - the fixed Stop Loss position at 5%;
-  - the fixed Take Profit position at 15%
-  - Only one position per time.
+  - Max 15% of deployable capital per position (trade_weight = 0.15);
+  - Dynamic position sizing adjustments applied upon trend reversals.
+  - Only one primary position (Long or Short) per time (Always-in-Market).
 - **Leverage**:
-  - Futures leverage hard limit 20x; (Dynamic Modification of the Leverage would be better)
+  - Futures leverage hard limit 10x (Currently enforced in TradeManager);
   - any request above would be rejected under any circumstance.
 - **Liquidity**:
   - Only trade pairs of BTC_USDT or BTC_USDC would be allowed;

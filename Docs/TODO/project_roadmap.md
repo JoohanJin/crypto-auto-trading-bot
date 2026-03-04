@@ -67,9 +67,10 @@ This document captures the outstanding TODO items from the master list and adds 
 ## Deployment / Ops Completed Items
 - [v] Submit address proof to Binance.  
   - [v] Verify Windows laptop IP is cleared to send trading orders (observe live order placement).
-  - [] Confirm open-order polling continues to work post-IP validation.
-- [] Deploy v1_0_0 → v1_0_2.  
-  - [] Linux/Windows servers provisioned.  
-  - [] Feature set implemented.  
-  - [] Docker container prepared.  
-  - [] Optional follow-up: automate GHCR push + server rollout (see overall DevOps plan).
+  - [v] Confirm open-order polling continues to work post-IP validation.
+- [v] Deploy v1_0_0 → v3_0_6.  
+  - [v] GCP container VM provisioned (`crypto-bot-vm`).  
+  - [v] Feature set implemented (WSDC Model, Sweet Spot Thresholds, Always-in-Market logic).  
+  - [v] Docker container prepared and pushed to Artifact Registry.  
+  - [v] Initial Position Recovery integrated on bot startup.
+  - [ ] Implement full CI pipeline (Pytest, Mypy, Flake8) via GitHub Actions (Planned).
