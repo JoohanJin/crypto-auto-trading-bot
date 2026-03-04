@@ -1,29 +1,19 @@
 # Standard Library
-from typing import TYPE_CHECKING, Literal
+from typing import Literal, Union
 
 # RESTful Client
 from src.brokers.base.http_client import HttpClient
+from src.brokers.base.http_service import HttpService
 from src.brokers.binance.http_gateway import BinanceFutureGateway
-
 # logger
 from src.core.models.order import Order, Side
-
 # Data Structure
-from src.core.models.service_dto import (
-    AccountInformation,
-    MarkPrice,
-    Ping,
-    Position,
-    Ticker,
-)
-
+from src.core.models.service_dto import (AccountInformation, MarkPrice, Ping,
+                                         Position, Ticker)
 # Custom Library
-from src.core.models.trade import PositionState, PositionType, TimeInForce, TradePair
+from src.core.models.trade import (PositionState, PositionType, TimeInForce,
+                                   TradePair)
 from src.infrastructure.logging.set_logger import get_adapter, get_logger
-
-
-if TYPE_CHECKING:
-    from src.brokers.base.http_service import HttpService
 
 logger = get_logger(__name__)
 
@@ -84,6 +74,7 @@ class BinanceFutureHttpClient(HttpClient):
 
         self.logger.info(f"[SERVICE_INIT] {self.name} initialized")
 
+        return
 
     """
     REST API Version 1 for Binance Futures.
@@ -499,11 +490,11 @@ class BinanceFutureHttpClient(HttpClient):
                 except Exception as e:
                     self.logger.warning(
                         f"[INVALID_RESPONSE] construct_mark_price_dto() | "
-                        f"Error: {type(e).__name__}: {e!s}"
+                        f"Error: {type(e).__name__}: {str(e)}"
                     )
             elif isinstance(data, list):
                 res: list[MarkPrice] = []
-                for _d in data:
+                for d in data:
                     try:
                         res.append(
                             MarkPrice(
@@ -516,7 +507,7 @@ class BinanceFutureHttpClient(HttpClient):
                     except Exception as e:
                         self.logger.warning(
                             f"[INVALID_RESPONSE] construct_mark_price_dto() | "
-                            f"Error: {type(e).__name__}: {e!s}"
+                            f"Error: {type(e).__name__}: {str(e)}"
                         )
                 return res
             return
@@ -899,13 +890,13 @@ class BinanceFutureHttpClient(HttpClient):
         recv_window: int,  # 5_000 ms is the default value, i.e., 5 sec.
         side: str | None = None,  # Override order.side_str (needed for SL/TP opposite side)
         position_side: str | None = None,  # "BOTH", "LONG", "SHORT", None
-        type: Literal["MARKET"] | Literal["TAKE_PROFIT_MARKET"] | Literal["STOP_MARKET"] = "MARKET",
+        type: Union[Literal["MARKET"], Literal["TAKE_PROFIT_MARKET"], Literal["STOP_MARKET"]] = "MARKET",
         reduce_only: str | None = None,
         time_in_force: str | None = None,
         price: float | None = None,
         new_client_order_id: str | None = None,
         stop_price: float | None = None,
-        close_position: Literal["true"] | Literal["false"] | None = None,  # bool: true or false
+        close_position: Union[Literal["true"], Literal["false"]] | None = None,  # bool: true or false
         activation_price: float | None = None,
         callback_rate: float | None = None,
         working_type: str | None = None,
@@ -933,28 +924,28 @@ class BinanceFutureHttpClient(HttpClient):
         # Use overridden side if provided, otherwise use order's side
         order_side = side if side else order.side_str
 
-        params: dict[str, int | float | str] = {
-            "symbol": self._parse_trade_pair(order.trade_pair),
-            "side": order_side,
-            "position_side": position_side,
-            "type": type,
-            "time_in_force": time_in_force,
-            "reduce_only": reduce_only,
-            "price": price,
-            "new_client_order_id": new_client_order_id,
-            "stop_price": stop_price,
-            "close_position": close_position,
-            "activation_price": activation_price,
-            "callback_rate": callback_rate,
-            "working_type": working_type,
-            "price_protect": price_protect,
-            "new_order_resp_type": new_order_resp_type,
-            "price_match": price_match,
-            "self_trade_prevention_mode": self_trade_prevention_mode,
-            "good_till_date": good_till_date,
-            "recv_window": recv_window,
-            "timestamp": self.generate_timestamp(),
-        }
+        params: dict[str, int | float | str] = dict(
+            symbol=self._parse_trade_pair(order.trade_pair),
+            side=order_side,
+            position_side=position_side,
+            type=type,
+            time_in_force=time_in_force,
+            reduce_only=reduce_only,
+            price=price,
+            new_client_order_id=new_client_order_id,
+            stop_price=stop_price,
+            close_position=close_position,
+            activation_price=activation_price,
+            callback_rate=callback_rate,
+            working_type=working_type,
+            price_protect=price_protect,
+            new_order_resp_type=new_order_resp_type,
+            price_match=price_match,
+            self_trade_prevention_mode=self_trade_prevention_mode,
+            good_till_date=good_till_date,
+            recv_window=recv_window,
+            timestamp=self.generate_timestamp(),
+        )
 
         # quantity and closePosition are mutually exclusive per Binance API
         if close_position != "true":
@@ -970,42 +961,51 @@ class BinanceFutureHttpClient(HttpClient):
         self,
     ):
         raise NotImplementedError
+        return
 
     def change_order(
         self,
     ):
         raise NotImplementedError
+        return
 
     def change_multiple_orders(
         self,
     ):
         raise NotImplementedError
+        return
 
     def get_order_change_history(
         self,
     ):
         raise NotImplementedError
+        return
 
     def cancel_order(
         self,
     ):
         raise NotImplementedError
+        return
 
     def cancel_multiple_orders(self,):
         raise NotImplementedError
+        return
 
     def cancel_all_orders(
         self,
     ):
         raise NotImplementedError
+        return
 
     def auto_cancel_all_open_orders(
         self,
     ):
         raise NotImplementedError
+        return
 
     def query_order(self,):
         raise NotImplementedError
+        return
 
     def get_all_orders(
         self,
@@ -1058,6 +1058,7 @@ class BinanceFutureHttpClient(HttpClient):
 
     def get_open_order(self,):
         raise NotImplementedError
+        return
 
     def get_open_orders(
         self,
@@ -1139,15 +1140,19 @@ class BinanceFutureHttpClient(HttpClient):
 
     def query_account_trades(self,):
         raise NotImplementedError
+        return
 
     def query_user_force_orders(self,):
         raise NotImplementedError
+        return
 
     def change_margin_type(self,):
         raise NotImplementedError
+        return
 
     def change_position_mode(self,):
         raise NotImplementedError
+        return
 
     def change_initial_leverage(
         self,
@@ -1171,26 +1176,32 @@ class BinanceFutureHttpClient(HttpClient):
 
     def change_multi_assets_mode(self,):
         raise NotImplementedError
+        return
 
     def change_isolated_position_margin(
         self,
     ):
         raise NotImplementedError
+        return
 
     def postion_info_v2(self,):
         raise NotImplementedError
+        return
 
     def position_info_v3(self,):
         raise NotImplementedError
+        return
 
     def position_adl_quantile_estimation(self,):
         raise NotImplementedError
+        return
 
     def get_position_margin_history(self,):
         return
 
     def test_new_order(self,):
         raise NotImplementedError
+        return
 
     def get_account_balance(
         self,
@@ -1201,9 +1212,9 @@ class BinanceFutureHttpClient(HttpClient):
         def construct_account_information_dto(data: dict):
             try:
                 return AccountInformation(
-                    timestamp=int(data.get('updateTime') or self.generate_timestamp()),
+                    timestamp=int(data.get('updateTime', None) or self.generate_timestamp()),
                     source=self.source,
-                    id=data.get('accountAlias'),
+                    id=data.get('accountAlias', None),
                     asset=data.get('asset'),
                     balance=round(float(data.get('balance', 0.0)), 2),
                     unrealized_pnl=round(float(data.get('crossUnPnl', 0.0)), 2),
@@ -1212,7 +1223,7 @@ class BinanceFutureHttpClient(HttpClient):
             except Exception as e:
                 self.logger.warning(
                     f"[INVALID_RESPONSE] construct_account_information_dto() | "
-                    f"Error: {type(e).__name__}: {e!s}"
+                    f"Error: {type(e).__name__}: {str(e)}"
                 )
                 return
             return
@@ -1339,12 +1350,13 @@ class BinanceFutureHttpClient(HttpClient):
                     entry_price: float = float(position.get("entryPrice", 0.0))
                     break_even_price: float = float(position.get("breakEvenPrice", 0.0))
 
-                    if (side_str in {"BUY", "SELL"}):
+                    if (side_str == "BUY" or side_str == "SELL"):
                         side: Side = Side.BUY if side_str == "BUY" else Side.SELL
-                    elif (break_even_price - entry_price) > 0:
-                        side: Side = Side.BUY
                     else:
-                        side: Side = Side.SELL
+                        if (break_even_price - entry_price) > 0:
+                            side: Side = Side.BUY
+                        else:
+                            side: Side = Side.SELL
                     return PositionState(
                         side=side,
                         ticker_size=abs(float(position.get("positionAmt", 0.0))),

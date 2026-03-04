@@ -1,7 +1,5 @@
 from typing import Generic, TypeVar
-
-from src.infrastructure.logging.set_logger import get_adapter, get_logger
-
+from src.infrastructure.logging.set_logger import get_logger, get_adapter
 
 logger = get_logger(__name__)
 T = TypeVar("T")
@@ -12,7 +10,7 @@ class BaseClientRegistry(Generic[T]):
         self.name: str = name if name else self.__class__.__name__
         self._registry: dict[str, T] = {}
         self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
-
+        
         self.logger.info(f"[COMPONENT_INIT] {self.name} initialized")
 
     def push(self, key: str, client: T) -> None:

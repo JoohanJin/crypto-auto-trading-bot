@@ -4,10 +4,9 @@ from collections.abc import Callable
 # Custom Library
 from src.brokers.base.ws_client import WebSocketClient
 from src.core.models.trade import TradePair
-from src.infrastructure.logging.set_logger import get_logger
 from src.interfaces.base.base_interface import BaseInterface
 from src.interfaces.ws_client_registry import WebSocketClientRegistry
-
+from src.infrastructure.logging.set_logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -20,13 +19,13 @@ class WebSocketInterface(BaseInterface[WebSocketClientRegistry, WebSocketClient]
         name: str | None = None,
     ) -> None:
         self.trade_pair = TradePair("BTC", "USDT") if trade_pair is None else trade_pair
-
+        
         registry = (
             client_registry
             if client_registry
             else WebSocketClientRegistry(name="DEFAULT_WEBSOCKET_CLIENT_REGISTRY")
         )
-
+        
         super().__init__(
             client_registry=registry,
             name=name if name else "WebSocketInterface"
@@ -43,12 +42,14 @@ class WebSocketInterface(BaseInterface[WebSocketClientRegistry, WebSocketClient]
             super().push_client(key, client)
         else:
             raise TypeError(f"Expected WebSocketClient, got {type(client)}")
+        return
 
     def start(self) -> None:
         try:
             self.client_registry.start()
         except Exception as e:
-            self.logger.info(f"[SERVICE_INIT_ERROR] {self.name} | Failed to start client | Error: {type(e).__name__}: {e!s}")
+            self.logger.info(f"[SERVICE_INIT_ERROR] {self.name} | Failed to start client | Error: {type(e).__name__}: {str(e)}")
+        return
 
     def ticker(
         self,
@@ -61,7 +62,8 @@ class WebSocketInterface(BaseInterface[WebSocketClientRegistry, WebSocketClient]
                     trade_pair = self.trade_pair,
                 )
             except Exception as e:
-                self.logger.critical(f"[WS_SUBSCRIBE] {self.name} | Error: {type(e).__name__}: {e!s}")
+                self.logger.critical(f"[WS_SUBSCRIBE] {self.name} | Error: {type(e).__name__}: {str(e)}")
+        return
 
     def kline(
         self,
@@ -74,7 +76,8 @@ class WebSocketInterface(BaseInterface[WebSocketClientRegistry, WebSocketClient]
                     trade_pair=self.TradePair,
                 )
             except Exception as e:
-                self.logger.critical(f"[WS_SUBSCRIBE] {self.name} | Error: {type(e).__name__}: {e!s}")
+                self.logger.critical(f"[WS_SUBSCRIBE] {self.name} | Error: {type(e).__name__}: {str(e)}")
+        return
 
     def depth(
         self,
@@ -87,4 +90,5 @@ class WebSocketInterface(BaseInterface[WebSocketClientRegistry, WebSocketClient]
                     trade_pair=self.TradePair,
                 )
             except Exception as e:
-                self.logger.critical(f"[WS_SUBSCRIBE] {self.name} | Error: {type(e).__name__}: {e!s}")
+                self.logger.critical(f"[WS_SUBSCRIBE] {self.name} | Error: {type(e).__name__}: {str(e)}")
+        return

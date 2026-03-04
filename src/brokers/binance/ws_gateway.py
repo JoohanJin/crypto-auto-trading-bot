@@ -1,16 +1,16 @@
 # Standard Library
 import base64
 import json
-import threading
 import time
-from collections.abc import Callable
+import threading
 from urllib.parse import urlencode
-
+from collections.abc import Callable
 import websocket
+
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 
 from src.brokers.base.ws_service import WebSocket
-from src.infrastructure.logging.set_logger import get_adapter, get_logger
+from src.infrastructure.logging.set_logger import get_logger, get_adapter
 
 logger = get_logger(__name__)
 
@@ -29,7 +29,7 @@ class BinanceUserWebSocket(WebSocket):
         ping_interval: int | None,
         url: str = "wss://ws-fapi.binance.com/ws-fapi/v1",  # User Stream
         default_callback: Callable | None = None,
-        name: str | None = None,
+        name: str = None,
     ) -> None:
         super().__init__(
             name=name or "BINANCE_USER_WEBSOCKET_CLIENT",
@@ -49,7 +49,7 @@ class BinanceUserWebSocket(WebSocket):
             )
 
         # callback function map based on the topics
-        self.callbacks_lock: threading.Lock = threading.Lock()
+        self.callbacks_lock : threading.Lock = threading.Lock()
         self.callbacks: dict[str | int, Callable] = {}
 
         self.subscriptions_lock: threading.Lock = threading.Lock()
@@ -69,13 +69,14 @@ class BinanceUserWebSocket(WebSocket):
 
         # WebSocketApp
         self.ws: websocket.WebSocketApp = self._construct_wsa()
+        return
 
     def _is_connected(self) -> bool:
         try:
             if (self.ws and self.ws.sock and self.ws.sock.connected):
                 return True
         except Exception as e:
-            self.logger.critical(f"[WS_PING_PONG] Binance | Error: {type(e).__name__}: {e!s}")
+            self.logger.critical(f"[WS_PING_PONG] Binance | Error: {type(e).__name__}: {str(e)}")
         return False
 
     def start(self) -> None:
@@ -92,10 +93,11 @@ class BinanceUserWebSocket(WebSocket):
                 if self._is_connected():
                     self.ws.send(payload)
             except Exception as e:
-                self.logger.info(f"[WS_AUTH_ERROR] Binance | Error: {type(e).__name__}: {e!s}")
+                self.logger.info(f"[WS_AUTH_ERROR] Binance | Error: {type(e).__name__}: {str(e)}")
         else:
             self.logger.critical(f"[BROKER_ERROR] Binance | Error: Data must be a dictionary, got {type(data)}")
             raise
+        return
 
     def _authenticate(self) -> None:
         '''
@@ -134,7 +136,7 @@ class BinanceUserWebSocket(WebSocket):
             time.sleep(1)
             return
         except Exception as e:
-            self.logger.critical(f"[WS_AUTH_ERROR] Binance | Error: {type(e).__name__}: {e!s}")
+            self.logger.critical(f"[WS_AUTH_ERROR] Binance | Error: {type(e).__name__}: {str(e)}")
         return
 
     def _update_authenticated(self, data: dict | list) -> None:
@@ -145,6 +147,7 @@ class BinanceUserWebSocket(WebSocket):
         else:
             self.logger.critical("[WS_AUTH_ERROR] Binance | Error: Authentication msg format is wrong.")
             raise TypeError("authentication msg format is wrong.")
+        return
 
     def _generate_signature(
         self,
@@ -175,6 +178,7 @@ class BinanceUserWebSocket(WebSocket):
                 self._construct_params(tmp_subs[id]["params"])
                 self.send(tmp_subs[id])
             time.sleep(2)
+        return
 
     def _construct_params(self, params: dict) -> dict:
         # Remove old signature before regenerating (signature should not be part of signed payload)
@@ -188,7 +192,6 @@ class BinanceUserWebSocket(WebSocket):
     # Threads
     #######################
     '''
-
     def _initialize_threads(self) -> None:
         self.threads.append(
             threading.Thread(
@@ -214,6 +217,7 @@ class BinanceUserWebSocket(WebSocket):
                 daemon=True
             )
         )
+        return
 
     def _start_threads(self) -> None:
         for thread in self.threads:
@@ -222,8 +226,9 @@ class BinanceUserWebSocket(WebSocket):
                 self.logger.info(f"[THREAD_START] {thread.name} | Status: running")
                 time.sleep(1.0)
             except Exception as e:
-                self.logger.critical(f"[THREAD_ERROR] {thread.name} failed | Error: {type(e).__name__}: {e!s}")
+                self.logger.critical(f"[THREAD_ERROR] {thread.name} failed | Error: {type(e).__name__}: {str(e)}")
                 raise
+        return
 
     def _clean_up_connections(self) -> None:
         self.logger.info(f"[SHUTDOWN] Cleaning up {len(self.threads)} threads.")
@@ -236,10 +241,11 @@ class BinanceUserWebSocket(WebSocket):
             else:
                 self.logger.critical("[WS_CLOSE] Binance | Status: 0 | Reason: WebSocket already closed.")
         except Exception as e:
-            self.logger.critical(f"[WS_CLOSE] Binance | Error: {type(e).__name__}: {e!s}")
+            self.logger.critical(f"[WS_CLOSE] Binance | Error: {type(e).__name__}: {str(e)}")
 
         self.threads.clear()
         self._thread_stop.clear()
+        return
 
     def _handle_reconnect(
         self,
@@ -265,13 +271,13 @@ class BinanceUserWebSocket(WebSocket):
                     return
 
             except Exception as e:
-                self.logger.warning(f"[WS_RECONNECT] Binance | Error: {type(e).__name__}: {e!s}")
+                self.logger.warning(f"[WS_RECONNECT] Binance | Error: {type(e).__name__}: {str(e)}")
 
             # Wait before next attempt
             self.logger.info(f"[WS_RECONNECT] Binance | Next Retry: {retry_delay:.2f}s")
             time.sleep(retry_delay)
         return
-
+    
     # Override: previously ping method
     def _heartbeat(
         self,
@@ -287,24 +293,26 @@ class BinanceUserWebSocket(WebSocket):
                     self.logger.debug("[WS_PING_PONG] Binance | Type: PONG | Status: success")
                     prev_timestamp = self.generate_timestamp()
                 except Exception as e:
-                    self.logger.warning(f"[WS_PING_PONG] MexC | Error: {type(e).__name__}: {e!s}")
+                    self.logger.warning(f"[WS_PING_PONG] MexC | Error: {type(e).__name__}: {str(e)}")
             else:
                 continue
+        return
 
     '''
     ####################################################################################
     #                                    Overriden                                     #
     ####################################################################################
     '''
-
     def connect(self) -> None:
         self._initialize_threads()
         self._start_threads()
+        return
 
     def disconnect(self) -> None:
         if self._is_connected():
             self.ws.close()
             self._intentional_close.set()
+        return
 
     def subscribe(
         self,
@@ -323,11 +331,13 @@ class BinanceUserWebSocket(WebSocket):
             "params": params,
         }
 
-        with self.callbacks_lock:
+        with self.callbacks_lock :
             self.callbacks[id] = callback_function
 
         with self.subscriptions_lock:
             self.subscriptions[id] = payload
+
+        return
 
     def unsubscribe(self) -> None:
         return
@@ -361,18 +371,19 @@ class BinanceUserWebSocket(WebSocket):
     def authenticate(self) -> None:
         """Public API for authentication. Delegates to _authenticate()."""
         self._authenticate()
+        return
 
     '''
     ####################################################################################
     #                           Overriden - WebSocketApp                               #
     ####################################################################################
     '''
-
     def on_open(
         self,
         ws: websocket.WebSocketApp,
     ) -> None:
         self.logger.info(f"[WS_OPEN] Binance | URL: {ws.url} | Status: opened")
+        return
 
     def on_message(
         self,
@@ -383,7 +394,7 @@ class BinanceUserWebSocket(WebSocket):
         method_id = data.get("id")
 
         if method_id and isinstance(method_id, int):
-            with self.callbacks_lock:
+            with self.callbacks_lock :
                 callback = self.callbacks.get(method_id, None)
 
             if isinstance(callback, Callable):
@@ -392,6 +403,7 @@ class BinanceUserWebSocket(WebSocket):
                 self.default_callback(data)
             else:
                 self._operation_logging(data)
+        return
 
     def on_close(
         self,
@@ -431,13 +443,13 @@ class BinanceUserWebSocket(WebSocket):
         # Send pong response via underlying socket
         ws.sock.pong(data)
         self.logger.debug("[WS_PING_PONG] Binance | Type: PONG | Status: success")
+        return
 
     '''
     ####################################################################################
     #                                    WebSocketApp                                  #
     ####################################################################################
     '''
-
     def _construct_wsa(
         self,
         on_open: Callable | None = None,
@@ -449,9 +461,10 @@ class BinanceUserWebSocket(WebSocket):
             self._connection_ready.set()
 
             (on_open or self.on_open)(ws)
+            return
 
         return websocket.WebSocketApp(
-            url=self.url,
+            url = self.url,
             on_open=on_open_wrapper,
             on_close=on_close or self.on_close,
             on_message=on_message or self.on_message,
@@ -469,7 +482,6 @@ class BinanceMarketWebSocket(WebSocket):
     - Topic-based callbacks: callbacks[stream_name] (persistent)
     Stream format: "symbol@streamType" e.g., "btcusdt@ticker", "ethusdt@depth"
     """
-
     def __repr__(self):
         return f"BINANCE_{self.__class__.__name__}: {self.name}"
 
@@ -478,7 +490,7 @@ class BinanceMarketWebSocket(WebSocket):
         ping_interval: int | None = None,
         url: str = "wss://fstream.binance.com/ws",  # Market Stream
         default_callback: Callable | None = None,
-        name: str | None = None,
+        name: str = None,
     ) -> None:
         super().__init__(
             name=name or "Binance_Market_WebSocket_Client",
@@ -517,6 +529,7 @@ class BinanceMarketWebSocket(WebSocket):
 
         # WebSocketApp
         self.ws: websocket.WebSocketApp = self._construct_wsa()
+        return
 
     def _is_connected(self) -> bool:
         try:
@@ -524,7 +537,7 @@ class BinanceMarketWebSocket(WebSocket):
                 return True
         except Exception as e:
             self.logger.critical(
-                f"Unexpected problem while checking the connection state: {e!s}"
+                f"Unexpected problem while checking the connection state: {str(e)}"
             )
         return False
 
@@ -540,20 +553,20 @@ class BinanceMarketWebSocket(WebSocket):
                     self.ws.send(payload)
             except Exception as e:
                 self.logger.warning(
-                    f"Unexpected error while sending: {e!s}"
+                    f"Unexpected error while sending: {str(e)}"
                 )
         else:
             self.logger.critical(
                 f"Data must be a dictionary, got {type(data)}"
             )
             raise TypeError(f"Data must be a dictionary, got {type(data)}")
+        return
 
     '''
     ####################################################################################
     #                                    Threads                                       #
     ####################################################################################
     '''
-
     def _initialize_threads(self) -> None:
         """Initialize connection thread. No polling needed for push-based streams."""
         self.threads.append(
@@ -564,6 +577,7 @@ class BinanceMarketWebSocket(WebSocket):
                 daemon=True,
             )
         )
+        return
 
     def _start_threads(self) -> None:
         for thread in self.threads:
@@ -575,9 +589,10 @@ class BinanceMarketWebSocket(WebSocket):
                 time.sleep(1.0)
             except Exception as e:
                 self.logger.critical(
-                    f"[THREAD_ERROR] {thread.name} failed | Error: {type(e).__name__}: {e!s}"
+                    f"[THREAD_ERROR] {thread.name} failed | Error: {type(e).__name__}: {str(e)}"
                 )
                 raise
+        return
 
     def _clean_up_connections(self) -> None:
         self.logger.info(
@@ -595,26 +610,28 @@ class BinanceMarketWebSocket(WebSocket):
                 )
         except Exception as e:
             self.logger.critical(
-                f"[WS_CLOSE] Binance | Error: {type(e).__name__}: {e!s}"
+                f"[WS_CLOSE] Binance | Error: {type(e).__name__}: {str(e)}"
             )
 
         self.threads.clear()
         self._thread_stop.clear()
+        return
 
     '''
     ####################################################################################
     #                                    Overriden                                     #
     ####################################################################################
     '''
-
     def connect(self) -> None:
         self._initialize_threads()
         self._start_threads()
+        return
 
     def disconnect(self) -> None:
         self._intentional_close.set()
         if self._is_connected():
             self.ws.close()
+        return
 
     def subscribe(
         self,
@@ -674,8 +691,10 @@ class BinanceMarketWebSocket(WebSocket):
                 self.streams[id] = streams
         except Exception as e:
             self.logger.warning(
-                f"[WS_SUBSCRIBE] Binance | Error: {type(e).__name__}: {e!s}"
+                f"[WS_SUBSCRIBE] Binance | Error: {type(e).__name__}: {str(e)}"
             )
+
+        return
 
     def unsubscribe(
         self,
@@ -710,6 +729,7 @@ class BinanceMarketWebSocket(WebSocket):
         self.logger.info(
             f"[WS_UNSUBSCRIBE] Binance | Topic: {streams} | Status: unsubscribed"
         )
+        return
 
     def _resubscribe(self) -> None:
         """Resubscribe to all streams after reconnection."""
@@ -783,7 +803,7 @@ class BinanceMarketWebSocket(WebSocket):
 
             except Exception as e:
                 self.logger.warning(
-                    f"Reconnection attempt failed: {e!s}"
+                    f"Reconnection attempt failed: {str(e)}"
                 )
 
             self.logger.info(
@@ -797,11 +817,11 @@ class BinanceMarketWebSocket(WebSocket):
     #                           Overriden - WebSocketApp                               #
     ####################################################################################
     '''
-
     def on_open(self, ws: websocket.WebSocketApp) -> None:
         self.logger.info(
             f"[WS_OPEN] Binance | URL: {ws.url} | Status: opened"
         )
+        return
 
     def on_message(
         self,
@@ -825,12 +845,12 @@ class BinanceMarketWebSocket(WebSocket):
                 self._deal_with_response(msg)
         except json.JSONDecodeError as e:
             self.logger.warning(
-                f"Failed to parse message: {e!s}"
+                f"Failed to parse message: {str(e)}"
             )
             return
         except Exception as e:
             self.logger.warning(
-                f"Unexpected while getting msg from Binance WebSocket API: {e!s}"
+                f"Unexpected while getting msg from Binance WebSocket API: {str(e)}"
             )
         return
 
@@ -848,6 +868,7 @@ class BinanceMarketWebSocket(WebSocket):
                 self.logger.info(
                     f"[WS_SUBSCRIBE] Binance | Topic: {stream} | Status: subscribed"
                 )
+            return
 
         def deal_with_msg(msg):
             stream_topic: str = msg.get("e")
@@ -860,11 +881,13 @@ class BinanceMarketWebSocket(WebSocket):
                 callback(msg)
             elif self.default_callback:
                 self.default_callback(msg)
+            return
 
         if (msg.get("result", "") is None):
             is_sub_response(msg)
         else:
             deal_with_msg(msg)
+        return
 
     def on_close(
         self,
@@ -894,8 +917,9 @@ class BinanceMarketWebSocket(WebSocket):
 
     def on_error(self, ws: websocket.WebSocketApp, error: Exception) -> None:
         self.logger.error(
-            f"[WS_PING_PONG] Binance | Error: {type(error).__name__}: {error!s}"
+            f"[WS_PING_PONG] Binance | Error: {type(error).__name__}: {str(error)}"
         )
+        return
 
     def on_ping(self, ws: websocket.WebSocketApp, data: str | bytes) -> None:
         """Respond to server ping with pong."""
@@ -903,13 +927,13 @@ class BinanceMarketWebSocket(WebSocket):
         self.logger.debug(
             "[WS_PING_PONG] Binance | Type: PONG | Status: success"
         )
+        return
 
     '''
     ####################################################################################
     #                                    WebSocketApp                                  #
     ####################################################################################
     '''
-
     def _construct_wsa(
         self,
         on_open: Callable | None = None,
@@ -920,6 +944,7 @@ class BinanceMarketWebSocket(WebSocket):
         def on_open_wrapper(ws: websocket.WebSocketApp):
             self._connection_ready.set()
             (on_open or self.on_open)(ws)
+            return
 
         return websocket.WebSocketApp(
             url=self.url,
@@ -942,3 +967,4 @@ class BinanceTradingWebSocket(WebSocket):
         default_callback: Callable | None = None,
     ) -> None:
         raise NotImplementedError
+        return

@@ -1,12 +1,10 @@
 # Standard library imports
 import logging
-import os
-from functools import wraps
 from logging.handlers import TimedRotatingFileHandler
+from functools import wraps
 from pathlib import Path
-
 from dotenv import load_dotenv
-
+import os
 
 # Load environment variables from .env file
 load_dotenv()
@@ -65,7 +63,7 @@ def set_global_log_level(level: str):
     numeric_level = getattr(logging, level.upper(), None)
     if not isinstance(numeric_level, int):
         raise ValueError(f"Invalid log level: {level}")
-
+    
     operation_logger.setLevel(numeric_level)
     trading_logger.setLevel(numeric_level)
     operation_logger.info(f"[LOG_LEVEL_CHANGE] Set global log level to: {level.upper()}")
@@ -74,7 +72,7 @@ def set_global_log_level(level: str):
 def get_logger(module_name: str, logger_type: str = "operation") -> logging.Logger:
     """
     Get a child logger for a specific module.
-
+    
     Args:
         module_name: The name of the module (usually __name__).
         logger_type: 'operation' or 'trading'.
@@ -83,7 +81,7 @@ def get_logger(module_name: str, logger_type: str = "operation") -> logging.Logg
         parent_name = "TradingLogger"
     else:
         parent_name = "OperationLogger"
-
+        
     # Create a child logger (e.g., OperationLogger.src.main)
     # This logger will inherit handlers/level from the parent
     logger = logging.getLogger(f"{parent_name}.{module_name}")
@@ -98,7 +96,7 @@ class ContextAdapter(logging.LoggerAdapter):
         adapter.info("Hello") -> "OperationLogger... - [MyClass] Hello"
     """
     def process(self, msg, kwargs):
-        return '[{}] {}'.format(self.extra['prefix'], msg), kwargs
+        return '[%s] %s' % (self.extra['prefix'], msg), kwargs
 
 
 def get_adapter(logger: logging.Logger, prefix: str) -> logging.LoggerAdapter:

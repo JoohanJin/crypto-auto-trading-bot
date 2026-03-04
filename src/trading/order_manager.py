@@ -1,12 +1,10 @@
 import time
-
-from src.core.models.order import Order
 from src.core.models.price import Price
-from src.core.models.trade import TradePair
-from src.infrastructure.logging.set_logger import get_adapter, get_logger
 from src.integrations.telegram.telegram_bot_class import CustomTelegramBot
+from src.core.models.order import Order
+from src.infrastructure.logging.set_logger import get_logger, get_adapter
+from src.core.models.trade import TradePair
 from src.interfaces.http_interface import HttpInterface
-
 
 logger = get_logger(__name__)
 
@@ -37,11 +35,13 @@ class OrderManager:
         self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
         self.clients: HttpInterface = clients
         self.telegram_bot: CustomTelegramBot = telegram_bot
-
+        
         self.logger.info(f"[COMPONENT_INIT] {self.name} | Status: ready")
+        return
 
     def __del__(self) -> None:
         self.logger.info(f"[SHUTDOWN] {self.name} cleanup initiated")
+        return
 
     def order(
         self,
@@ -51,7 +51,8 @@ class OrderManager:
             # make an order through the client registry.
             self.clients  # TODO: implement the broker registry
         except Exception as e:
-            self.logger.critical(f"[TRADE_EXECUTION_ERROR] Order failed | Error: {type(e).__name__}: {e!s}")
+            self.logger.critical(f"[TRADE_EXECUTION_ERROR] Order failed | Error: {type(e).__name__}: {str(e)}")
+        return
 
     def get_ticker_current_price(
         self,
@@ -99,7 +100,7 @@ class OrderManager:
         try:
             return round((sum(prices) / len(prices)), rounding)
         except Exception as e:
-            self.logger.error(f"[TRADE_DECISION_ERROR] Average price calculation failed | Error: {type(e).__name__}: {e!s}")
+            self.logger.error(f"[TRADE_DECISION_ERROR] Average price calculation failed | Error: {type(e).__name__}: {str(e)}")
 
     def __get_ticker_current_prices(self) -> list[float]:
         '''

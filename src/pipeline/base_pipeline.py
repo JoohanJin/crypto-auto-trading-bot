@@ -1,8 +1,7 @@
 # from queue import Queue
-import queue
-from abc import ABC, abstractmethod
 from typing import Generic, TypeVar
-
+from abc import ABC, abstractmethod
+import queue
 
 T = TypeVar('T')
 
@@ -11,6 +10,7 @@ class BasePipeline(ABC, Generic[T]):
     @abstractmethod
     def __init__(self) -> None:
         self.queue: queue.Queue[T] = queue.Queue()
+        return
 
     @abstractmethod
     def push(

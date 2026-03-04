@@ -3,22 +3,24 @@ Future Trade API
 Documentation: https://mexcdevelop.github.io/apidocs/contract_v1_en
 """
 
-from typing import TYPE_CHECKING, Literal
+from typing import Literal, Union
+
+# Custom Library
+from src.infrastructure.logging.set_logger import get_logger, get_adapter
+from src.core.models.trade import TradePair
 
 # RESTful Client
 from src.brokers.base.http_client import HttpClient
+from src.brokers.base.http_service import HttpService
 from src.brokers.mexc.http_gateway import MexcFutureGateway
 
 # Data Structure
-from src.core.models.service_dto import FairPrice, OrderBook, Ping, Ticker
-from src.core.models.trade import TradePair
-
-# Custom Library
-from src.infrastructure.logging.set_logger import get_adapter, get_logger
-
-
-if TYPE_CHECKING:
-    from src.brokers.base.http_service import HttpService
+from src.core.models.service_dto import (
+    Ping,
+    OrderBook,
+    FairPrice,
+    Ticker
+)
 
 logger = get_logger(__name__)
 
@@ -32,7 +34,7 @@ class MexcFutureHttpClient(HttpClient):
         if isinstance(trade_pair, TradePair):
             return f"{trade_pair.ticker.upper()}_{trade_pair.quote.upper()}"
         return "BTC_USDT"
-
+    
     @classmethod
     def _construct_trade_pair(
         cls,
@@ -47,7 +49,7 @@ class MexcFutureHttpClient(HttpClient):
             if len(parts) == 2:
                 ticker, quote = parts
                 return TradePair(ticker, quote)
-
+        
         return None
 
     def __init__(
@@ -61,7 +63,7 @@ class MexcFutureHttpClient(HttpClient):
         )
         self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
         self.source: str = "MEXC"
-
+        
         self.gateway: HttpService = MexcFutureGateway(
             name = f"{name.upper()}_GATEWAY",
             api_key=api_key,
@@ -70,6 +72,7 @@ class MexcFutureHttpClient(HttpClient):
 
         self.logger.info(f"[SERVICE_INIT] {self.name} initialized")
 
+        return
 
     """
     ####################################################################################
@@ -96,8 +99,8 @@ class MexcFutureHttpClient(HttpClient):
         """
         def construct_ping_dto(msg: dict):
             return Ping(
-                timestamp=msg.get('data') or self.generate_timestamp(),
-                success=msg.get('success') or False,
+                timestamp=msg.get('data', None) or self.generate_timestamp(),
+                success=msg.get('success', None) or False,
                 source=self.source,
             )
 
@@ -184,7 +187,7 @@ class MexcFutureHttpClient(HttpClient):
         symbol = symbol if symbol else TradePair("BTC", "USDT")
 
         def constrcut_order_book_dto(msg: dict) -> OrderBook | None:
-            data: dict | None = msg.get('data')
+            data: dict | None = msg.get('data', None)
             if isinstance(data, dict):
                 return OrderBook(
                     timestamp=data.get('timestamp', None) or self.generate_timestamp(),
@@ -286,8 +289,8 @@ class MexcFutureHttpClient(HttpClient):
         symbol = symbol if symbol else TradePair("BTC", "USDT")
 
         def construct_fair_price_dto(msg: dict) -> FairPrice:
-            data = msg.get("data")
-
+            data = msg.get("data", None)
+            
             if isinstance(data, dict):
                 return FairPrice(
                     timestamp=data.get("timestamp", None) or self.generate_timestamp(),
@@ -328,7 +331,18 @@ class MexcFutureHttpClient(HttpClient):
 
     def get_kline(
         self,
-        interval: Literal["Min1"] | Literal["Min5"] | Literal["Min15"] | Literal["Min30"] | Literal["Min60"] | Literal["Hour4"] | Literal["Hour8"] | Literal["Day1"] | Literal["Week1"] | Literal["Month1"] | None = "Min1",  # default value is one minute.
+        interval: Union[
+            Literal["Min1"],
+            Literal["Min5"],
+            Literal["Min15"],
+            Literal["Min30"],
+            Literal["Min60"],
+            Literal["Hour4"],
+            Literal["Hour8"],
+            Literal["Day1"],
+            Literal["Week1"],
+            Literal["Month1"],
+        ] | None = "Min1",  # default value is one minute.
         symbol: TradePair | None = None,
         start_time: int | None = None,
         end_time: int | None = None,
@@ -377,7 +391,18 @@ class MexcFutureHttpClient(HttpClient):
 
     def get_kline_index_price(
         self,
-        interval: Literal["Min1"] | Literal["Min5"] | Literal["Min15"] | Literal["Min30"] | Literal["Min60"] | Literal["Hour4"] | Literal["Hour8"] | Literal["Day1"] | Literal["Week1"] | Literal["Month1"] | None = "Min1",
+        interval: Union[
+            Literal["Min1"],
+            Literal["Min5"],
+            Literal["Min15"],
+            Literal["Min30"],
+            Literal["Min60"],
+            Literal["Hour4"],
+            Literal["Hour8"],
+            Literal["Day1"],
+            Literal["Week1"],
+            Literal["Month1"],
+        ] | None = "Min1",
         symbol: TradePair | None = None,
         start_time: int | None = None,
         end_time: int | None = None,
@@ -419,7 +444,18 @@ class MexcFutureHttpClient(HttpClient):
 
     def get_kline_fair_price(
         self,
-        interval: Literal["Min1"] | Literal["Min5"] | Literal["Min15"] | Literal["Min30"] | Literal["Min60"] | Literal["Hour4"] | Literal["Hour8"] | Literal["Day1"] | Literal["Week1"] | Literal["Month1"] | None = "Min1",
+        interval: Union[
+            Literal["Min1"],
+            Literal["Min5"],
+            Literal["Min15"],
+            Literal["Min30"],
+            Literal["Min60"],
+            Literal["Hour4"],
+            Literal["Hour8"],
+            Literal["Day1"],
+            Literal["Week1"],
+            Literal["Month1"],
+        ] | None = "Min1",
         symbol: TradePair | None = None,
         start_time: int | None = None,
         end_time: int | None = None,
@@ -506,7 +542,7 @@ class MexcFutureHttpClient(HttpClient):
         symbol = symbol if symbol else TradePair("BTC", "USDT")
 
         def construct_ticker_dto(msg: dict) -> Ticker | None:
-            data = msg.get('data')
+            data = msg.get('data', None)
 
             if isinstance(data, dict):
                 return Ticker(
@@ -656,7 +692,7 @@ class MexcFutureHttpClient(HttpClient):
     def get_history_position(
         self,
         symbol: TradePair | None = None,
-        type: int | None = None,
+        type: int = None,
         page_num: int | None = 1,
         page_size: int | None = 100,
     ):
@@ -793,11 +829,11 @@ class MexcFutureHttpClient(HttpClient):
         side: int,  # 1 and 3
         type: int = 5,  # 5 for market, need to test 6
         open_type: int = 1,  # 1 for isolatied, 2 for cross
-        position_id: int | None = None,
-        external_id: int | None = None,
-        stop_loss_price: float | None = None,
-        take_profit_price: float | None = None,
-        position_mode: int | None = None,
+        position_id: int = None,
+        external_id: int = None,
+        stop_loss_price: float = None,
+        take_profit_price: float = None,
+        position_mode: int = None,
         reduce_only: bool = False,
         symbol: TradePair | None = None,
         leverage: int = 20,

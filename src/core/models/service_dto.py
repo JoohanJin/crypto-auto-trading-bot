@@ -3,8 +3,8 @@ from dataclasses import dataclass
 
 # Custom Library
 from src.core.models.base import ImmutableModel
+from src.core.models.trade import TimeInForce, TradePair, PositionType
 from src.core.models.order import Side
-from src.core.models.trade import PositionType, TimeInForce, TradePair
 
 
 @dataclass(frozen=True)

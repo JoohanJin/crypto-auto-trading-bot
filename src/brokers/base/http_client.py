@@ -2,11 +2,11 @@
 import time
 from abc import ABC, abstractmethod
 
+# Logger
+from src.infrastructure.logging.set_logger import get_logger, get_adapter
+
 # Custom Library
 from src.core.models.trade import TradePair
-
-# Logger
-from src.infrastructure.logging.set_logger import get_adapter, get_logger
 
 
 logger = get_logger(__name__)
@@ -39,9 +39,10 @@ class HttpClient(ABC):
     ) -> None:
         self.name: str = name or "HTTP_CLIENT"
         self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
-
+        
         self.logger.info(f"[SERVICE_INIT] {self.name} initialized")
 
+        return
 
     @abstractmethod
     def ping(self):

@@ -1,11 +1,9 @@
 # Standard Library
 from __future__ import annotations
-
-import time
 from dataclasses import dataclass, replace
-from enum import IntFlag
+import time
 from typing import TypeVar
-
+from enum import IntFlag
 
 T = TypeVar('T', bound='ImmutableModel')
 M = TypeVar('M', bound='MutableModel')
@@ -15,13 +13,13 @@ M = TypeVar('M', bound='MutableModel')
 class ImmutableModel:
     """
     ;Base class for all immutable data models.
-
+    
     ;Provides a copy() method that works for all subclasses.
     """
 
     def copy(self: T) -> T:
         return replace(self)
-
+    
     @classmethod
     def generate_timestamp(cls) -> int:
         return int(time.time() * 1_000)
@@ -31,13 +29,13 @@ class ImmutableModel:
 class MutableModel:
     """
     ;Base class for all mutable data models.
-
+    
     ;Provides a copy() method that works for all subclasses.
     """
 
     def copy(self: M) -> M:
         return replace(self)
-
+    
     @classmethod
     def generate_timestamp(cls) -> int:
         return int(time.time() * 1_000)

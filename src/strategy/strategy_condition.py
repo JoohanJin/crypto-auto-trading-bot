@@ -1,9 +1,9 @@
 # STANDARD LIBRARY
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Dict
 
 
 @dataclass
 class StrategyCondition:
     type: str
-    payload: dict[str, Any]
+    payload: Dict[str, Any]

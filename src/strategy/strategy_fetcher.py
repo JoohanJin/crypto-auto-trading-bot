@@ -1,11 +1,10 @@
 # STANDARD LIBRARY
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List
 
 # CUSTOM LIBRARY
-from src.infrastructure.logging.set_logger import get_adapter, get_logger
-
+from src.infrastructure.logging.set_logger import get_logger, get_adapter
 
 logger = get_logger(__name__)
 
@@ -23,7 +22,7 @@ class StrategyFetcher:
         try:
             with self.config_path.open("r", encoding="utf-8") as file:
                 config = json.load(file)
-                strategies: list[dict[str, Any]] = config.get("strategies", [])
+                strategies: List[Dict[str, Any]] = config.get("strategies", [])
                 self.logger.info(
                     f"[STRATEGY_LOAD] Count: {len(strategies)} | Source: {self.config_path}"
                 )
@@ -33,9 +32,9 @@ class StrategyFetcher:
             return {"strategies": []}
         except json.JSONDecodeError as e:
             self.logger.critical(
-                f"[STRATEGY_ERROR] load_strategies() | Error: JSONDecodeError: {e!s}"
+                f"[STRATEGY_ERROR] load_strategies() | Error: JSONDecodeError: {str(e)}"
             )
             return {"strategies": []}
         except Exception as e:
-            self.logger.critical(f"[STRATEGY_ERROR] load_strategies() | Error: {type(e).__name__}: {e!s}")
+            self.logger.critical(f"[STRATEGY_ERROR] load_strategies() | Error: {type(e).__name__}: {str(e)}")
             return {"strategies": []}

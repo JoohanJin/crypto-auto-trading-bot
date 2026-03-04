@@ -1,8 +1,6 @@
 from typing import Generic, TypeVar
-
-from src.infrastructure.logging.set_logger import get_adapter, get_logger
 from src.interfaces.base.base_registry import BaseClientRegistry
-
+from src.infrastructure.logging.set_logger import get_logger, get_adapter
 
 logger = get_logger(__name__)
 
@@ -19,8 +17,9 @@ class BaseInterface(Generic[TRegistry, TClient]):
         self.name: str = name if name else self.__class__.__name__
         self.client_registry: TRegistry = client_registry
         self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
-
+        
         self.logger.info(f"[SERVICE_INIT] {self.name} initialized")
+        return
 
     def push_client(self, key: str, client: TClient) -> None:
         # Assuming TRegistry has a push method matching BaseClientRegistry signature

@@ -1,11 +1,9 @@
 import os
 import time
-
 import pandas as pd
 
 # Custom Library
-from src.infrastructure.logging.set_logger import get_adapter, get_logger
-
+from src.infrastructure.logging.set_logger import get_logger, get_adapter
 
 logger = get_logger(__name__)
 
@@ -14,7 +12,7 @@ class DataSaver:
     def __init__(self, name: str | None = None):
         self.name: str = name if name else "DATA_SAVER"
         self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
-
+        
         # Set the base directory to the correct location of 'src'
         self.base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
         self.data_dir = os.path.join(
@@ -63,18 +61,18 @@ class DataSaver:
                     index_label = "timestamp",
                     encoding = "utf-8",
                 )
-            self.logger.info("[SUCCESS] DataSaver.write() | Response Type: CSV")
+            self.logger.info(f"[SUCCESS] DataSaver.write() | Response Type: CSV")
 
         except FileNotFoundError as e:
-            self.logger.error(f"[DATA_SAVE_ERROR] write() | Error: FileNotFoundError: {e!s}")
+            self.logger.error(f"[DATA_SAVE_ERROR] write() | Error: FileNotFoundError: {str(e)}")
         except PermissionError as e:
-            self.logger.error(f"[DATA_SAVE_ERROR] write() | Error: PermissionError: {e!s}")
+            self.logger.error(f"[DATA_SAVE_ERROR] write() | Error: PermissionError: {str(e)}")
         except AttributeError as e:
-            self.logger.error(f"[DATA_SAVE_ERROR] write() | Error: AttributeError: {e!s}")
+            self.logger.error(f"[DATA_SAVE_ERROR] write() | Error: AttributeError: {str(e)}")
         except OSError as e:
-            self.logger.error(f"[DATA_SAVE_ERROR] write() | Error: OSError: {e!s}")
+            self.logger.error(f"[DATA_SAVE_ERROR] write() | Error: OSError: {str(e)}")
         except Exception as e:
-            self.logger.error(f"[DATA_SAVE_ERROR] write() | Error: {type(e).__name__}: {e!s}")
+            self.logger.error(f"[DATA_SAVE_ERROR] write() | Error: {type(e).__name__}: {str(e)}")
 
 
 # Test Code Run Zone

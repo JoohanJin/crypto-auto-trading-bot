@@ -1,14 +1,10 @@
 # Standard Library
-from queue import Empty, Full, Queue
-
-from src.core.models.signal import Signal
+from queue import Queue, Full, Empty
 
 # Custom Library
-from src.infrastructure.logging.set_logger import get_adapter, get_logger
-from src.pipeline.base_pipeline import (
-    BasePipeline,  # TODO: Need to define this class in another class
-)
-
+from src.infrastructure.logging.set_logger import get_logger, get_adapter
+from src.core.models.signal import Signal
+from src.pipeline.base_pipeline import BasePipeline  # TODO: Need to define this class in another class
 
 logger = get_logger(__name__)
 
@@ -40,6 +36,7 @@ class SignalPipeline(BasePipeline[Signal]):
 
         self.logger.info(f"[COMPONENT_INIT] {self.name} | Status: active")
 
+        return
 
     def push(
         self,
@@ -62,10 +59,10 @@ class SignalPipeline(BasePipeline[Signal]):
             )
             return True
         except Full:
-            self.logger.warning("[DATA_ERROR] push() | Error: Queue is full")
+            self.logger.warning(f"[DATA_ERROR] push() | Error: Queue is full")
             return False
         except Exception as e:
-            self.logger.warning(f"[DATA_ERROR] push() | Error: {type(e).__name__}: {e!s}")
+            self.logger.warning(f"[DATA_ERROR] push() | Error: {type(e).__name__}: {str(e)}")
             return False
 
     def pop(
@@ -96,10 +93,10 @@ class SignalPipeline(BasePipeline[Signal]):
                 timeout=timeout,
             )
         except Empty:
-            self.logger.warning("[DATA_ERROR] pop() | Error: Queue is empty")
+            self.logger.warning(f"[DATA_ERROR] pop() | Error: Queue is empty")
             return None
         except Exception as e:
-            self.logger.warning(f"[DATA_ERROR] pop() | Error: {type(e).__name__}: {e!s}")
+            self.logger.warning(f"[DATA_ERROR] pop() | Error: {type(e).__name__}: {str(e)}")
             return None
 
 

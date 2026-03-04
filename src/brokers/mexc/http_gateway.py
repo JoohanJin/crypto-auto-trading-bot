@@ -1,12 +1,10 @@
 # Built in libraries
+from typing import Optional, Union, Literal
 import json
-from typing import Literal
-
-from src.brokers.base.http_service import HttpService
 
 # Custom libraries
-from src.infrastructure.logging.set_logger import get_adapter, get_logger
-
+from src.infrastructure.logging.set_logger import get_logger, get_adapter
+from src.brokers.base.http_service import HttpService
 
 logger = get_logger(__name__)
 
@@ -19,8 +17,8 @@ class MexcFutureGateway(HttpService):
     def __init__(
         self,
         name: str | None = None,
-        api_key: str | None = None,
-        secret_key: str | None = None,
+        api_key: Optional[str] = None,
+        secret_key: Optional[str] = None,
         base_url: str = "https://contract.mexc.com",
     ):
         super().__init__(
@@ -35,7 +33,12 @@ class MexcFutureGateway(HttpService):
 
     def call(
         self,
-        method: Literal["GET"] | Literal["POST"] | Literal["PUT"] | Literal["DELETE"],
+        method: Union[
+            Literal["GET"],
+            Literal["POST"],
+            Literal["PUT"],
+            Literal["DELETE"],
+        ],
         url: str,
         api_key_title: str = "ApiKey",
         params: dict | None = None,
@@ -98,43 +101,43 @@ class MexcFutureGateway(HttpService):
 
                 if status == 400:
                     self.logger.critical(
-                        f"[BROKER_ERROR] MexC | Status: {status} | Error: BadRequest: {error_msg!s}"
+                        f"[BROKER_ERROR] MexC | Status: {status} | Error: BadRequest: {str(error_msg)}"
                     )
                 elif status == 401:
                     self.logger.critical(
-                        f"[BROKER_ERROR] MexC | Status: {status} | Error: Unauthorized: {error_msg!s}"
+                        f"[BROKER_ERROR] MexC | Status: {status} | Error: Unauthorized: {str(error_msg)}"
                     )
                 elif status == 402:
                     self.logger.critical(
-                        f"[BROKER_ERROR] MexC | Status: {status} | Error: ApiKeyExpired: {error_msg!s}"
+                        f"[BROKER_ERROR] MexC | Status: {status} | Error: ApiKeyExpired: {str(error_msg)}"
                     )
                 elif status == 406:
                     self.logger.critical(
-                        f"[BROKER_ERROR] MexC | Status: {status} | Error: AccessIPNotInWhiteList: {error_msg!s}"
+                        f"[BROKER_ERROR] MexC | Status: {status} | Error: AccessIPNotInWhiteList: {str(error_msg)}"
                     )
                 elif status == 500:
                     self.logger.critical(
-                        f"[BROKER_ERROR] MexC | Status: {status} | Error: ServerInternal: {error_msg!s}"
+                        f"[BROKER_ERROR] MexC | Status: {status} | Error: ServerInternal: {str(error_msg)}"
                     )  # TODO: Implement retry logic
                 elif status == 506:
                     self.logger.critical(
-                        f"[BROKER_ERROR] MexC | Status: {status} | Error: UnknownSourceOfRequest: {error_msg!s}"
+                        f"[BROKER_ERROR] MexC | Status: {status} | Error: UnknownSourceOfRequest: {str(error_msg)}"
                     )
                 elif status == 510:
                     self.logger.critical(
-                        f"[BROKER_ERROR] MexC | Status: {status} | Error: ExcessiveFrequencyOfRequest: {error_msg!s}"
+                        f"[BROKER_ERROR] MexC | Status: {status} | Error: ExcessiveFrequencyOfRequest: {str(error_msg)}"
                     )  # TODO: implement retry logic
                 elif status == 511:
                     self.logger.critical(
-                        f"[BROKER_ERROR] MexC | Status: {status} | Error: EndpointInaccurate: {error_msg!s}"
+                        f"[BROKER_ERROR] MexC | Status: {status} | Error: EndpointInaccurate: {str(error_msg)}"
                     )
                 elif status == 513:
                     self.logger.critical(
-                        f"[BROKER_ERROR] MexC | Status: {status} | Error: InvalidRequest: {error_msg!s}"
+                        f"[BROKER_ERROR] MexC | Status: {status} | Error: InvalidRequest: {str(error_msg)}"
                     )
                 else:
                     self.logger.critical(
-                        f"[BROKER_ERROR] MexC | Status: {status} | Error: ClientError: {error_msg!s}"
+                        f"[BROKER_ERROR] MexC | Status: {status} | Error: ClientError: {str(error_msg)}"
                     )
 
                 raise Exception(error_msg)
@@ -144,5 +147,5 @@ class MexcFutureGateway(HttpService):
             response.raise_for_status()
             return None
         except Exception as e:
-            self.logger.critical(f"[BROKER_ERROR] MexC | Error: {type(e).__name__}: {e!s}")
+            self.logger.critical(f"[BROKER_ERROR] MexC | Error: {type(e).__name__}: {str(e)}")
             return None
