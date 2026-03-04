@@ -1,17 +1,15 @@
 # Standard Library
 import time
-from typing import Literal, Union, Callable
-
-# Logger
-from src.infrastructure.logging.set_logger import get_logger, get_adapter
-
-# Models
-from src.core.models.service_dto import OrderBook, Ticker
-from src.core.models.trade import TradePair
+from typing import Callable, Literal, Union
 
 # WebSocket
 from src.brokers.base.ws_client import WebSocketClient
 from src.brokers.mexc.ws_gateway import MexcWebSocket
+# Models
+from src.core.models.service_dto import OrderBook, Ticker
+from src.core.models.trade import TradePair
+# Logger
+from src.infrastructure.logging.set_logger import get_adapter, get_logger
 
 logger = get_logger(__name__)
 
@@ -30,7 +28,7 @@ class MexcWebSocketClient(WebSocketClient):
         default_callback: Callable | None = None,
     ) -> None:
         super().__init__(
-            name = name if name else "MEXC_FUTURE_WEBSOCKET_CLIENT"
+            name=name if name else "MEXC_FUTURE_WEBSOCKET_CLIENT"
         )
         self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
 
@@ -94,6 +92,7 @@ class MexcWebSocketClient(WebSocketClient):
         - Index Price
         - Fair Price
     """
+
     def tickers(
         self,
         callback: Callable,
@@ -104,7 +103,7 @@ class MexcWebSocketClient(WebSocketClient):
         - Send once a second after subscribing
         """
         topic = "tickers"
-        self.ws.subscribe(topic = topic, callback = callback, param = {})
+        self.ws.subscribe(topic=topic, callback=callback, param={})
         return
 
     # Essential Function
@@ -135,9 +134,9 @@ class MexcWebSocketClient(WebSocketClient):
 
         topic: str = "ticker"
         self.ws.subscribe(
-            topic = topic,
-            callback = ticker_wrapper,
-            param = self._generate_param(
+            topic=topic,
+            callback=ticker_wrapper,
+            param=self._generate_param(
                 trade_pair=trade_pair,
                 param=param,
             ),
@@ -178,8 +177,8 @@ class MexcWebSocketClient(WebSocketClient):
                 ticker=TradePair(ticker=ticker_part, quote=quote_part),
                 timestamp=data.get("timestamp", self.generate_timestamp()),
                 source="MEXC",
-                asks = [],
-                bids = [],
+                asks=[],
+                bids=[],
             )
             callback(depth_dto)
             return
@@ -286,7 +285,7 @@ class MexcWebSocketClient(WebSocketClient):
         self.ws.subscribe(
             topic=topic,
             callback=callback,
-            param = self._generate_param(
+            param=self._generate_param(
                 trade_pair=trade_pair,
                 param=param,
             ),

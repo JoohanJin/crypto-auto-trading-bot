@@ -2,16 +2,16 @@
 import hashlib
 import hmac
 import json
+import threading
 import time
 from typing import Callable
-import threading
+
 import websocket
 
 # Custom Library
 from src.brokers.base.ws_service import WebSocket
-
 # Getting Logger access
-from src.infrastructure.logging.set_logger import get_logger, get_adapter
+from src.infrastructure.logging.set_logger import get_adapter, get_logger
 
 logger = get_logger(__name__)
 
@@ -24,6 +24,7 @@ class MexcWebSocket(WebSocket):
         "param": {}
     }
     '''
+
     def __init__(
         self,
         url: str,   # = "wss://contract.mexc.com/edge",
@@ -34,11 +35,11 @@ class MexcWebSocket(WebSocket):
         default_callback: Callable | None = None,
     ) -> None:
         super().__init__(
-            url = url,
-            name = name or f"MEXC_WEBSOCKET_CLIENT_{self.id}",
-            api_key = api_key,
-            secret_key = secret_key,
-            ping_interval = ping_interval,
+            url=url,
+            name=name or f"MEXC_WEBSOCKET_CLIENT_{self.id}",
+            api_key=api_key,
+            secret_key=secret_key,
+            ping_interval=ping_interval,
         )
         self.logger = get_adapter(logger, self.name)
 
@@ -84,7 +85,7 @@ class MexcWebSocket(WebSocket):
         # Threads-related
         # Clear existing thread references before re-initializing
         self.threads = [t for t in self.threads if t.is_alive() and t.name != "websocket_hb"]
-        
+
         self._initialize_threads()
         self._start_threads()
         return
@@ -325,8 +326,8 @@ class MexcWebSocket(WebSocket):
                         prev_timestamp = self.generate_timestamp()
                     except Exception as e:
                         self.logger.warning(f"[WS_PING_PONG] MexC | Error: {type(e).__name__}: {str(e)}")
-            
-            time.sleep(1) # Check every second to prevent high CPU usage
+
+            time.sleep(1)  # Check every second to prevent high CPU usage
         return
 
     # Override
@@ -577,7 +578,6 @@ class MexcWebSocket(WebSocket):
         # END of Message Handling Sub-Functions
         '''
 
-        # print(msg)
         topic = msg.get("channel").replace("push.", "").replace("sub.", "")
 
         if is_auth_response(msg):

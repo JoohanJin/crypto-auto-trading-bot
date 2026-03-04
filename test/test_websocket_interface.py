@@ -13,6 +13,12 @@ Verifies:
 - Graceful handling of errors
 """
 
+from src.interfaces.ws_client_registry import WebSocketClientRegistry
+from src.interfaces.websocket_interface import WebSocketInterface
+from src.core.models.trade import TradePair
+from src.core.models.service_dto import Ticker
+from src.brokers.mexc.ws_client import MexcWebSocketClient
+from src.brokers.binance.ws_client import BinanceWebSocketClient
 import os
 import sys
 import threading
@@ -21,23 +27,17 @@ import unittest
 
 import pytest
 
-
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
-from src.brokers.binance.ws_client import BinanceWebSocketClient
-from src.brokers.mexc.ws_client import MexcWebSocketClient
-from src.core.models.service_dto import Ticker
-from src.core.models.trade import TradePair
-from src.interfaces.websocket_interface import WebSocketInterface
-from src.interfaces.ws_client_registry import WebSocketClientRegistry
 
 
 # ──────────────────────────────────────────────
 # Shared State for Callback Collection
 # ──────────────────────────────────────────────
 
+
 class TickerCollector:
     """Thread-safe collector for Ticker callbacks."""
+
     def __init__(self):
         self._lock = threading.Lock()
         self._tickers: list[Ticker] = []
