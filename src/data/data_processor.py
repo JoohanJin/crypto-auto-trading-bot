@@ -1,13 +1,14 @@
-import time
 import threading
-from typing import Dict, Tuple
+import time
+
 import pandas as pd
 
-from src.infrastructure.logging.set_logger import get_logger, get_adapter
-from src.interfaces.pipeline_interface import PipelineController
 from src.core.models.constants import MA_WRITE_PERIODS
 from src.core.models.index import Index, IndexType
 from src.data.index_factory import IndexFactory
+from src.infrastructure.logging.set_logger import get_adapter, get_logger
+from src.interfaces.pipeline_interface import PipelineController
+
 
 logger = get_logger(__name__)
 
@@ -35,13 +36,13 @@ class DataProcessor:
         '''
         self.name: str = name if name else "DATA_PROCESSOR"
         self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
-        
+
         self.threads: list[threading.Thread] = []
+        self._stop: threading.Event = threading.Event()
         self.lock_price_data: threading.Lock = lock_price_data
         self.__index_factory: IndexFactory = index_factory
         self.pipeline_controller: PipelineController[Index] = pipeline_controller
         self.price_data: pd.DataFrame = price_data
-        return
 
     def start(self) -> None:
         try:
@@ -50,9 +51,11 @@ class DataProcessor:
             self.logger.info(f"[DATA_INIT] {self.name} | Status: ready")
         except Exception as e:
             self.logger.critical(
-                f"[DATA_ERROR] start() | Error: {type(e).__name__}: {str(e)}"
+                f"[DATA_ERROR] start() | Error: {type(e).__name__}: {e!s}"
             )
-        return
+
+    def stop(self) -> None:
+        self._stop.set()
 
     def __initialize_threads(self) -> None:
         '''
@@ -80,11 +83,10 @@ class DataProcessor:
 
             self.threads.extend([index_thread])
         except (RuntimeError, TypeError, AttributeError, MemoryError) as e:
-            self.logger.error(f"[THREAD_ERROR] fail to make instances for the thread: {str(e)}")
+            self.logger.error(f"[THREAD_ERROR] fail to make instances for the thread: {e!s}")
         except Exception as e:
-            self.logger.error(f"[THREAD_ERROR] Unexpected error starting thread: {str(e)}")
+            self.logger.error(f"[THREAD_ERROR] Unexpected error starting thread: {e!s}")
 
-        return
 
     def __start_threads(self) -> None:
         """
@@ -105,15 +107,14 @@ class DataProcessor:
                 )
             except RuntimeError as e:
                 self.logger.critical(
-                    f"[THREAD_ERROR] {thread.name} failed | Error: {type(e).__name__}: {str(e)}"
+                    f"[THREAD_ERROR] {thread.name} failed | Error: {type(e).__name__}: {e!s}"
                 )
                 raise RuntimeError
             except Exception as e:
                 self.logger.critical(
-                    f"[THREAD_ERROR] Unexpected error starting thread: '{thread.name}': {str(e)}"
+                    f"[THREAD_ERROR] Unexpected error starting thread: '{thread.name}': {e!s}"
                 )
                 raise Exception
-        return
 
     def __push_indexes(
         self,
@@ -129,13 +130,13 @@ class DataProcessor:
                     self.logger.debug(f"[DATA_STATS] Type: {index.index_type.name} | Timestamp: {index.timestamp} | Status: pushed")
             return True
         except Exception as e:
-            self.logger.warning(f"[DATA_ERROR] __push_indexes() | Error: {type(e).__name__}: {str(e)}")
+            self.logger.warning(f"[DATA_ERROR] __push_indexes() | Error: {type(e).__name__}: {e!s}")
         return
 
     # Data Processor
     def __calculate_ema_sma_price(
         self,
-        periods: Tuple[int, ...] = MA_WRITE_PERIODS,  # this will be just used. -> just default input.
+        periods: tuple[int, ...] = MA_WRITE_PERIODS,  # this will be just used. -> just default input.
     ) -> tuple[dict[str, float | int | IndexType]] | None:
         """
         # TODO: make a separate class fo this.
@@ -187,19 +188,19 @@ class DataProcessor:
 
             timestamp: int = self.generate_timestamp()
 
-            smas: Dict[str, float | IndexType | Dict[int, float]] = {
+            smas: dict[str, float | IndexType | dict[int, float]] = {
                 "data": sma,
                 "timestamp": timestamp,
                 "type": IndexType.SMA,
             }
 
-            emas: Dict[str, float | IndexType | Dict[int, float]] = {
+            emas: dict[str, float | IndexType | dict[int, float]] = {
                 "data": ema,
                 "timestamp": timestamp,
                 "type": IndexType.EMA,
             }
 
-            price: Dict[str, float | IndexType | Dict[int, float]] = {
+            price: dict[str, float | IndexType | dict[int, float]] = {
                 "data": price,
                 "timestamp": timestamp,
                 "type": IndexType.PRICE,
@@ -223,7 +224,7 @@ class DataProcessor:
 
         except Exception as e:
             self.logger.warning(
-                f"[DATA_ERROR] __calculate_ema_sma_price() | Error: {type(e).__name__}: {str(e)}."
+                f"[DATA_ERROR] __calculate_ema_sma_price() | Error: {type(e).__name__}: {e!s}."
             )
             return None
 
@@ -257,7 +258,7 @@ class DataProcessor:
             return
         except Exception as e:
             self.logger.critical(
-                f"[DATA_ERROR] _put_ticker_data() | Error: {type(e).__name__}: {str(e)}"
+                f"[DATA_ERROR] _put_ticker_data() | Error: {type(e).__name__}: {e!s}"
             )
         return
 
@@ -274,12 +275,12 @@ class DataProcessor:
             - when the data is available, push the data to the data pipeline.
         """
         # TODO: Need to change this.
-        while True:
+        while not self._stop.is_set():
             data: (
-                Tuple[
-                    Dict[int, float],
-                    Dict[int, float],
-                    Dict[int, float],
+                tuple[
+                    dict[int, float],
+                    dict[int, float],
+                    dict[int, float],
                 ] | None
             ) = self.__calculate_ema_sma_price()
 
@@ -298,4 +299,3 @@ class DataProcessor:
                 self.__push_indexes(indexes)
 
             time.sleep(2)
-        return
