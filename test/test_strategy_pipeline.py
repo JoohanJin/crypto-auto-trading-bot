@@ -20,7 +20,9 @@ try:
     )
     from src.strategy.strategy_manager import StrategyManager  # type: ignore
 except ModuleNotFoundError:  # pragma: no cover - optional dependency
-    StrategyCondition = StrategyConfig = StrategyExecutor = StrategyFactory = StrategyFetcher = StrategyManager = None  # type: ignore[misc]
+    StrategyCondition = StrategyConfig = StrategyExecutor = StrategyFactory = (
+        StrategyFetcher
+    ) = StrategyManager = None  # type: ignore[misc]
 
 
 class StrategyFactoryTest(unittest.TestCase):
@@ -138,22 +140,32 @@ class StrategyManagerHelpersTest(unittest.TestCase):
         if StrategyManager is None:
             self.skipTest("strategy manager unavailable")
         # Prevent __init__ from launching threads
-        self.start_patcher = mock.patch.object(StrategyManager, "start", lambda self: None)
+        self.start_patcher = mock.patch.object(
+            StrategyManager, "start", lambda self: None
+        )
         self.start_patcher.start()
         self.addCleanup(self.start_patcher.stop)
 
         sma_index = Index(timestamp=1_000, index_type=IndexType.SMA, data={60: 10.0})  # type: ignore[arg-type]
         ema_index = Index(timestamp=1_000, index_type=IndexType.EMA, data={60: 12.0})  # type: ignore[arg-type]
         self.manager = StrategyManager(
-            indicators={IndexType.SMA: sma_index, IndexType.EMA: ema_index, IndexType.PRICE: 12.0},
+            indicators={
+                IndexType.SMA: sma_index,
+                IndexType.EMA: ema_index,
+                IndexType.PRICE: 12.0,
+            },
             indicators_lock=threading.Lock(),
             push_signal_callback=lambda s: None,
             signal_window=1_000,
         )
 
     def test_resolve_indicator_value_for_index_and_float(self) -> None:
-        val_index = self.manager._resolve_indicator_value(self.manager.indicators, "SMA", 60)
-        val_price = self.manager._resolve_indicator_value(self.manager.indicators, "PRICE")
+        val_index = self.manager._resolve_indicator_value(
+            self.manager.indicators, "SMA", 60
+        )
+        val_price = self.manager._resolve_indicator_value(
+            self.manager.indicators, "PRICE"
+        )
         self.assertEqual(val_index, 10.0)
         self.assertEqual(val_price, 12.0)
 
@@ -176,7 +188,9 @@ class StrategyManagerHelpersTest(unittest.TestCase):
             signal_window=1_000,
         )
 
-        signal = self.manager._evaluate_condition(condition, self.manager.indicators, cfg)
+        signal = self.manager._evaluate_condition(
+            condition, self.manager.indicators, cfg
+        )
         self.assertEqual(signal, TradeSignal.SHORT_TERM_BUY)
 
     def test_evaluate_cross_above_condition(self) -> None:
@@ -199,17 +213,27 @@ class StrategyManagerHelpersTest(unittest.TestCase):
         )
 
         # Scenario 1: No previous indicators -> None
-        res = self.manager._evaluate_condition(condition, self.manager.indicators, cfg, None)
+        res = self.manager._evaluate_condition(
+            condition, self.manager.indicators, cfg, None
+        )
         self.assertIsNone(res)
 
         # Scenario 2: Previous: SMA(10) <= EMA(12) (Below). Current: SMA(15) > EMA(12) (Above) -> SIGNAL
         prev_ind = {
-             IndexType.SMA: Index(timestamp=900, index_type=IndexType.SMA, data={60: 10.0}),
-             IndexType.EMA: Index(timestamp=900, index_type=IndexType.EMA, data={60: 12.0}),
+            IndexType.SMA: Index(
+                timestamp=900, index_type=IndexType.SMA, data={60: 10.0}
+            ),
+            IndexType.EMA: Index(
+                timestamp=900, index_type=IndexType.EMA, data={60: 12.0}
+            ),
         }
         curr_ind = {
-             IndexType.SMA: Index(timestamp=1000, index_type=IndexType.SMA, data={60: 15.0}),
-             IndexType.EMA: Index(timestamp=1000, index_type=IndexType.EMA, data={60: 12.0}),
+            IndexType.SMA: Index(
+                timestamp=1000, index_type=IndexType.SMA, data={60: 15.0}
+            ),
+            IndexType.EMA: Index(
+                timestamp=1000, index_type=IndexType.EMA, data={60: 12.0}
+            ),
         }
 
         res = self.manager._evaluate_condition(condition, curr_ind, cfg, prev_ind)
@@ -217,8 +241,12 @@ class StrategyManagerHelpersTest(unittest.TestCase):
 
         # Scenario 3: Previous: SMA(15) > EMA(12). Current: SMA(16) > EMA(12) (Already Above) -> None
         prev_above = {
-             IndexType.SMA: Index(timestamp=900, index_type=IndexType.SMA, data={60: 15.0}),
-             IndexType.EMA: Index(timestamp=900, index_type=IndexType.EMA, data={60: 12.0}),
+            IndexType.SMA: Index(
+                timestamp=900, index_type=IndexType.SMA, data={60: 15.0}
+            ),
+            IndexType.EMA: Index(
+                timestamp=900, index_type=IndexType.EMA, data={60: 12.0}
+            ),
         }
         res = self.manager._evaluate_condition(condition, curr_ind, cfg, prev_above)
         self.assertIsNone(res)
@@ -243,12 +271,16 @@ class StrategyManagerHelpersTest(unittest.TestCase):
             signal_window=1_000,
         )
 
-        signal = self.manager._evaluate_condition(condition, self.manager.indicators, cfg)
+        signal = self.manager._evaluate_condition(
+            condition, self.manager.indicators, cfg
+        )
         self.assertEqual(signal, TradeSignal.HOLD)
 
     def test_should_generate_signal_respects_window(self) -> None:
         self.manager.signal_timestamps["demo"] = 1_000  # type: ignore[attr-defined]
-        with mock.patch.object(StrategyManager, "generate_timestamp", return_value=2_000):
+        with mock.patch.object(
+            StrategyManager, "generate_timestamp", return_value=2_000
+        ):
             allowed = self.manager._should_generate_signal("demo", signal_window=500)
             self.assertTrue(allowed)
 

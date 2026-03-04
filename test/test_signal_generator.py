@@ -7,6 +7,7 @@ Tests for the SignalGenerator component, focusing on:
 3. Signal production to SignalPipeline.
 4. Thread management and lifecycle.
 """
+
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -33,7 +34,7 @@ class TestSignalGenerator(unittest.TestCase):
 
     def test_dependency_injection_strategy_manager(self):
         """Verify that StrategyManager can be injected."""
-        with patch.object(SignalGenerator, 'start', return_value=None):
+        with patch.object(SignalGenerator, "start", return_value=None):
             sg = SignalGenerator(
                 data_pipeline_controller=self.mock_data_pipeline,
                 signal_pipeline_controller=self.mock_signal_pipeline,
@@ -49,9 +50,9 @@ class TestSignalGenerator(unittest.TestCase):
 
     def test_default_strategy_manager_creation(self):
         """Verify that StrategyManager is created if not injected."""
-        with patch.object(SignalGenerator, 'start', return_value=None):
+        with patch.object(SignalGenerator, "start", return_value=None):
             # We need to mock StrategyManager constructor to avoid real threads/config loading
-            with patch('src.trading.signal_generator.StrategyManager') as MockSM:
+            with patch("src.trading.signal_generator.StrategyManager") as MockSM:
                 sg = SignalGenerator(
                     data_pipeline_controller=self.mock_data_pipeline,
                     signal_pipeline_controller=self.mock_signal_pipeline,
@@ -65,7 +66,7 @@ class TestSignalGenerator(unittest.TestCase):
 
     def test_get_data_updates_indicators(self):
         """Verify get_data loop consumes from pipeline and updates indicators."""
-        with patch.object(SignalGenerator, 'start', return_value=None):
+        with patch.object(SignalGenerator, "start", return_value=None):
             sg = SignalGenerator(
                 data_pipeline_controller=self.mock_data_pipeline,
                 signal_pipeline_controller=self.mock_signal_pipeline,
@@ -74,14 +75,19 @@ class TestSignalGenerator(unittest.TestCase):
             )
 
             # Setup data
-            test_index = Index(timestamp=1000, index_type=IndexType.SMA, data={60: 100.0})
+            test_index = Index(
+                timestamp=1000, index_type=IndexType.SMA, data={60: 100.0}
+            )
 
             # We want to test the body of the loop. Since it's a while True that catches Exception,
             # we will raise a BaseException (which is not caught by `except Exception:`) to break the loop.
             class StopLoopException(BaseException):
                 pass
 
-            self.mock_data_pipeline.pop.side_effect = [test_index, StopLoopException("Stop")]
+            self.mock_data_pipeline.pop.side_effect = [
+                test_index,
+                StopLoopException("Stop"),
+            ]
 
             # Catch the exception we threw to break the loop
             with self.assertRaises(StopLoopException):
@@ -92,7 +98,7 @@ class TestSignalGenerator(unittest.TestCase):
 
     def test_push_signal_delegates_to_pipeline(self):
         """Verify push_signal puts signal into the pipeline."""
-        with patch.object(SignalGenerator, 'start', return_value=None):
+        with patch.object(SignalGenerator, "start", return_value=None):
             sg = SignalGenerator(
                 data_pipeline_controller=self.mock_data_pipeline,
                 signal_pipeline_controller=self.mock_signal_pipeline,

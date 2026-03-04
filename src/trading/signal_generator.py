@@ -16,11 +16,12 @@ logger = get_logger(__name__)
 
 
 class SignalGenerator:
-    '''
+    """
     ######################################################################################################################
     #                                               Static Method                                                        #
     ######################################################################################################################
-    '''
+    """
+
     @classmethod
     def generate_timestamp(cls) -> int:
         """
@@ -41,22 +42,29 @@ class SignalGenerator:
                 thread.start()
                 self.logger.info(f"[THREAD_START] {thread.name} | Status: running")
             except RuntimeError as e:
-                self.logger.critical(f"[THREAD_ERROR] {thread.name} failed | Error: {type(e).__name__}: {e!s}")
+                self.logger.critical(
+                    f"[THREAD_ERROR] {thread.name} failed | Error: {type(e).__name__}: {e!s}"
+                )
                 raise RuntimeError(f"Failed to start thread '{thread.name}': {e!s}")
             except Exception as e:
-                self.logger.critical(f"[THREAD_ERROR] {thread.name} failed | Error: {type(e).__name__}: {e!s}")
+                self.logger.critical(
+                    f"[THREAD_ERROR] {thread.name} failed | Error: {type(e).__name__}: {e!s}"
+                )
                 raise Exception(
                     f"Unexpected error starting thread: '{thread.name}': {e!s}"
                 )
 
-    '''
+    """
     ######################################################################################################################
     #                                               Function Method                                                      #
     ######################################################################################################################
-    '''
+    """
+
     def __init__(
         self,
-        data_pipeline_controller: PipelineController[dict[str, int | IndexType, dict[int, float]]],
+        data_pipeline_controller: PipelineController[
+            dict[str, int | IndexType, dict[int, float]]
+        ],
         signal_pipeline_controller: PipelineController[dict[str, int | TradeSignal]],
         custom_telegram_bot: CustomTelegramBot,
         signal_window: int = 2_500,
@@ -81,8 +89,12 @@ class SignalGenerator:
         self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
 
         # data pipeline to get the indicators
-        self.data_pipeline_controller: PipelineController[dict[str, int | IndexType, dict[int, float]]] = data_pipeline_controller
-        self.signal_pipeline_controller: PipelineController[dict[str, int | object.TradeSignal]] = signal_pipeline_controller
+        self.data_pipeline_controller: PipelineController[
+            dict[str, int | IndexType, dict[int, float]]
+        ] = data_pipeline_controller
+        self.signal_pipeline_controller: PipelineController[
+            dict[str, int | object.TradeSignal]
+        ] = signal_pipeline_controller
 
         # telegram bot manager to send the notification.
         self.__telegram_bot: CustomTelegramBot = custom_telegram_bot
@@ -101,17 +113,16 @@ class SignalGenerator:
         # threads pool
         self.threads: list[threading.Thread] = []
         self.strategy_manager: StrategyManager = strategy_manager or StrategyManager(
-            indicators = self.indicators,
-            indicators_lock = self.indicators_lock,
-            push_signal_callback = self.push_signal,
-            signal_window = signal_window,
+            indicators=self.indicators,
+            indicators_lock=self.indicators_lock,
+            push_signal_callback=self.push_signal,
+            signal_window=signal_window,
         )
 
         # Start
         self.start()
 
         self.logger.info(f"[COMPONENT_INIT] {self.name} | Status: ready")
-
 
     def start(self) -> None:
         # initialize the threads
@@ -139,16 +150,16 @@ class SignalGenerator:
         - return None
         """
         index_thread: threading.Thread = threading.Thread(
-            name = 'index_data_getter',
-            target = self.get_data,
-            daemon = True,
+            name="index_data_getter",
+            target=self.get_data,
+            daemon=True,
         )
         self.logger.info(f"[THREAD_START] {index_thread.name} | Status: ready")
 
         status_thread: threading.Thread = threading.Thread(
-            name = 'status_logger',
-            target = self._thread_log_status,
-            daemon = True,
+            name="status_logger",
+            target=self._thread_log_status,
+            daemon=True,
         )
         self.logger.info(f"[THREAD_START] {status_thread.name} | Status: ready")
 
@@ -159,37 +170,44 @@ class SignalGenerator:
             ]
         )
 
-
     """
     ######################################################################################################################
     #                                      Read Data from the Data Pipeline                                              #
     ######################################################################################################################
     """
+
     def get_data(
         self,
     ) -> None:
         while True:
             try:
-                data: Index = self.data_pipeline_controller.pop(block = True,)
-                if (data):
+                data: Index = self.data_pipeline_controller.pop(
+                    block=True,
+                )
+                if data:
                     with self.indicators_lock:
                         self.indicators[data.index_type] = data
             except Exception as e:
-                self.logger.critical(f"[SIGNAL_ERROR] get_data() | Error: {type(e).__name__}: {e!s}")
-
+                self.logger.critical(
+                    f"[SIGNAL_ERROR] get_data() | Error: {type(e).__name__}: {e!s}"
+                )
 
     def push_signal(self, signal: Signal) -> None:
         try:
             self.signal_pipeline_controller.push(signal)
-            self.logger.debug(f"[SIGNAL_GEN] Signal: {signal.signal.name} | Status: success")
+            self.logger.debug(
+                f"[SIGNAL_GEN] Signal: {signal.signal.name} | Status: success"
+            )
         except Exception as e:
-            self.logger.critical(f"[SIGNAL_ERROR] push_signal() | Error: {type(e).__name__}: {e!s}")
+            self.logger.critical(
+                f"[SIGNAL_ERROR] push_signal() | Error: {type(e).__name__}: {e!s}"
+            )
 
     def _thread_log_status(self) -> None:
         """
         Periodically logs the status of the signal generator,
         including data freshness and potential health issues.
-        
+
         Purpose:
         - Checks if data pipeline is providing fresh data.
         - Logs staleness of key indicators (SMA, EMA, PRICE).
@@ -207,7 +225,9 @@ class SignalGenerator:
                         if idx_data:
                             freshness = now - idx_data.timestamp
                             status = "FRESH" if freshness < 5000 else "STALE"
-                            status_str.append(f"{idx_type.name}: {status} ({freshness}ms ago)")
+                            status_str.append(
+                                f"{idx_type.name}: {status} ({freshness}ms ago)"
+                            )
                         else:
                             status_str.append(f"{idx_type.name}: NO_DATA")
 
@@ -215,5 +235,7 @@ class SignalGenerator:
                     self.logger.info(log_msg)
 
             except Exception as e:
-                self.logger.error(f"[STATUS_LOG_ERROR] Failed to log status | Error: {type(e).__name__}: {e!s}")
+                self.logger.error(
+                    f"[STATUS_LOG_ERROR] Failed to log status | Error: {type(e).__name__}: {e!s}"
+                )
                 time.sleep(10)

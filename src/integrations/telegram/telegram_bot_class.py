@@ -74,16 +74,19 @@ class CustomTelegramBot:
 
         self.logger.info(f"[INTEGRATION_INIT] {self.name} | Status: ready")
 
-
     def send_text(self, message: str) -> None:
         try:
-            self._run_async(self._bot.send_message(
-                chat_id=self.__channel_id,
-                text=message,
-            ))
+            self._run_async(
+                self._bot.send_message(
+                    chat_id=self.__channel_id,
+                    text=message,
+                )
+            )
             self.logger.info("[MSG_SEND] Platform: Telegram | Status: sent")
         except Exception as e:
-            self.logger.error(f"[MSG_ERROR] Platform: Telegram | Error: {type(e).__name__}: {e!s}")
+            self.logger.error(
+                f"[MSG_ERROR] Platform: Telegram | Error: {type(e).__name__}: {e!s}"
+            )
 
     @classmethod
     def _run_async(cls, coro) -> None:
@@ -105,6 +108,7 @@ class CustomTelegramBot:
 """
 
 if __name__ == "__main__":
+
     def get_credentials() -> tuple[str, str]:
         import os
 

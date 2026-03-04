@@ -22,12 +22,13 @@ class HttpService(ABC):
     A common base class for handling API requests, signature generation, and session management
     for different exchange SDKs (e.g., MEXC and Binance).
     """
+
     @staticmethod
     def snake_to_camel(
         s: str,
     ) -> str:
         parts = s.split("_")
-        return parts[0].lower() + ''.join(word.capitalize() for word in parts[1:])
+        return parts[0].lower() + "".join(word.capitalize() for word in parts[1:])
 
     def generate_timestamp(self) -> int:
         return int(time.time() * 1_000)
@@ -104,10 +105,7 @@ class HttpService(ABC):
 
         self.logger.info(f"[SERVICE_INIT] {self.name} initialized")
 
-    def set_content_type(
-        self,
-        content_type: str
-    ):
+    def set_content_type(self, content_type: str):
         """
         Set the Content-Type header for the session.
         """

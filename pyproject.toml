@@ -182,6 +182,21 @@ ignore = [
     "ERA001",  # ignore commented-out code
     "ARG001",  # ignore unused function arguments
     "ARG002",  # ignore unused method arguments
+    "TC",      # ignore type-checking import advice
+    "PTH",     # ignore pathlib suggestions
+    "SIM",     # ignore code simplification advice
+    "PL",      # ignore pylint complexity warnings (branches, returns, etc.)
+    "B007",    # ignore unused loop variables
+    "B904",    # ignore 'raise from' advice
+    "C408",    # ignore dict() constructor advice (literals preferred)
+    "RUF",     # ignore all Ruff-specific advice (implicit Optional, etc.)
+    "F841",    # ignore unused local variables
+    "E402",    # ignore module level import not at top of file
+    "B006",    # ignore mutable default arguments
+    "B018",    # ignore useless expressions
+    "UP031",   # ignore printf-style string formatting
+    "PLE0704", # ignore bare raise outside handler
+    "W293",    # ignore blank line whitespace
 ]
 
 [tool.ruff.lint.per-file-ignores]

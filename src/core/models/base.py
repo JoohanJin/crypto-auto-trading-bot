@@ -7,15 +7,15 @@ from enum import IntFlag
 from typing import TypeVar
 
 
-T = TypeVar('T', bound='ImmutableModel')
-M = TypeVar('M', bound='MutableModel')
+T = TypeVar("T", bound="ImmutableModel")
+M = TypeVar("M", bound="MutableModel")
 
 
 @dataclass(frozen=True)
 class ImmutableModel:
     """
     ;Base class for all immutable data models.
-    
+
     ;Provides a copy() method that works for all subclasses.
     """
 
@@ -31,7 +31,7 @@ class ImmutableModel:
 class MutableModel:
     """
     ;Base class for all mutable data models.
-    
+
     ;Provides a copy() method that works for all subclasses.
     """
 
@@ -50,10 +50,11 @@ class Side(IntFlag):
 
 @dataclass(frozen=True)
 class TradePair(ImmutableModel):
-    '''
+    """
     - Custom Data Structure with ticker and quote
         - Ticker: BTC by default
         - Quote: USDT by default (USDC in the future)
-    '''
+    """
+
     ticker: str
     quote: str

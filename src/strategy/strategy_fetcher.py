@@ -29,7 +29,9 @@ class StrategyFetcher:
                 )
                 return config
         except FileNotFoundError:
-            self.logger.critical(f"[STRATEGY_ERROR] load_strategies() | Error: FileNotFoundError: {self.config_path}")
+            self.logger.critical(
+                f"[STRATEGY_ERROR] load_strategies() | Error: FileNotFoundError: {self.config_path}"
+            )
             return {"strategies": []}
         except json.JSONDecodeError as e:
             self.logger.critical(
@@ -37,5 +39,7 @@ class StrategyFetcher:
             )
             return {"strategies": []}
         except Exception as e:
-            self.logger.critical(f"[STRATEGY_ERROR] load_strategies() | Error: {type(e).__name__}: {e!s}")
+            self.logger.critical(
+                f"[STRATEGY_ERROR] load_strategies() | Error: {type(e).__name__}: {e!s}"
+            )
             return {"strategies": []}

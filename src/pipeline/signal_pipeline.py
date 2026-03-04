@@ -15,7 +15,7 @@ logger = get_logger(__name__)
 
 class SignalPipeline(BasePipeline[Signal]):
     def __init__(self, name: str | None = None):
-        '''
+        """
         func __init__:
             - create a Queue of Dict to store indicator
             - Queue has a maximum size of 100 elements to maintain a rolling window of historical indicators.
@@ -33,19 +33,18 @@ class SignalPipeline(BasePipeline[Signal]):
                         # Other signals
                 }
             }
-        '''
+        """
         self.name: str = name if name else "SIGNAL_PIPELINE"
         self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
         self.signal_queue: Queue[Signal] = Queue()
 
         self.logger.info(f"[COMPONENT_INIT] {self.name} | Status: active")
 
-
     def push(
         self,
         signal: Signal,
     ) -> bool:
-        '''
+        """
         func push_indicator:
             - push the indicator to the buffer.
         param self
@@ -53,7 +52,7 @@ class SignalPipeline(BasePipeline[Signal]):
         param indicator
             - indicator got as a parameter to push to the buffer.
             - Dict[str, Dict[str, Any]]
-        '''
+        """
         try:
             self.signal_queue.put(
                 signal,
@@ -65,7 +64,9 @@ class SignalPipeline(BasePipeline[Signal]):
             self.logger.warning("[DATA_ERROR] push() | Error: Queue is full")
             return False
         except Exception as e:
-            self.logger.warning(f"[DATA_ERROR] push() | Error: {type(e).__name__}: {e!s}")
+            self.logger.warning(
+                f"[DATA_ERROR] push() | Error: {type(e).__name__}: {e!s}"
+            )
             return False
 
     def pop(
@@ -73,7 +74,7 @@ class SignalPipeline(BasePipeline[Signal]):
         timeout: int | None = None,
         block: bool = True,  # Default is to be blocked
     ) -> Signal | None:
-        '''
+        """
         func pop_indicator():
             - get the indicator from the buffer.
 
@@ -89,7 +90,7 @@ class SignalPipeline(BasePipeline[Signal]):
 
         return bool
             - return indicator if there is a valid indicator.
-        '''
+        """
         try:
             return self.signal_queue.get(
                 block=block,
@@ -99,7 +100,9 @@ class SignalPipeline(BasePipeline[Signal]):
             self.logger.warning("[DATA_ERROR] pop() | Error: Queue is empty")
             return None
         except Exception as e:
-            self.logger.warning(f"[DATA_ERROR] pop() | Error: {type(e).__name__}: {e!s}")
+            self.logger.warning(
+                f"[DATA_ERROR] pop() | Error: {type(e).__name__}: {e!s}"
+            )
             return None
 
 

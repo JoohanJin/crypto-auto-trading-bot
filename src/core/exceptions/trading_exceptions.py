@@ -49,7 +49,7 @@ def _demo_traceback_trigger():
     """Helper to ensure we get a non-trivial traceback for the demo."""
 
     def _nested_frame():
-        raise TradingException("Trading exception demo", payload = {"order_id": 42})
+        raise TradingException("Trading exception demo", payload={"order_id": 42})
 
     _nested_frame()
 

@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from typing import Generic, TypeVar
 
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 class BasePipeline(ABC, Generic[T]):

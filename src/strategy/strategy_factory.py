@@ -22,9 +22,13 @@ class StrategyFactory:
         return TradeSignal[signal]
 
     def build(self, raw_strategy: dict[str, Any]) -> StrategyConfig:
-        indicators = [self._parse_indicator(ind) for ind in raw_strategy.get("indicators", [])]
+        indicators = [
+            self._parse_indicator(ind) for ind in raw_strategy.get("indicators", [])
+        ]
         conditions = [
-            StrategyCondition(type=cond.get("type", ""), payload=cond)  # payload kept flexible for now
+            StrategyCondition(
+                type=cond.get("type", ""), payload=cond
+            )  # payload kept flexible for now
             for cond in raw_strategy.get("conditions", [])
         ]
 

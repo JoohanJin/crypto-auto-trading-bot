@@ -31,9 +31,7 @@ class MexcWebSocketClient(WebSocketClient):
         ping_interval: int | None = 20,  # as it is recommended
         default_callback: Callable | None = None,
     ) -> None:
-        super().__init__(
-            name=name if name else "MEXC_FUTURE_WEBSOCKET_CLIENT"
-        )
+        super().__init__(name=name if name else "MEXC_FUTURE_WEBSOCKET_CLIENT")
         self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
 
         self.ws: MexcWebSocket = MexcWebSocket(
@@ -48,13 +46,9 @@ class MexcWebSocketClient(WebSocketClient):
     def start(self) -> None:
         try:
             self.ws.start()
-            self.logger.info(
-                f"[WS_OPEN] MexC | URL: {self.ws.url} | Status: opened"
-            )
+            self.logger.info(f"[WS_OPEN] MexC | URL: {self.ws.url} | Status: opened")
         except Exception as e:
-            self.logger.info(
-                f"[WS_OPEN] MexC | Error: {type(e).__name__}: {e!s}"
-            )
+            self.logger.info(f"[WS_OPEN] MexC | Error: {type(e).__name__}: {e!s}")
 
     @classmethod
     def _parse_trade_pair(
@@ -80,7 +74,7 @@ class MexcWebSocketClient(WebSocketClient):
         symbol: str = self._parse_trade_pair(trade_pair)
 
         res = dict(param) if param else {}
-        res['symbol'] = symbol
+        res["symbol"] = symbol
         return res
 
     """
@@ -119,17 +113,20 @@ class MexcWebSocketClient(WebSocketClient):
         - of a contract, send the transaction data without users' login.
         - Send once a second after subscription.
         """
+
         def ticker_wrapper(msg: dict) -> None:
             data = msg.get("data", {})
 
             # Parse symbol string back to TradePair (e.g., "BTC_USDT" -> "BTC", "USDT")
-            trade_pair: TradePair = self._construct_trade_pair(msg.get("symbol", data.get("symbol", "")))
+            trade_pair: TradePair = self._construct_trade_pair(
+                msg.get("symbol", data.get("symbol", ""))
+            )
 
             ticker_dto: Ticker = Ticker(
                 ticker=trade_pair,
                 timestamp=data.get("timestamp", self.generate_timestamp()),
                 source="MEXC",
-                price=float(data.get("lastPrice", 0.0))
+                price=float(data.get("lastPrice", 0.0)),
             )
             callback(ticker_dto)
 
@@ -170,7 +167,9 @@ class MexcWebSocketClient(WebSocketClient):
     ):
         def order_book_wrapper(msg: dict) -> None:
             data: dict = msg.get("data", {})
-            ticker_part, quote_part = self._construct_trade_pair(msg.get("symbol", data.get("symbol", "")))
+            ticker_part, quote_part = self._construct_trade_pair(
+                msg.get("symbol", data.get("symbol", ""))
+            )
 
             depth_dto: OrderBook = OrderBook(
                 ticker=TradePair(ticker=ticker_part, quote=quote_part),
@@ -195,7 +194,17 @@ class MexcWebSocketClient(WebSocketClient):
         self,
         callback: Callable,
         trade_pair: TradePair | None = None,
-        interval: Literal["Min1"] | Literal["Min5"] | Literal["Min15"] | Literal["Min30"] | Literal["Min60"] | Literal["Hour4"] | Literal["Hour8"] | Literal["Day1"] | Literal["Week1"] | Literal["Month1"] | None = "Min1",
+        interval: Literal["Min1"]
+        | Literal["Min5"]
+        | Literal["Min15"]
+        | Literal["Min30"]
+        | Literal["Min60"]
+        | Literal["Hour4"]
+        | Literal["Hour8"]
+        | Literal["Day1"]
+        | Literal["Week1"]
+        | Literal["Month1"]
+        | None = "Min1",
     ):
         """
         - Get the k-line data of the contract and keep updating.
@@ -343,32 +352,21 @@ class MexcWebSocketClient(WebSocketClient):
         # TODO: Need to implement the position function
         raise NotImplementedError
 
-    def risk_limitation(
-        self,
-        callback: Callable,
-        param: dict | None = {}
-    ) -> None:
+    def risk_limitation(self, callback: Callable, param: dict | None = {}) -> None:
         # TODO: Need to implement the risk_limitation function
         raise NotImplementedError
 
-    def adl(
-        self,
-        callback: Callable,
-        param: dict | None = {}
-    ) -> None:
+    def adl(self, callback: Callable, param: dict | None = {}) -> None:
         # TODO: Need to implement the adl function
         raise NotImplementedError
 
-    def position_mode(
-        self,
-        callback: Callable,
-        param: dict | None = {}
-    ) -> None:
+    def position_mode(self, callback: Callable, param: dict | None = {}) -> None:
         # TODO: Need to implement the position_mode function
         raise NotImplementedError
 
 
 if __name__ == "__main__":
+
     def print_msg(msg):
         print(msg)
 

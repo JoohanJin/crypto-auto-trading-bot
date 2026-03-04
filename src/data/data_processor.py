@@ -14,10 +14,11 @@ logger = get_logger(__name__)
 
 
 class DataProcessor:
-    '''
+    """
     - calculate the ema, sma
     - pass it to the pipeline
-    '''
+    """
+
     @classmethod
     def generate_timestamp(cls) -> int:
         return int(time.time() * 1_000)
@@ -26,14 +27,16 @@ class DataProcessor:
         self,
         price_data: pd.DataFrame,
         lock_price_data: threading.Lock,
-        pipeline_controller: PipelineController[dict[str, int | IndexType, dict[int, float]]],
+        pipeline_controller: PipelineController[
+            dict[str, int | IndexType, dict[int, float]]
+        ],
         index_factory: IndexFactory = IndexFactory(),  # dependency injection would work.
         name: str | None = None,
     ) -> None:
-        '''
+        """
         - func __init__():
             - initialize the Data Processor
-        '''
+        """
         self.name: str = name if name else "DATA_PROCESSOR"
         self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
 
@@ -62,7 +65,7 @@ class DataProcessor:
         self._stop.set()
 
     def __initialize_threads(self) -> None:
-        '''
+        """
         func __initialize_threads():
             - initialize the threads
 
@@ -74,7 +77,7 @@ class DataProcessor:
         The list of threads are as follows for the DataProcessor:
             - calculate the simplave moving averages
             - push the data to the data pipeline
-        '''
+        """
         try:
             # Separate?
             # to calculate and construct Index and push them to the IndexPipeline
@@ -87,10 +90,11 @@ class DataProcessor:
 
             self.threads.extend([index_thread])
         except (RuntimeError, TypeError, AttributeError, MemoryError) as e:
-            self.logger.error(f"[THREAD_ERROR] fail to make instances for the thread: {e!s}")
+            self.logger.error(
+                f"[THREAD_ERROR] fail to make instances for the thread: {e!s}"
+            )
         except Exception as e:
             self.logger.error(f"[THREAD_ERROR] Unexpected error starting thread: {e!s}")
-
 
     def __start_threads(self) -> None:
         """
@@ -106,9 +110,7 @@ class DataProcessor:
         for thread in self.threads:
             try:
                 thread.start()
-                self.logger.info(
-                    f"[THREAD_START] {thread.name} | Status: running"
-                )
+                self.logger.info(f"[THREAD_START] {thread.name} | Status: running")
             except RuntimeError as e:
                 self.logger.critical(
                     f"[THREAD_ERROR] {thread.name} failed | Error: {type(e).__name__}: {e!s}"
@@ -120,27 +122,30 @@ class DataProcessor:
                 )
                 raise Exception
 
-    def __push_indexes(
-        self,
-        indexes: list[Index]
-    ) -> bool:
-        '''
+    def __push_indexes(self, indexes: list[Index]) -> bool:
+        """
         - pass the indexes, e.g., EMA, SMA, and PRICE for now, to the IndexPipeline.
-        '''
+        """
         try:
             for index in indexes:
-                if (index):
+                if index:
                     self.pipeline_controller.push(index)
-                    self.logger.debug(f"[DATA_STATS] Type: {index.index_type.name} | Timestamp: {index.timestamp} | Status: pushed")
+                    self.logger.debug(
+                        f"[DATA_STATS] Type: {index.index_type.name} | Timestamp: {index.timestamp} | Status: pushed"
+                    )
             return True
         except Exception as e:
-            self.logger.warning(f"[DATA_ERROR] __push_indexes() | Error: {type(e).__name__}: {e!s}")
+            self.logger.warning(
+                f"[DATA_ERROR] __push_indexes() | Error: {type(e).__name__}: {e!s}"
+            )
         return
 
     # Data Processor
     def __calculate_ema_sma_price(
         self,
-        periods: tuple[int, ...] = MA_WRITE_PERIODS,  # this will be just used. -> just default input.
+        periods: tuple[
+            int, ...
+        ] = MA_WRITE_PERIODS,  # this will be just used. -> just default input.
     ) -> tuple[dict[str, float | int | IndexType]] | None:
         """
         # TODO: make a separate class fo this.
@@ -162,7 +167,7 @@ class DataProcessor:
             with self.lock_price_data:
                 if self.price_data.shape[0] == 0:
                     return None
-                mask = (self.price_data.index >= cutoff_ts)
+                mask = self.price_data.index >= cutoff_ts
                 tmp_dataframe = self.price_data.loc[mask, "price"].copy()
 
             sma: dict[int, float] = {}  # make the dictionary object and put it.
@@ -188,7 +193,9 @@ class DataProcessor:
                     continue
 
                 sma[period] = float(window.mean())
-                ema[period] = float(window.ewm(span=period, adjust=False).mean().iloc[-1])
+                ema[period] = float(
+                    window.ewm(span=period, adjust=False).mean().iloc[-1]
+                )
 
             timestamp: int = self.generate_timestamp()
 
@@ -285,7 +292,8 @@ class DataProcessor:
                     dict[int, float],
                     dict[int, float],
                     dict[int, float],
-                ] | None
+                ]
+                | None
             ) = self.__calculate_ema_sma_price()
 
             if data:
@@ -293,11 +301,7 @@ class DataProcessor:
                 ema_values: Index = self.__index_factory.generate_index(data[1])
                 price: Index = self.__index_factory.generate_index(data[2])
 
-                indexes: list[Index, ] = [
-                    sma_values,
-                    ema_values,
-                    price
-                ]
+                indexes: list[Index,] = [sma_values, ema_values, price]
 
                 # TODO: need to change -> other wrapper which can get the result and push to the data pipeline.
                 self.__push_indexes(indexes)

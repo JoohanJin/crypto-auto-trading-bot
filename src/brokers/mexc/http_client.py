@@ -61,19 +61,19 @@ class MexcFutureHttpClient(HttpClient):
         self.source: str = "MEXC"
 
         self.gateway: HttpService = MexcFutureGateway(
-            name = f"{name.upper()}_GATEWAY",
+            name=f"{name.upper()}_GATEWAY",
             api_key=api_key,
             secret_key=secret_key,
         )
 
         self.logger.info(f"[SERVICE_INIT] {self.name} initialized")
 
-
     """
     ####################################################################################
     Public Endpoint
     ####################################################################################
     """
+
     def ping(
         self,
     ) -> dict:
@@ -92,10 +92,11 @@ class MexcFutureHttpClient(HttpClient):
 
         {'success': True, 'code': 0, 'data': 1770526883890}
         """
+
         def construct_ping_dto(msg: dict):
             return Ping(
-                timestamp=msg.get('data') or self.generate_timestamp(),
-                success=msg.get('success') or False,
+                timestamp=msg.get("data") or self.generate_timestamp(),
+                success=msg.get("success") or False,
                 source=self.source,
             )
 
@@ -132,9 +133,7 @@ class MexcFutureHttpClient(HttpClient):
         return self.gateway.call(
             method="GET",
             url=url,
-            params={
-                "symbol": self._parse_trade_pair(symbol)
-            },
+            params={"symbol": self._parse_trade_pair(symbol)},
         )
 
     def get_support_currencies(
@@ -182,10 +181,10 @@ class MexcFutureHttpClient(HttpClient):
         symbol = symbol if symbol else TradePair("BTC", "USDT")
 
         def constrcut_order_book_dto(msg: dict) -> OrderBook | None:
-            data: dict | None = msg.get('data')
+            data: dict | None = msg.get("data")
             if isinstance(data, dict):
                 return OrderBook(
-                    timestamp=data.get('timestamp', None) or self.generate_timestamp(),
+                    timestamp=data.get("timestamp", None) or self.generate_timestamp(),
                     source=self.source,
                     ticker=symbol,
                     asks=data.get("asks", None),
@@ -228,7 +227,9 @@ class MexcFutureHttpClient(HttpClient):
         - Documentation:
             - https://mexcdevelop.github.io/apidocs/contract_v1_en/?python#get-a-snapshot-of-the-latest-n-depth-information-of-the-contract
         """
-        url: str = f"api/v1/contract/depth_commits/{self._parse_trade_pair(symbol)}/{limit}"
+        url: str = (
+            f"api/v1/contract/depth_commits/{self._parse_trade_pair(symbol)}/{limit}"
+        )
 
         params: dict[str, int] = {}
         if limit is not None:
@@ -326,7 +327,17 @@ class MexcFutureHttpClient(HttpClient):
 
     def get_kline(
         self,
-        interval: Literal["Min1"] | Literal["Min5"] | Literal["Min15"] | Literal["Min30"] | Literal["Min60"] | Literal["Hour4"] | Literal["Hour8"] | Literal["Day1"] | Literal["Week1"] | Literal["Month1"] | None = "Min1",  # default value is one minute.
+        interval: Literal["Min1"]
+        | Literal["Min5"]
+        | Literal["Min15"]
+        | Literal["Min30"]
+        | Literal["Min60"]
+        | Literal["Hour4"]
+        | Literal["Hour8"]
+        | Literal["Day1"]
+        | Literal["Week1"]
+        | Literal["Month1"]
+        | None = "Min1",  # default value is one minute.
         symbol: TradePair | None = None,
         start_time: int | None = None,
         end_time: int | None = None,
@@ -375,7 +386,17 @@ class MexcFutureHttpClient(HttpClient):
 
     def get_kline_index_price(
         self,
-        interval: Literal["Min1"] | Literal["Min5"] | Literal["Min15"] | Literal["Min30"] | Literal["Min60"] | Literal["Hour4"] | Literal["Hour8"] | Literal["Day1"] | Literal["Week1"] | Literal["Month1"] | None = "Min1",
+        interval: Literal["Min1"]
+        | Literal["Min5"]
+        | Literal["Min15"]
+        | Literal["Min30"]
+        | Literal["Min60"]
+        | Literal["Hour4"]
+        | Literal["Hour8"]
+        | Literal["Day1"]
+        | Literal["Week1"]
+        | Literal["Month1"]
+        | None = "Min1",
         symbol: TradePair | None = None,
         start_time: int | None = None,
         end_time: int | None = None,
@@ -417,7 +438,17 @@ class MexcFutureHttpClient(HttpClient):
 
     def get_kline_fair_price(
         self,
-        interval: Literal["Min1"] | Literal["Min5"] | Literal["Min15"] | Literal["Min30"] | Literal["Min60"] | Literal["Hour4"] | Literal["Hour8"] | Literal["Day1"] | Literal["Week1"] | Literal["Month1"] | None = "Min1",
+        interval: Literal["Min1"]
+        | Literal["Min5"]
+        | Literal["Min15"]
+        | Literal["Min30"]
+        | Literal["Min60"]
+        | Literal["Hour4"]
+        | Literal["Hour8"]
+        | Literal["Day1"]
+        | Literal["Week1"]
+        | Literal["Month1"]
+        | None = "Min1",
         symbol: TradePair | None = None,
         start_time: int | None = None,
         end_time: int | None = None,
@@ -504,14 +535,14 @@ class MexcFutureHttpClient(HttpClient):
         symbol = symbol if symbol else TradePair("BTC", "USDT")
 
         def construct_ticker_dto(msg: dict) -> Ticker | None:
-            data = msg.get('data')
+            data = msg.get("data")
 
             if isinstance(data, dict):
                 return Ticker(
-                    timestamp=data.get('timestamp', None) or self.generate_timestamp(),
+                    timestamp=data.get("timestamp", None) or self.generate_timestamp(),
                     source=self.source,
                     ticker=symbol,
-                    price=data.get('lastPrice', 0.0),
+                    price=data.get("lastPrice", 0.0),
                 )
             else:
                 return
@@ -619,7 +650,9 @@ class MexcFutureHttpClient(HttpClient):
     ######################################################################################################################
     """
 
-    def get_assets(self,):
+    def get_assets(
+        self,
+    ):
         """
         - topic: assets()
             - Getting all information of user's asset
@@ -781,7 +814,7 @@ class MexcFutureHttpClient(HttpClient):
         return self.gateway.call(
             method="GET",
             url="api/v1/private/account/tiered_fee_rate",
-            params = {"symbol": self._parse_trade_pair(symbol)},
+            params={"symbol": self._parse_trade_pair(symbol)},
         )
 
     def place_order(
@@ -911,9 +944,9 @@ class MexcFutureHttpClient(HttpClient):
 
 if __name__ == "__main__":
     mfc = MexcFutureHttpClient(
-        name = "TEST_BINANCE_FUTURE_RESTFUL",
+        name="TEST_BINANCE_FUTURE_RESTFUL",
         api_key="test_api_key",
-        secret_key="test_secret_key"
+        secret_key="test_secret_key",
     )
 
     print(mfc.get_ticker())

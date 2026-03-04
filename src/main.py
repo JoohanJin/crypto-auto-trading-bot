@@ -40,20 +40,23 @@ logger = get_logger(__name__)
 def main():
     parser = argparse.ArgumentParser(description="AutoCryptoTrading Bot")
     parser.add_argument(
-        "--debug", "-d",
+        "--debug",
+        "-d",
         action="store_true",
-        help="Enable debug logging (overrides .env)"
+        help="Enable debug logging (overrides .env)",
     )
     parser.add_argument(
-        "--log-level", "-l",
+        "--log-level",
+        "-l",
         type=str,
         choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-        help="Set specific log level"
+        help="Set specific log level",
     )
     parser.add_argument(
-        "--disable-trade", "-dt",
+        "--disable-trade",
+        "-dt",
         action="store_true",
-        help="Disable trade execution (Dry Run)"
+        help="Disable trade execution (Dry Run)",
     )
 
     args = parser.parse_args()
@@ -69,15 +72,18 @@ def main():
             set_global_log_level("INFO")
 
         # Load environment variables
-        logger.info(f"[APP_START] AutoCryptoTrading Bot Version: {VERSION} | Loading environment configuration")
+        logger.info(
+            f"[APP_START] AutoCryptoTrading Bot Version: {VERSION} | Loading environment configuration"
+        )
 
         # Initialize SystemManager
         # Pass disable_trade flag to SystemManager
         main_system_manager: SystemManager = SystemManager(
-            name="MAIN_APP",
-            disable_trade=args.disable_trade
+            name="MAIN_APP", disable_trade=args.disable_trade
         )
-        logger.info(f"[APP_INIT_COMPLETE] Application initialized | Status: ready | Trade Execution: {'DISABLED' if args.disable_trade else 'ENABLED'}")
+        logger.info(
+            f"[APP_INIT_COMPLETE] Application initialized | Status: ready | Trade Execution: {'DISABLED' if args.disable_trade else 'ENABLED'}"
+        )
 
         # Start main event loop
         logger.info("[APP_LOOP_START] Entering main event loop")
@@ -85,10 +91,14 @@ def main():
             time.sleep(0.5)  # Sleep to reduce CPU usage
 
     except KeyboardInterrupt:
-        logger.warning("[APP_SHUTDOWN] User interrupt received | Action: graceful shutdown")
+        logger.warning(
+            "[APP_SHUTDOWN] User interrupt received | Action: graceful shutdown"
+        )
         sys.exit(0)
     except RuntimeError as e:
-        logger.critical(f"[MAIN_RUNTIME_ERROR] RuntimeError | Error: RuntimeError: {e!s}")
+        logger.critical(
+            f"[MAIN_RUNTIME_ERROR] RuntimeError | Error: RuntimeError: {e!s}"
+        )
         sys.exit(1)
     except Exception as e:
         logger.critical(

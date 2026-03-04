@@ -33,7 +33,7 @@ class SignalPipelineTest(unittest.TestCase):
         """pop should return the same signal previously enqueued."""
         signal = Signal(TradeSignal.LONG_TERM_SELL)
         self.pipeline.push(signal)
-        self.assertEqual(self.pipeline.pop(block = False), signal)
+        self.assertEqual(self.pipeline.pop(block=False), signal)
 
 
 if __name__ == "__main__":

@@ -6,9 +6,9 @@ import telegram
 
 
 def get_credential() -> tuple[str, ...]:
-    '''
+    """
     get the telegram bot credential stored locally.
-    '''
+    """
     api_key = os.getenv("TELEGRAM_API_KEY")
     channel_id = os.getenv("TELEGRAM_CHANNEL_ID")
     if (not api_key) or (not channel_id):  # if there is no environment variable
@@ -33,8 +33,9 @@ async def main() -> None:
     async with bot:
         await send_message(bot, channel_id, "Test Message 1, 2, 3")
 
-'''
+
+"""
 # Testing code
-'''
+"""
 if __name__ == "__main__":
     asyncio.run(main())

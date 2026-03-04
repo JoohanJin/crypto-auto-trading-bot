@@ -36,10 +36,14 @@ class DataSaver:
 
             # Validate the input data
             if data is None or not isinstance(data, pd.DataFrame):
-                self.logger.error("[DATA_SAVE_ERROR] write() | Error: Provided data is not a Pandas DataFrame.")
+                self.logger.error(
+                    "[DATA_SAVE_ERROR] write() | Error: Provided data is not a Pandas DataFrame."
+                )
                 return
             if data.empty:
-                self.logger.error("[DATA_SAVE_ERROR] write() | Error: Provided data is empty after dropna.")
+                self.logger.error(
+                    "[DATA_SAVE_ERROR] write() | Error: Provided data is empty after dropna."
+                )
                 return
 
             # Drop NaN values
@@ -66,15 +70,23 @@ class DataSaver:
             self.logger.info("[SUCCESS] DataSaver.write() | Response Type: CSV")
 
         except FileNotFoundError as e:
-            self.logger.error(f"[DATA_SAVE_ERROR] write() | Error: FileNotFoundError: {e!s}")
+            self.logger.error(
+                f"[DATA_SAVE_ERROR] write() | Error: FileNotFoundError: {e!s}"
+            )
         except PermissionError as e:
-            self.logger.error(f"[DATA_SAVE_ERROR] write() | Error: PermissionError: {e!s}")
+            self.logger.error(
+                f"[DATA_SAVE_ERROR] write() | Error: PermissionError: {e!s}"
+            )
         except AttributeError as e:
-            self.logger.error(f"[DATA_SAVE_ERROR] write() | Error: AttributeError: {e!s}")
+            self.logger.error(
+                f"[DATA_SAVE_ERROR] write() | Error: AttributeError: {e!s}"
+            )
         except OSError as e:
             self.logger.error(f"[DATA_SAVE_ERROR] write() | Error: OSError: {e!s}")
         except Exception as e:
-            self.logger.error(f"[DATA_SAVE_ERROR] write() | Error: {type(e).__name__}: {e!s}")
+            self.logger.error(
+                f"[DATA_SAVE_ERROR] write() | Error: {type(e).__name__}: {e!s}"
+            )
 
 
 # Test Code Run Zone

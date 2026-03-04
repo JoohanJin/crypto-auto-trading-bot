@@ -16,11 +16,12 @@ class ScoreMetrics(MutableModel):
 
 
 class ScoreHistory:
-    '''
+    """
     - Data structure to store the score history.
     - Dequeue?
     - Tree? B+ ? -> But BST is also fine I think...? hmmm
-    '''
+    """
+
     def __init__(
         self,
         max_size: int = 100,
@@ -29,7 +30,9 @@ class ScoreHistory:
         # consider heap or dequeue
         return
 
-    def add(self,) -> None:
+    def add(
+        self,
+    ) -> None:
         return
 
     def get_recent(self, n: int):
@@ -38,5 +41,7 @@ class ScoreHistory:
     def get_scores_since(self, timestamp: int):
         return
 
-    def clear(self,) -> None:
+    def clear(
+        self,
+    ) -> None:
         return

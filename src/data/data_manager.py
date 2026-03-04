@@ -38,7 +38,9 @@ class DataManager:
     def __init__(
         self,
         websocket_interface: WebSocketInterface,
-        pipeline_controller: PipelineController[dict[str, int | IndexType, dict[int, float]]],
+        pipeline_controller: PipelineController[
+            dict[str, int | IndexType, dict[int, float]]
+        ],
         name: str | None = None,
     ):
         self.name: str = name if name else "DATA_MANAGER"
@@ -76,8 +78,9 @@ class DataManager:
 
         self.logger.info(f"[DATA_INIT] {self.name} | Status: ready")
 
-
-    def start(self,) -> None:
+    def start(
+        self,
+    ) -> None:
         # Threads
         self.__initialize_threads()
         self.__start_threads()
@@ -92,26 +95,31 @@ class DataManager:
         """
         self.logger.info(f"[SHUTDOWN] {self.name} stopping...")
         self._stop.set()
-        if hasattr(self.collector, 'stop'):
+        if hasattr(self.collector, "stop"):
             self.collector.stop()
-        if hasattr(self.processor, 'stop'):
+        if hasattr(self.processor, "stop"):
             self.processor.stop()
 
     def __initialize_threads(self) -> None:
         try:
             thread_memory_save: threading.Thread = threading.Thread(
-                name = "resize_df",
-                target = self.__resize_df,
-                daemon = True
+                name="resize_df", target=self.__resize_df, daemon=True
             )
-            self.logger.info(f"[THREAD_START] {thread_memory_save.name} | Status: running")
+            self.logger.info(
+                f"[THREAD_START] {thread_memory_save.name} | Status: running"
+            )
 
-            self.threads.append(thread_memory_save,)
+            self.threads.append(
+                thread_memory_save,
+            )
         except (RuntimeError, TypeError, AttributeError, MemoryError) as e:
-            self.logger.error(f"[THREAD_ERROR] fail to make instances for the thread: {e!s}")
+            self.logger.error(
+                f"[THREAD_ERROR] fail to make instances for the thread: {e!s}"
+            )
         except Exception as e:
-            self.logger.critical(f"[THREAD_ERROR] Unexpected error constructing thread pool - {e!s}")
-
+            self.logger.critical(
+                f"[THREAD_ERROR] Unexpected error constructing thread pool - {e!s}"
+            )
 
     def __start_threads(self) -> None:
         for thread in self.threads:
@@ -134,22 +142,24 @@ class DataManager:
         wait_time: int = 300,  # in seconds, 5 minutes by default
     ) -> None:
         """
-        func __resize_df():
-            - using _data_saver to move the dataframe storing the price movement to the csv file in data
-`
-        make a use of data saver, i.e., custom class using the df.to_csv()
+                func __resize_df():
+                    - using _data_saver to move the dataframe storing the price movement to the csv file in data
+        `
+                make a use of data saver, i.e., custom class using the df.to_csv()
 
-        params self: DataCollectorAndProcessor
-            - class object
+                params self: DataCollectorAndProcessor
+                    - class object
 
-        return None
+                return None
         """
         curr_timestamp = self.generate_timestamp()
         retention_ms = 60 * 60 * 1_000  # 1 hour in milliseconds
         while not self._stop.is_set():
             data = None
             try:
-                if (self.generate_timestamp() - curr_timestamp > (wait_time * 1_000)):  # Five minutes
+                if self.generate_timestamp() - curr_timestamp > (
+                    wait_time * 1_000
+                ):  # Five minutes
                     with self.lock_price_data:
                         cutoff_ts = self.generate_timestamp() - retention_ms
                         # Index is timestamp (epoch ms) — drop rows older than 1 hour
@@ -171,5 +181,6 @@ class DataManager:
                     # TODO: store the data to the database -> possibly just resize it and put the new data into the db.
                     curr_timestamp = self.generate_timestamp()
             except Exception as e:
-                self.logger.warning(f"[DATA_ERROR] __resize_df() | Error: {type(e).__name__}: {e!s}")
-
+                self.logger.warning(
+                    f"[DATA_ERROR] __resize_df() | Error: {type(e).__name__}: {e!s}"
+                )

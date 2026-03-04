@@ -42,7 +42,6 @@ class HttpClient(ABC):
 
         self.logger.info(f"[SERVICE_INIT] {self.name} initialized")
 
-
     @abstractmethod
     def ping(self):
         return

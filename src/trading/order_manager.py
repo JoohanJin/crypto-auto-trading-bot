@@ -12,21 +12,23 @@ logger = get_logger(__name__)
 
 
 class OrderManager:
-    '''
+    """
     - Manage all the order
         - make the trade decision? hmm not sure.
     - Manage all the clients provided
-    '''
+    """
+
     @staticmethod
     def __get_curr_timestamp() -> int:
         # only for internal usage
         return int(time.time() * 1_000)
 
-    '''
+    """
     ##############################################################################
     #                                 Class Method                               #
     ##############################################################################
-    '''
+    """
+
     def __init__(
         self,
         telegram_bot: CustomTelegramBot,
@@ -51,13 +53,15 @@ class OrderManager:
             # make an order through the client registry.
             self.clients  # TODO: implement the broker registry
         except Exception as e:
-            self.logger.critical(f"[TRADE_EXECUTION_ERROR] Order failed | Error: {type(e).__name__}: {e!s}")
+            self.logger.critical(
+                f"[TRADE_EXECUTION_ERROR] Order failed | Error: {type(e).__name__}: {e!s}"
+            )
 
     def get_ticker_current_price(
         self,
         trading_pair: TradePair,
     ) -> dict[str, float]:
-        '''
+        """
         - Return the current price of the given ticker and quote currency.
         dict = {
             "timestamp": <timestamp_in_ms_int>,
@@ -65,7 +69,7 @@ class OrderManager:
             "quote": "USDT",
             "price": <price_of_ticker_float>
         }
-        '''
+        """
         return Price(
             timestamp=OrderManager.__get_curr_timestamp(),
             trading_pair=trading_pair,
@@ -79,7 +83,7 @@ class OrderManager:
         prices: list[float],
         rounding: int = 2,  # can be dynamic with the Factory method.
     ) -> float:
-        '''
+        """
         - can use numpy for faster and more accurate result
         - func __get_average_ticker_price()
             - calculate the average value of the floats in the list passed as a parameter
@@ -95,14 +99,16 @@ class OrderManager:
             - float
                 - average value of the values in the param
             - will get the list of ticker prices returned from multiple clients.
-        '''
+        """
         try:
             return round((sum(prices) / len(prices)), rounding)
         except Exception as e:
-            self.logger.error(f"[TRADE_DECISION_ERROR] Average price calculation failed | Error: {type(e).__name__}: {e!s}")
+            self.logger.error(
+                f"[TRADE_DECISION_ERROR] Average price calculation failed | Error: {type(e).__name__}: {e!s}"
+            )
 
     def __get_ticker_current_prices(self) -> list[float]:
-        '''
+        """
         - func __get_ticker_current_prices()
             - get the list of ticker prices returned from multiple clients in the OrderManager.
 
@@ -110,7 +116,7 @@ class OrderManager:
 
         - Return:
             - prices: list[float]
-        '''
+        """
         res = []
 
         return res

@@ -28,8 +28,7 @@ class WebSocketInterface(BaseInterface[WebSocketClientRegistry, WebSocketClient]
         )
 
         super().__init__(
-            client_registry=registry,
-            name=name if name else "WebSocketInterface"
+            client_registry=registry, name=name if name else "WebSocketInterface"
         )
 
         self.logger.info(f"[SERVICE_INIT] {self.name} initialized")
@@ -48,7 +47,9 @@ class WebSocketInterface(BaseInterface[WebSocketClientRegistry, WebSocketClient]
         try:
             self.client_registry.start()
         except Exception as e:
-            self.logger.info(f"[SERVICE_INIT_ERROR] {self.name} | Failed to start client | Error: {type(e).__name__}: {e!s}")
+            self.logger.info(
+                f"[SERVICE_INIT_ERROR] {self.name} | Failed to start client | Error: {type(e).__name__}: {e!s}"
+            )
 
     def ticker(
         self,
@@ -57,11 +58,13 @@ class WebSocketInterface(BaseInterface[WebSocketClientRegistry, WebSocketClient]
         for key in self.client_registry.registry:
             try:
                 self.client_registry.registry[key].ticker(
-                    callback = callback,
-                    trade_pair = self.trade_pair,
+                    callback=callback,
+                    trade_pair=self.trade_pair,
                 )
             except Exception as e:
-                self.logger.critical(f"[WS_SUBSCRIBE] {self.name} | Error: {type(e).__name__}: {e!s}")
+                self.logger.critical(
+                    f"[WS_SUBSCRIBE] {self.name} | Error: {type(e).__name__}: {e!s}"
+                )
 
     def kline(
         self,
@@ -74,7 +77,9 @@ class WebSocketInterface(BaseInterface[WebSocketClientRegistry, WebSocketClient]
                     trade_pair=self.TradePair,
                 )
             except Exception as e:
-                self.logger.critical(f"[WS_SUBSCRIBE] {self.name} | Error: {type(e).__name__}: {e!s}")
+                self.logger.critical(
+                    f"[WS_SUBSCRIBE] {self.name} | Error: {type(e).__name__}: {e!s}"
+                )
 
     def depth(
         self,
@@ -87,4 +92,6 @@ class WebSocketInterface(BaseInterface[WebSocketClientRegistry, WebSocketClient]
                     trade_pair=self.TradePair,
                 )
             except Exception as e:
-                self.logger.critical(f"[WS_SUBSCRIBE] {self.name} | Error: {type(e).__name__}: {e!s}")
+                self.logger.critical(
+                    f"[WS_SUBSCRIBE] {self.name} | Error: {type(e).__name__}: {e!s}"
+                )

@@ -16,6 +16,7 @@ class MexcFutureGateway(HttpService):
     Class for Base SDK for MEXC APIs including SpotV3, Spot V2, Futures V1 and so on
     SDK for MEXC API, inheriting from CommonBaseAPI.
     """
+
     def __init__(
         self,
         name: str | None = None,
@@ -24,10 +25,10 @@ class MexcFutureGateway(HttpService):
         base_url: str = "https://contract.mexc.com",
     ):
         super().__init__(
-            name = name if name is not None else "MEXC_FUTURE_REST_CLIENT",
-            api_key = api_key,
-            secret_key = secret_key,
-            base_url = base_url,
+            name=name if name is not None else "MEXC_FUTURE_REST_CLIENT",
+            api_key=api_key,
+            secret_key=secret_key,
+            base_url=base_url,
         )
         self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
         # Set the specific content type for MEXC
@@ -53,7 +54,9 @@ class MexcFutureGateway(HttpService):
 
         if params is not None:
             params = {key: value for key, value in params.items() if value is not None}
-            query_string = "&".join(f"{key}={value}" for key, value in sorted(params.items()))
+            query_string = "&".join(
+                f"{key}={value}" for key, value in sorted(params.items())
+            )
         else:
             query_string: str = ""
 
@@ -78,11 +81,11 @@ class MexcFutureGateway(HttpService):
 
         try:
             response = self.session.request(
-                method = method,
-                url = f"{self.base_url}{url}",
-                params = params,
-                headers = headers,
-                data = data if data is None else json.dumps(data),
+                method=method,
+                url=f"{self.base_url}{url}",
+                params=params,
+                headers=headers,
+                data=data if data is None else json.dumps(data),
             )
 
             payload = self.parse_response(response)
@@ -144,5 +147,7 @@ class MexcFutureGateway(HttpService):
             response.raise_for_status()
             return None
         except Exception as e:
-            self.logger.critical(f"[BROKER_ERROR] MexC | Error: {type(e).__name__}: {e!s}")
+            self.logger.critical(
+                f"[BROKER_ERROR] MexC | Error: {type(e).__name__}: {e!s}"
+            )
             return None

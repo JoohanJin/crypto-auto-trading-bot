@@ -16,6 +16,7 @@ class BinanceFutureGateway(HttpService):
     """
     SDK for Binance Futures API, inheriting from CommonBaseAPI.
     """
+
     def __init__(
         self,
         name: str | None = None,
@@ -27,10 +28,10 @@ class BinanceFutureGateway(HttpService):
         # base_url = "https://testnet.binancefuture.com"  # this is the testNet
 
         super().__init__(
-            name = name if name is not None else "BINANCE_FUTURE_REST_CLIENT",
-            api_key = api_key,
-            secret_key = secret_key,
-            base_url = base_url,
+            name=name if name is not None else "BINANCE_FUTURE_REST_CLIENT",
+            api_key=api_key,
+            secret_key=secret_key,
+            base_url=base_url,
         )
         self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
         # Set the specific content type for Binance
@@ -56,9 +57,11 @@ class BinanceFutureGateway(HttpService):
             if value is not None
         }
 
-        request_headers: dict[str, str | int | float] = headers.copy() if headers else {}
+        request_headers: dict[str, str | int | float] = (
+            headers.copy() if headers else {}
+        )
 
-        if (self.api_key and self.secret_key):
+        if self.api_key and self.secret_key:
             request_headers[api_key_title] = self.api_key
             query_string = urlencode(list(filtered_params.items()))
             filtered_params["signature"] = self.generate_signature(query_string)
@@ -72,11 +75,11 @@ class BinanceFutureGateway(HttpService):
 
         try:
             response = self.session.request(
-                url = f"{self.base_url}{url}",
-                method = method,
-                params = request_params,
-                headers = request_headers,
-                data = request_data,
+                url=f"{self.base_url}{url}",
+                method=method,
+                params=request_params,
+                headers=request_headers,
+                data=request_data,
             )
 
             payload = self.parse_response(response)
@@ -129,5 +132,7 @@ class BinanceFutureGateway(HttpService):
             response.raise_for_status()
             return None
         except Exception as e:
-            self.logger.critical(f"[BROKER_ERROR] Binance | Error: {type(e).__name__}: {e!s}")
+            self.logger.critical(
+                f"[BROKER_ERROR] Binance | Error: {type(e).__name__}: {e!s}"
+            )
             return None

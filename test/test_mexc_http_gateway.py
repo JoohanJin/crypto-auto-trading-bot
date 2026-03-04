@@ -16,7 +16,9 @@ class TestMexcFutureGateway(unittest.TestCase):
     def test_initialization(self):
         """Test that the gateway initializes with the correct base URL and content type."""
         self.assertEqual(self.gateway.base_url, "https://contract.mexc.com")
-        self.assertIn("application/json", self.gateway.session.headers.get("Content-Type", ""))
+        self.assertIn(
+            "application/json", self.gateway.session.headers.get("Content-Type", "")
+        )
 
     @patch("src.brokers.mexc.http_gateway.HttpService.generate_timestamp")
     def test_signature_generation(self, mock_timestamp):
@@ -41,11 +43,7 @@ class TestMexcFutureGateway(unittest.TestCase):
         # Patch the instance's session request directly
         self.gateway.session.request = MagicMock(return_value=mock_response)
 
-        self.gateway.call(
-            method="GET",
-            url="/api/v1/test",
-            params={"param1": "value1"}
-        )
+        self.gateway.call(method="GET", url="/api/v1/test", params={"param1": "value1"})
 
         # Verify the request was called with the correct headers
         self.gateway.session.request.assert_called_once()

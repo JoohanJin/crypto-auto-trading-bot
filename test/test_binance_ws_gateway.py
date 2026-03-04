@@ -10,8 +10,7 @@ class TestBinanceMarketWebSocket(unittest.TestCase):
     def setUp(self):
         with patch("src.brokers.binance.ws_gateway.BinanceMarketWebSocket.connect"):
             self.ws = BinanceMarketWebSocket(
-                ping_interval=20,
-                name="TEST_BINANCE_MARKET_WS"
+                ping_interval=20, name="TEST_BINANCE_MARKET_WS"
             )
 
     def test_initialization(self):
@@ -39,11 +38,7 @@ class TestBinanceMarketWebSocket(unittest.TestCase):
         mock_callback = MagicMock()
         self.ws.callbacks["24hrTicker"] = mock_callback
 
-        test_msg = {
-            "e": "24hrTicker",
-            "s": "BTCUSDT",
-            "c": "50000.0"
-        }
+        test_msg = {"e": "24hrTicker", "s": "BTCUSDT", "c": "50000.0"}
 
         self.ws._deal_with_response(test_msg)
         mock_callback.assert_called_once_with(test_msg)

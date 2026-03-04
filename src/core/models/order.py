@@ -6,13 +6,14 @@ from src.core.models.base import ImmutableModel, Side, TradePair
 
 
 class OrderHistory:
-    '''
+    """
     - Data structure to store the order history.
 
     - It should support:
         - search based on diffrent criteria
         - range search
-    '''
+    """
+
     def __init__(
         self,
         max_size: int = 100,

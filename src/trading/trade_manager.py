@@ -169,7 +169,9 @@ class TradeManager:
         # Loosened to avoid entering too late after the move is already underway.
         self.consensus_short_term_threshold: float = 0.5
         self.consensus_mid_term_threshold: float = 0.5
-        self.consensus_threshold: float = 0.9  # structural: just needs directional agreement
+        self.consensus_threshold: float = (
+            0.9  # structural: just needs directional agreement
+        )
 
         # --- Exit thresholds (require all 3 windows) ---
         # Tightened so normal retracements don't trigger panic exits.
@@ -181,8 +183,8 @@ class TradeManager:
         self.threads: list[threading.Thread] = []
 
         self.lock_current_position: threading.Lock = threading.Lock()
-        self.current_position: PositionState | None = self.binance_client.get_current_position_state(
-            symbol=self.trade_pair
+        self.current_position: PositionState | None = (
+            self.binance_client.get_current_position_state(symbol=self.trade_pair)
         )
 
         # self.signal_cnt: int = 0
@@ -235,7 +237,6 @@ class TradeManager:
         # Start the threads
         self._start_threads()
 
-
     def _thread_log_status(
         self,
     ) -> None:
@@ -257,11 +258,19 @@ class TradeManager:
                     now = self.generate_timestamp()
 
                     # mid term momentum
-                    mid_term_momentum: list = [s for ts, s in self.signal_history if (now - ts) <= self.mid_term_window_ms]
+                    mid_term_momentum: list = [
+                        s
+                        for ts, s in self.signal_history
+                        if (now - ts) <= self.mid_term_window_ms
+                    ]
                     mid_term_density: int = len(mid_term_momentum)
 
                     # short term momentum
-                    short_term_momentum: list = [s for ts, s in self.signal_history if (now - ts) <= self.short_term_window_ms]
+                    short_term_momentum: list = [
+                        s
+                        for ts, s in self.signal_history
+                        if (now - ts) <= self.short_term_window_ms
+                    ]
                     short_term_density: int = len(short_term_momentum)
 
                 # Re-fetch current position as it might have changed
@@ -373,7 +382,6 @@ class TradeManager:
                     f"{__name__}: Failed to start thread '{thread.name}': {e!s}"
                 )
 
-
     """
     ##########################
     # Signal Management Method
@@ -458,10 +466,8 @@ class TradeManager:
 
             # Determine quantities
             is_reverse = (
-                buy_or_sell in (
-                    TradeState.REVERSE_BUY,
-                    TradeState.REVERSE_SELL
-                ) and current_pos is not None
+                buy_or_sell in (TradeState.REVERSE_BUY, TradeState.REVERSE_SELL)
+                and current_pos is not None
             )
 
             if is_reverse:
@@ -618,7 +624,7 @@ class TradeManager:
             return self.binance_client.order(order=order)
         except Exception as e:
             self.logger.critical(
-                f"[ORDER_REGISTRATION_ERROR] Type: {order.side_str } "
+                f"[ORDER_REGISTRATION_ERROR] Type: {order.side_str} "
                 f"| Price: {order.entry_price} | Error: {type(e).__name__}: {e!s}"
             )
             raise Exception(
@@ -701,7 +707,9 @@ class TradeManager:
             net_weight = 0.0
 
             for s in signals:  # ! Linear - should be fine with the current strategy since it only stores 10-min data.
-                weight = self.delta_mapper.map(s)  # ? based on the score mapping score -> which is correct.
+                weight = self.delta_mapper.map(
+                    s
+                )  # ? based on the score mapping score -> which is correct.
                 total_weight += abs(weight)
                 net_weight += weight
 
@@ -726,7 +734,7 @@ class TradeManager:
             oldest_signal_time = self.signal_history[0][0]
             if (now - oldest_signal_time) < (self.history_window_ms * 0.95):
                 self.logger.debug(
-                    f"[WARMUP] Gathering data... {int((now - oldest_signal_time)/1000)}s / {int(self.history_window_ms/1000)}s"
+                    f"[WARMUP] Gathering data... {int((now - oldest_signal_time) / 1000)}s / {int(self.history_window_ms / 1000)}s"
                 )
                 return TradeState.HOLD
 
@@ -754,7 +762,9 @@ class TradeManager:
 
         # 4. Calculate Metrics
         # TODO: Change this to sliding windows for O(1) computation
-        consensus_short_term: float = get_weighted_consensus(short_term_momentum_signals)
+        consensus_short_term: float = get_weighted_consensus(
+            short_term_momentum_signals
+        )
         consensus_mid_term: float = get_weighted_consensus(mid_term_momentum_signals)
         consensus_structural: float = get_weighted_consensus(structural_signals)
 
@@ -772,32 +782,32 @@ class TradeManager:
 
         def is_buy() -> bool:
             return (
-                (consensus_short_term >= self.consensus_short_term_threshold) and
-                (consensus_mid_term >= self.consensus_mid_term_threshold) and
-                (consensus_structural >= self.consensus_threshold)
+                (consensus_short_term >= self.consensus_short_term_threshold)
+                and (consensus_mid_term >= self.consensus_mid_term_threshold)
+                and (consensus_structural >= self.consensus_threshold)
             )
 
         def is_sell() -> bool:
             return (
-                (consensus_short_term <= -self.consensus_short_term_threshold) and
-                (consensus_mid_term <= -self.consensus_mid_term_threshold) and
-                (consensus_structural <= -self.consensus_threshold)
+                (consensus_short_term <= -self.consensus_short_term_threshold)
+                and (consensus_mid_term <= -self.consensus_mid_term_threshold)
+                and (consensus_structural <= -self.consensus_threshold)
             )
 
         def is_exit_from_buy() -> bool:
             # Require ALL 3 windows to flip against us — prevents premature exits on normal pullbacks
             return (current_pos.side == Side.BUY) and (
-                (consensus_short_term < -(self.exit_short_term_consensus_threshold)) and
-                (consensus_mid_term < -(self.exit_mid_term_threshold)) and
-                (consensus_structural < -(self.exit_consensus_threshold))
+                (consensus_short_term < -(self.exit_short_term_consensus_threshold))
+                and (consensus_mid_term < -(self.exit_mid_term_threshold))
+                and (consensus_structural < -(self.exit_consensus_threshold))
             )
 
         def is_exit_from_sell() -> bool:
             # Require ALL 3 windows to flip against us — prevents premature exits on normal pullbacks
             return (current_pos.side == Side.SELL) and (
-                (consensus_short_term > self.exit_short_term_consensus_threshold) and
-                (consensus_mid_term > self.exit_mid_term_threshold) and
-                (consensus_structural > self.exit_consensus_threshold)
+                (consensus_short_term > self.exit_short_term_consensus_threshold)
+                and (consensus_mid_term > self.exit_mid_term_threshold)
+                and (consensus_structural > self.exit_consensus_threshold)
             )
 
         def is_exit() -> bool:
@@ -815,9 +825,13 @@ class TradeManager:
             elif is_sell():
                 return TradeState.NEW_SELL
             return TradeState.HOLD
-        elif is_reversal_buy():  # stronger condition than exit condition: opposite position + buy signal
+        elif (
+            is_reversal_buy()
+        ):  # stronger condition than exit condition: opposite position + buy signal
             return TradeState.REVERSE_BUY
-        elif is_reversal_sell():  # stronger condition than exit condition: oppstie position + sell signal
+        elif (
+            is_reversal_sell()
+        ):  # stronger condition than exit condition: oppstie position + sell signal
             return TradeState.REVERSE_SELL
             # elif is_exit():
             #     return TradeState.EXIT
@@ -843,7 +857,9 @@ class TradeManager:
                     TradeState.EXIT,
                 ):
                     # Cooldown check
-                    if (self.generate_timestamp() - self.last_trade_timestamp) < self.trade_cooldown_ms:
+                    if (
+                        self.generate_timestamp() - self.last_trade_timestamp
+                    ) < self.trade_cooldown_ms:
                         time.sleep(0.25)
                         continue
 
@@ -857,9 +873,13 @@ class TradeManager:
                         self.logger.warning(
                             "[WHIPSAW_PROTECTION] Panic exit triggered! Extending cooldown to 10 minutes."
                         )
-                        self.trade_cooldown_ms = self.history_window_ms  # Pause for full structural window
+                        self.trade_cooldown_ms = (
+                            self.history_window_ms
+                        )  # Pause for full structural window
                     else:
-                        self.trade_cooldown_ms = self.default_trade_cooldown_ms  # Restore configured cooldown
+                        self.trade_cooldown_ms = (
+                            self.default_trade_cooldown_ms
+                        )  # Restore configured cooldown
 
                 time.sleep(1)
 
@@ -894,7 +914,9 @@ class TradeManager:
         if isinstance(signal_data, Signal):
             return (
                 signal_data.signal
-                if self.verify_signal(signal_data=signal_data, timestamp_window=timestamp_window)
+                if self.verify_signal(
+                    signal_data=signal_data, timestamp_window=timestamp_window
+                )
                 else None
             )
         return None

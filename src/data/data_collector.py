@@ -13,14 +13,15 @@ logger = get_logger(__name__)
 
 
 class DataCollector:
-    '''
+    """
     - Fetch the data from the broker
-    '''
+    """
+
     @staticmethod
     def generate_timestamp() -> int:
-        '''
+        """
         - return the current timestamp in ms in int.
-        '''
+        """
         return int(time.time() * 1_000)
 
     def __init__(
@@ -47,7 +48,7 @@ class DataCollector:
         self.price_fetch_buffer: Queue = Queue()
 
     def start(self) -> None:
-        self.wsi.ticker(callback = self._put_ticker_data)
+        self.wsi.ticker(callback=self._put_ticker_data)
 
         self.__initialize_threads()
         self.__start_threads()
@@ -65,11 +66,11 @@ class DataCollector:
         try:
             # start the thread for the data fetch from the API
             thread_price_fetch: threading.Thread = threading.Thread(
-                name = "price_data_fetch",
-                target = self._price_data_fetch,
-                daemon = True
+                name="price_data_fetch", target=self._price_data_fetch, daemon=True
             )
-            self.logger.info(f"[THREAD_START] {thread_price_fetch.name} | Status: running")
+            self.logger.info(
+                f"[THREAD_START] {thread_price_fetch.name} | Status: running"
+            )
 
             self.threads.extend(
                 [
@@ -77,10 +78,13 @@ class DataCollector:
                 ]
             )
         except (RuntimeError, TypeError, AttributeError, MemoryError) as e:
-            self.logger.error(f"[THREAD_ERROR] fail to make instances for the thread: {e!s}")
+            self.logger.error(
+                f"[THREAD_ERROR] fail to make instances for the thread: {e!s}"
+            )
         except Exception as e:
-            self.logger.critical(f"[THREAD_ERROR] Unexpected error constructing thread pool - {e!s}")
-
+            self.logger.critical(
+                f"[THREAD_ERROR] Unexpected error constructing thread pool - {e!s}"
+            )
 
     def __start_threads(self) -> None:
         """
@@ -98,7 +102,9 @@ class DataCollector:
                 thread.start()
                 self.logger.info(f"[THREAD_START] {thread.name} | Status: running")
             except RuntimeError as e:
-                self.logger.critical(f"[THREAD_ERROR] {thread.name} failed | Error: {type(e).__name__}: {e!s}")
+                self.logger.critical(
+                    f"[THREAD_ERROR] {thread.name} failed | Error: {type(e).__name__}: {e!s}"
+                )
                 raise RuntimeError
             except Exception as e:
                 self.logger.critical(
@@ -132,8 +138,8 @@ class DataCollector:
         try:
             self.price_fetch_buffer.put(
                 msg,
-                block = False,
-                timeout = None,
+                block=False,
+                timeout=None,
             )
             return
         except Exception as e:
@@ -147,6 +153,7 @@ class DataCollector:
     #                                   Get the Ticker Data from the Data Buffer                                         #
     ######################################################################################################################
     """
+
     # DataFetcher
     def _get_data_buffer(
         self,
@@ -159,11 +166,13 @@ class DataCollector:
         """
         try:
             # price_fetch_buffer is a queue.
-            result = self.price_fetch_buffer.get(block = True)
+            result = self.price_fetch_buffer.get(block=True)
 
             return result
         except Exception as e:
-            self.logger.critical(f"[DATA_ERROR] _get_data_buffer() | Error: {type(e).__name__}: {e!s}")
+            self.logger.critical(
+                f"[DATA_ERROR] _get_data_buffer() | Error: {type(e).__name__}: {e!s}"
+            )
             return None
 
     # data fetcher
@@ -195,5 +204,5 @@ class DataCollector:
 
             except Exception as e:
                 self.logger.critical(
-                    f'[DATA_ERROR] _price_data_fetch() | Error: {type(e).__name__}: {e!s}'
+                    f"[DATA_ERROR] _price_data_fetch() | Error: {type(e).__name__}: {e!s}"
                 )

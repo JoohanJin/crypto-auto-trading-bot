@@ -35,9 +35,7 @@ class TestMexcWebSocketGateway(unittest.TestCase):
             # Mock send to avoid actual websocket I/O
             with patch.object(self.ws_gateway, "send"):
                 self.ws_gateway.subscribe(
-                    topic="ticker",
-                    callback=mock_callback,
-                    param={"symbol": "BTC_USDT"}
+                    topic="ticker", callback=mock_callback, param={"symbol": "BTC_USDT"}
                 )
 
         # MexcWebSocket prepends "sub." and registers the callback without "sub."
@@ -49,10 +47,7 @@ class TestMexcWebSocketGateway(unittest.TestCase):
         mock_callback = MagicMock()
         self.ws_gateway.callbacks["ticker"] = mock_callback
 
-        test_msg = {
-            "channel": "push.ticker",
-            "data": {"price": 50000}
-        }
+        test_msg = {"channel": "push.ticker", "data": {"price": 50000}}
 
         # Route the message
         self.ws_gateway._deal_with_response(test_msg)
