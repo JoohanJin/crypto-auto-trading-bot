@@ -135,7 +135,7 @@ Currently, the bot is successfully deployed and running 24/7 on **Google Cloud P
 * **Infrastructure**:
   * Google Cloud Platform (Artifact Registry, Compute Engine)
   * Docker (Container-Optimized OS)
-  * Github Actions (CI - Planned)
+  * Github Actions (CI - Implemented)
 
 <!-- <p align="right">(<a href="#readme-top">back to top</a>)</p> -->
 
@@ -144,11 +144,11 @@ Currently, the bot is successfully deployed and running 24/7 on **Google Cloud P
 ## Branch Structure
 
 ```text
-stable
-└── dev
-    ├── dev-feature1
-    ├── dev-feature2
-    └── dev-feature3
+stable (Production)
+└── dev (Main Development)
+    ├── dev-unit_testing (CI & Testing Infrastructure)
+    ├── dev-data_models (Core DTO & Model Refactor)
+    └── backtesting (Vectorized Engine & Simulation)
 ```
 
 ---
@@ -233,6 +233,23 @@ Before getting started, ensure you have:
 - **Telegram**: Required for trade notifications (can be optional in future versions)
 - **API Keys**: Ensure you use keys with appropriate permissions (trading enabled, IP whitelisting recommended)
 - **For Production**: Use environment variables instead of storing credentials in `.env` files
+
+---
+
+## 🧪 Testing
+
+We use `pytest` for unit and integration testing. The CI pipeline automatically runs these tests on every push.
+
+- **Unit Tests**: Fast, mocked tests for core logic.
+- **Integration Tests**: Connectivity tests for real exchange APIs.
+- **Data Flow Tests**: E2E verification of the multi-threaded pipeline.
+
+For detailed documentation on the testing strategy, see [Testing Architecture](Docs/Testing/testing_architecture.md).
+
+```bash
+# Run all fast unit tests
+pytest -m "not integration" -v
+```
 
 <!-- MARKDOWN LINKS & IMAGES -->
 <!-- https://www.markdownguide.org/basic-syntax/#reference-style-links -->
