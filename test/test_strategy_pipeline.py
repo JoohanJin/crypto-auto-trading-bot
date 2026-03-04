@@ -6,8 +6,9 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from src.core.models.index import IndexType, Index  # type: ignore
+from src.core.models.index import Index, IndexType  # type: ignore
 from src.core.models.signal import TradeSignal  # type: ignore
+
 
 try:
     from src.strategy import (  # type: ignore
@@ -196,7 +197,7 @@ class StrategyManagerHelpersTest(unittest.TestCase):
             signal_type=TradeSignal.LONG_TERM_BUY,
             signal_window=1000,
         )
-        
+
         # Scenario 1: No previous indicators -> None
         res = self.manager._evaluate_condition(condition, self.manager.indicators, cfg, None)
         self.assertIsNone(res)
@@ -210,7 +211,7 @@ class StrategyManagerHelpersTest(unittest.TestCase):
              IndexType.SMA: Index(timestamp=1000, index_type=IndexType.SMA, data={60: 15.0}),
              IndexType.EMA: Index(timestamp=1000, index_type=IndexType.EMA, data={60: 12.0}),
         }
-        
+
         res = self.manager._evaluate_condition(condition, curr_ind, cfg, prev_ind)
         self.assertEqual(res, TradeSignal.LONG_TERM_BUY)
 

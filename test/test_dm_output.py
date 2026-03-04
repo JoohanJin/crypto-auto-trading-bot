@@ -6,25 +6,30 @@ Tests the full flow: WebSocket → DataCollector → DataFrame → DataProcessor
 Uses mock WebSocket clients to inject fake Ticker data without needing real API connections.
 """
 
-import time
-import sys
 import os
+import sys
 import threading
+import time
 import unittest
 from collections.abc import Callable
+
+import pytest
+
 
 # Add src to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+import contextlib
+
+from src.brokers.base.ws_client import WebSocketClient
+from src.core.models.index import Index, IndexType
+from src.core.models.service_dto import Ticker
+from src.core.models.trade import TradePair
 from src.data.data_manager import DataManager
+from src.interfaces.pipeline_interface import PipelineController
 from src.interfaces.websocket_interface import WebSocketInterface
 from src.interfaces.ws_client_registry import WebSocketClientRegistry
-from src.interfaces.pipeline_interface import PipelineController
 from src.pipeline.base_pipeline import BasePipeline
-from src.brokers.base.ws_client import WebSocketClient
-from src.core.models.trade import TradePair
-from src.core.models.service_dto import Ticker
-from src.core.models.index import Index, IndexType
 
 
 # ──────────────────────────────────────────────
@@ -117,10 +122,8 @@ class FakeWebSocketClient(WebSocketClient):
                 price=price,
             )
             for cb in self._callbacks:
-                try:
+                with contextlib.suppress(Exception):
                     cb(ticker)
-                except Exception:
-                    pass
             time.sleep(0.2)
 
     # ── Stubs for abstract methods ──
@@ -136,6 +139,8 @@ class FakeWebSocketClient(WebSocketClient):
 # Test Cases
 # ──────────────────────────────────────────────
 
+@pytest.mark.slow
+@pytest.mark.integration
 class TestDataManagerPipeline(unittest.TestCase):
     """Integration tests for the DataManager data flow."""
 

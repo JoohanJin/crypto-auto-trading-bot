@@ -13,20 +13,23 @@ Verifies:
 - Graceful handling of errors
 """
 
-import time
-import sys
 import os
+import sys
 import threading
+import time
 import unittest
+
+import pytest
+
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+from src.brokers.binance.ws_client import BinanceWebSocketClient
+from src.brokers.mexc.ws_client import MexcWebSocketClient
+from src.core.models.service_dto import Ticker
+from src.core.models.trade import TradePair
 from src.interfaces.websocket_interface import WebSocketInterface
 from src.interfaces.ws_client_registry import WebSocketClientRegistry
-from src.brokers.mexc.ws_client import MexcWebSocketClient
-from src.brokers.binance.ws_client import BinanceWebSocketClient
-from src.core.models.trade import TradePair
-from src.core.models.service_dto import Ticker
 
 
 # ──────────────────────────────────────────────
@@ -147,6 +150,8 @@ class TestWebSocketInterfaceSetup(unittest.TestCase):
 # Integration Tests: Live WebSocket (network)
 # ──────────────────────────────────────────────
 
+@pytest.mark.slow
+@pytest.mark.integration
 class TestWebSocketInterfaceLive(unittest.TestCase):
     """
     Integration tests with real Mexc and Binance WebSocket connections.

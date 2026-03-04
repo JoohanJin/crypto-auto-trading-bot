@@ -1,12 +1,13 @@
 """Test that all models correctly inherit copy() from base classes."""
 import unittest
-from src.core.models.trade import TradePair
+
+from src.core.models.base import Side
 from src.core.models.order import Order
-from src.core.models.service_dto import Ping, Ticker
 from src.core.models.price import Price
 from src.core.models.score import ScoreMetrics
+from src.core.models.service_dto import Ping, Ticker
+from src.core.models.trade import TradePair
 from src.core.models.trend import TrendState
-from src.core.models.base import Side
 
 
 class TestBaseModels(unittest.TestCase):
@@ -15,17 +16,17 @@ class TestBaseModels(unittest.TestCase):
         tp = TradePair('BTC', 'USDT')
         tp_copy = tp.copy()
         self.assertIsInstance(tp_copy, TradePair)
-        
+
         # Ping (ServiceDTO subclass)
         ping = Ping(timestamp=123, source='mexc', success=True)
         ping_copy = ping.copy()
         self.assertIsInstance(ping_copy, Ping)
-        
+
         # Ticker (ServiceDTO subclass)
         ticker = Ticker(timestamp=123, source='binance', ticker=tp, price=50000.0)
         ticker_copy = ticker.copy()
         self.assertIsInstance(ticker_copy, Ticker)
-        
+
         # Order
         order = Order(
             side=Side.BUY, side_str='BUY', leverage=10,
@@ -38,12 +39,12 @@ class TestBaseModels(unittest.TestCase):
 
     def test_mutable_models(self):
         tp = TradePair('BTC', 'USDT')
-        
+
         # Price
         price = Price(timestamp=123, trading_pair=tp, price=50000.0)
         price_copy = price.copy()
         self.assertIsInstance(price_copy, Price)
-        
+
         # ScoreMetrics
         score = ScoreMetrics(
             timestamp=123, current_score=0.5, trend=TrendState.BULLISH,

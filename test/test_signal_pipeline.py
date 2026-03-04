@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import sys
-from pathlib import Path
 import unittest
+from pathlib import Path
+
 
 # NOTE: Converted the legacy script into focused queue semantics tests for the
 # signal pipeline so CI can run without external brokers.

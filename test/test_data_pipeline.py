@@ -1,7 +1,8 @@
 from __future__ import annotations
+
 import unittest
 
-from src.core.models.constants import IndexType  # type: ignore
+from src.core.models.index import IndexType  # type: ignore
 from src.pipeline.data_pipeline import DataPipeline  # type: ignore
 
 

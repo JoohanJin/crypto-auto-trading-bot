@@ -13,12 +13,12 @@ from unittest.mock import MagicMock, patch
 # Core Models & Interfaces
 from src.core.models.index import Index, IndexType
 from src.core.models.signal import Signal, TradeSignal
-from src.interfaces.pipeline_interface import PipelineController
 from src.integrations.telegram.telegram_bot_class import CustomTelegramBot
+from src.interfaces.pipeline_interface import PipelineController
+from src.strategy.strategy_manager import StrategyManager
 
 # Components under test
 from src.trading.signal_generator import SignalGenerator
-from src.strategy.strategy_manager import StrategyManager
 
 
 class TestSignalGenerator(unittest.TestCase):
@@ -27,7 +27,7 @@ class TestSignalGenerator(unittest.TestCase):
         self.mock_data_pipeline = MagicMock(spec=PipelineController)
         self.mock_signal_pipeline = MagicMock(spec=PipelineController)
         self.mock_telegram_bot = MagicMock(spec=CustomTelegramBot)
-        
+
         # Mock StrategyManager to verify DI
         self.mock_strategy_manager = MagicMock(spec=StrategyManager)
 
@@ -40,10 +40,10 @@ class TestSignalGenerator(unittest.TestCase):
                 custom_telegram_bot=self.mock_telegram_bot,
                 strategy_manager=self.mock_strategy_manager,
             )
-            
+
             # Assert the injected instance is used
             self.assertIs(sg.strategy_manager, self.mock_strategy_manager)
-            
+
             # Assert StrategyManager wasn't re-instantiated (implied by identity check,
             # but usually verified by ensuring 'new' call didn't happen if we mocked class)
 
@@ -58,7 +58,7 @@ class TestSignalGenerator(unittest.TestCase):
                     custom_telegram_bot=self.mock_telegram_bot,
                     strategy_manager=None,
                 )
-                
+
                 # Assert a new StrategyManager was instantiated
                 MockSM.assert_called_once()
                 self.assertIsNotNone(sg.strategy_manager)
@@ -72,21 +72,21 @@ class TestSignalGenerator(unittest.TestCase):
                 custom_telegram_bot=self.mock_telegram_bot,
                 strategy_manager=self.mock_strategy_manager,
             )
-            
+
             # Setup data
             test_index = Index(timestamp=1000, index_type=IndexType.SMA, data={60: 100.0})
-            
+
             # We want to test the body of the loop. Since it's a while True that catches Exception,
             # we will raise a BaseException (which is not caught by `except Exception:`) to break the loop.
             class StopLoopException(BaseException):
                 pass
-            
+
             self.mock_data_pipeline.pop.side_effect = [test_index, StopLoopException("Stop")]
-            
+
             # Catch the exception we threw to break the loop
             with self.assertRaises(StopLoopException):
                 sg.get_data()
-            
+
             # Verify the indicator was updated
             self.assertEqual(sg.indicators[IndexType.SMA], test_index)
 
@@ -99,10 +99,10 @@ class TestSignalGenerator(unittest.TestCase):
                 custom_telegram_bot=self.mock_telegram_bot,
                 strategy_manager=self.mock_strategy_manager,
             )
-            
+
             test_signal = Signal(signal=TradeSignal.LONG_TERM_BUY)
             sg.push_signal(test_signal)
-            
+
             self.mock_signal_pipeline.push.assert_called_once_with(test_signal)
 
 
