@@ -95,21 +95,21 @@ A personal crypto trading bot project built to automate trading strategies using
 
 <!-- [![Product Name Screen Shot][product-screenshot]](https://example.com) -->
 
-This bot connects to the MEXC Broker via WebSocket, processes market data, and is desinged to execute trades based on predefined strategies. Currently under development, with order placement and strategy refinedment in progress.
+This bot connects to Cryptocurrency Exchanges (Binance and MEXC) via WebSocket, processes market data in real-time, and executes trades based on a highly optimized **Weighted Signal Density & Consensus (WSDC)** strategy. 
 
-It is not a high-frequency trading system; rather, it is a simple tool that will execute orders based on a trading strategy I have been used.
-Potentially, a high frequency trading can be developed in the future based on the needs.
+It is designed as an "Always-in-Market" trend-following system. It utilizes a multi-threaded architecture to separate data ingestion, technical indicator processing, and trade orchestration to maximize speed and reliability.
 
-Recently deployed v1_0 on my home server.
+Currently, the bot is successfully deployed and running 24/7 on **Google Cloud Platform (GCP)** via Container-Optimized OS.
 
 ---
 
 ## 🛠️ Features
-- Real-time market data fetching via websocket api.
-- Strategy logic for automated decision-making.
-- Future support for order placement.
-- Modular design for testing and expansion.
-- Order placement is enabled on Binance Broker.
+- **WSDC Trading Brain**: Utilizes Weighted Signal Density & Consensus to mathematically filter out market noise and liquidation wicks.
+- **Ultra-Fast Vectorized Backtesting**: Custom Numpy/Pandas grid-search optimizer to simulate months of OHLC data in seconds to find the perfect strategy thresholds.
+- **Cloud-Native Deployment**: Containerized for Google Cloud Platform (Artifact Registry & Compute Engine).
+- **Multi-Threaded Architecture**: Independent threads for WebSocket data fetching, signal generation, and trade execution.
+- **Live Trading**: Fully automated order placement (Market/Reversal) on Binance Futures.
+- **Telegram Integration**: Real-time push notifications for every trade execution.
 
 <!-- <p align="right">(<a href="#readme-top">back to top</a>)</p> -->
 ---
@@ -127,15 +127,15 @@ Recently deployed v1_0 on my home server.
 
 ## 🧰 Tech Stack
 
-* **Lanauge**: [![Python3][Python3-img]][Python3-url]
-* **Exchange**: MEXC, Binance
-* **libraires**:
+* **Language**: [![Python3][Python3-img]][Python3-url]
+* **Exchanges**: Binance (Futures), MEXC
+* **Libraries**:
   * [![Pandas][Pandas-img]][Pandas-url]
   * [![NumPy][Numpy-img]][Numpy-url]
-* **Tools**:
-  * [![Jupyter Notebook][Jupyter-img]][Jupyter-url]
-  * Github Actions (CI)
-  * Docker
+* **Infrastructure**:
+  * Google Cloud Platform (Artifact Registry, Compute Engine)
+  * Docker (Container-Optimized OS)
+  * Github Actions (CI - Planned)
 
 <!-- <p align="right">(<a href="#readme-top">back to top</a>)</p> -->
 
