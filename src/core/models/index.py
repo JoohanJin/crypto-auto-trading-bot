@@ -1,7 +1,6 @@
+import time
 from dataclasses import dataclass, field
 from enum import IntFlag
-import time
-from typing import Dict
 
 
 class IndexType(IntFlag):
@@ -38,7 +37,7 @@ class Index:
     }
     '''
     index_type: IndexType
-    data: Dict[str, Dict[int, float]]
+    data: dict[str, dict[int, float]]
     timestamp: int = field(default_factory=lambda: int(time.time() * 1_000))
 
     @classmethod

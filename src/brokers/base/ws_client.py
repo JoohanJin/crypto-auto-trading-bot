@@ -18,7 +18,6 @@ class WebSocketClient(ABC):
         name: str,
     ) -> None:
         self.name: str = name
-        return
 
     @classmethod
     @abstractmethod

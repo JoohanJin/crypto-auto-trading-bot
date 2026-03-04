@@ -6,6 +6,7 @@ import pandas as pd
 # Custom Library
 from src.infrastructure.logging.set_logger import get_adapter, get_logger
 
+
 logger = get_logger(__name__)
 
 
@@ -65,15 +66,15 @@ class DataSaver:
             self.logger.info("[SUCCESS] DataSaver.write() | Response Type: CSV")
 
         except FileNotFoundError as e:
-            self.logger.error(f"[DATA_SAVE_ERROR] write() | Error: FileNotFoundError: {str(e)}")
+            self.logger.error(f"[DATA_SAVE_ERROR] write() | Error: FileNotFoundError: {e!s}")
         except PermissionError as e:
-            self.logger.error(f"[DATA_SAVE_ERROR] write() | Error: PermissionError: {str(e)}")
+            self.logger.error(f"[DATA_SAVE_ERROR] write() | Error: PermissionError: {e!s}")
         except AttributeError as e:
-            self.logger.error(f"[DATA_SAVE_ERROR] write() | Error: AttributeError: {str(e)}")
+            self.logger.error(f"[DATA_SAVE_ERROR] write() | Error: AttributeError: {e!s}")
         except OSError as e:
-            self.logger.error(f"[DATA_SAVE_ERROR] write() | Error: OSError: {str(e)}")
+            self.logger.error(f"[DATA_SAVE_ERROR] write() | Error: OSError: {e!s}")
         except Exception as e:
-            self.logger.error(f"[DATA_SAVE_ERROR] write() | Error: {type(e).__name__}: {str(e)}")
+            self.logger.error(f"[DATA_SAVE_ERROR] write() | Error: {type(e).__name__}: {e!s}")
 
 
 # Test Code Run Zone

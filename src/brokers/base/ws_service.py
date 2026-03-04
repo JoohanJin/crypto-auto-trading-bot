@@ -1,10 +1,12 @@
 # Built-in Library
-from abc import ABC, abstractmethod
-import time
 import threading
+import time
+from abc import ABC, abstractmethod
+
 import websocket
 
-from src.infrastructure.logging.set_logger import get_logger, get_adapter
+from src.infrastructure.logging.set_logger import get_adapter, get_logger
+
 
 logger = get_logger(__name__)
 
@@ -56,7 +58,6 @@ class WebSocket(ABC):
         # threads list
         self.threads: list[threading.Thread] = []
 
-        return
 
     '''
     ####################################################################################

@@ -1,14 +1,15 @@
 # Standard Library
-import requests
-import hmac
 import hashlib
+import hmac
 import time
-from typing import Any, Union, Literal, Type, TypeVar
 from abc import ABC, abstractmethod
+from typing import Any, Literal, TypeVar
+
+import requests
 from pydantic import BaseModel, ValidationError
 
 # Logger
-from src.infrastructure.logging.set_logger import get_logger, get_adapter
+from src.infrastructure.logging.set_logger import get_adapter, get_logger
 
 
 logger = get_logger(__name__)
@@ -34,7 +35,7 @@ class HttpService(ABC):
     def parse_response(
         self,
         response: requests.Response,
-        model: Type[TBaseModel] | None = None,
+        model: type[TBaseModel] | None = None,
     ) -> TBaseModel | list[TBaseModel] | dict[str, Any] | list[Any] | str | None:
         """Parse an HTTP response into structured data.
 
@@ -67,11 +68,11 @@ class HttpService(ABC):
         except ValidationError as e:  # pragma: no cover - pydantic detail
             self.logger.critical(
                 f"[INVALID_RESPONSE] parse_response() | Expected: {model.__name__} | "
-                f"Error: {type(e).__name__}: {str(e)}"
+                f"Error: {type(e).__name__}: {e!s}"
             )
 
             raise ValueError(
-                f"{__name__} - {self.__class__.__name__} - {self.name} - Failed to parse response into {model.__name__}: {str(e)}"
+                f"{__name__} - {self.__class__.__name__} - {self.name} - Failed to parse response into {model.__name__}: {e!s}"
             ) from e
 
         self.logger.critical(
@@ -100,9 +101,8 @@ class HttpService(ABC):
 
         # Class-Level Logger
         self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
-        
+
         self.logger.info(f"[SERVICE_INIT] {self.name} initialized")
-        return
 
     def set_content_type(
         self,
@@ -147,12 +147,7 @@ class HttpService(ABC):
     @abstractmethod
     def call(
         self,
-        method: Union[
-            Literal["GET"],
-            Literal["POST"],
-            Literal["PUT"],
-            Literal["DELETE"],
-        ],
+        method: Literal["GET"] | Literal["POST"] | Literal["PUT"] | Literal["DELETE"],
         url: str,
         api_key_title: str,
         params: dict | None = None,

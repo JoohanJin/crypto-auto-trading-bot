@@ -1,20 +1,23 @@
 # STANDARD LIBRARY
 import threading
-from pathlib import Path
-from typing import Any, Callable
 import time
+from collections.abc import Callable
+from pathlib import Path
+from typing import Any
+
+from src.core.models.index import Index, IndexType
+from src.core.models.signal import Signal, TradeSignal
 
 # CUSTOM LIBRARY
-from src.infrastructure.logging.set_logger import get_logger, get_adapter
-from src.core.models.index import IndexType, Index
-from src.core.models.signal import TradeSignal, Signal
+from src.infrastructure.logging.set_logger import get_adapter, get_logger
 from src.strategy import (
+    StrategyCondition,
+    StrategyConfig,
     StrategyExecutor,
     StrategyFactory,
     StrategyFetcher,
-    StrategyConfig,
-    StrategyCondition,
 )
+
 
 logger = get_logger(__name__)
 
@@ -40,14 +43,13 @@ class StrategyManager:
                 thread.start()
                 logger.info(f"[THREAD_START] {thread.name} | Status: running")
             except RuntimeError as e:
-                logger.critical(f"[THREAD_ERROR] {thread.name} failed | Error: {type(e).__name__}: {str(e)}")
-                raise RuntimeError(f"Failed to start thread '{thread.name}': {str(e)}")
+                logger.critical(f"[THREAD_ERROR] {thread.name} failed | Error: {type(e).__name__}: {e!s}")
+                raise RuntimeError(f"Failed to start thread '{thread.name}': {e!s}")
             except Exception as e:
-                logger.critical(f"[THREAD_ERROR] {thread.name} failed | Error: {type(e).__name__}: {str(e)}")
+                logger.critical(f"[THREAD_ERROR] {thread.name} failed | Error: {type(e).__name__}: {e!s}")
                 raise Exception(
-                    f"Unexpected error starting thread: '{thread.name}': {str(e)}"
+                    f"Unexpected error starting thread: '{thread.name}': {e!s}"
                 )
-        return
 
     def __init__(
         self,
@@ -69,11 +71,11 @@ class StrategyManager:
         # shared data structure to store Timestamp of the previoius invokation of each signal.
         self.signal_timestamps: dict[str, int] = dict()
         self.signal_timestamps_lock: threading.Lock = threading.Lock()
-        
+
         # Statistics for heartbeat logging
         self.signal_counts: dict[str, int] = {}
         self.signal_counts_lock: threading.Lock = threading.Lock()
-        
+
         self.signal_window: int = signal_window
         self.threads: list[threading.Thread] = []
 
@@ -91,7 +93,6 @@ class StrategyManager:
         self.start()
 
         self.logger.info(f"[STRATEGY_INIT] {self.name} | Global Period: {self.sleep_interval} s| Status: ready")
-        return
 
     def start(self) -> None:
         # if this is the thread-based class
@@ -101,15 +102,15 @@ class StrategyManager:
     def push_signal(self, signal: Signal, details: str) -> None:
         try:
             self._push_signal_callback(signal)
-            
+
             # Update statistics
             with self.signal_counts_lock:
                 self.signal_counts[details] = self.signal_counts.get(details, 0) + 1
-                
+
             # Log at DEBUG level to reduce noise
             self.trading_logger.debug(f"[SIGNAL_GEN] Strategy: {details} | Signal: {signal.signal.name} | Status: success")
         except Exception as e:
-            self.logger.critical(f"[STRATEGY_ERROR] push_signal() | Error: {type(e).__name__}: {str(e)}")
+            self.logger.critical(f"[STRATEGY_ERROR] push_signal() | Error: {type(e).__name__}: {e!s}")
 
     def _thread_log_status(self) -> None:
         """
@@ -118,7 +119,7 @@ class StrategyManager:
         while True:
             try:
                 time.sleep(60)
-                
+
                 with self.signal_counts_lock:
                     if not self.signal_counts:
                         self.logger.info("[STRATEGY_STATS] No signals generated in last interval.")
@@ -126,9 +127,9 @@ class StrategyManager:
                         stats_str = ", ".join([f"{k}: {v}" for k, v in self.signal_counts.items()])
                         self.logger.info(f"[STRATEGY_STATS] Signal Counts (1m): {stats_str}")
                         self.signal_counts.clear()  # Reset for next interval
-                        
+
             except Exception as e:
-                self.logger.error(f"[STATUS_LOG_ERROR] Failed to log status | Error: {type(e).__name__}: {str(e)}")
+                self.logger.error(f"[STATUS_LOG_ERROR] Failed to log status | Error: {type(e).__name__}: {e!s}")
                 time.sleep(10)
 
     def _load_strategies(
@@ -166,7 +167,6 @@ class StrategyManager:
             sleep_interval=self.sleep_interval,
         )
 
-        return
 
     def __init_threads(self) -> None:
         """
@@ -292,10 +292,10 @@ class StrategyManager:
             if operator in ("cross_above", "cross_below"):
                 if previous_indicators is None:
                     return None
-                
+
                 prev_left = self._resolve_indicator_value(previous_indicators, left_cfg.get("indicator", ""), left_cfg.get("window"))
                 prev_right = self._resolve_indicator_value(previous_indicators, right_cfg.get("indicator", ""), right_cfg.get("window"))
-                
+
                 if prev_left is None or prev_right is None:
                     return None
 
@@ -381,7 +381,6 @@ class StrategyManager:
     ) -> None:
         with self.signal_timestamps_lock:
             self.signal_timestamps[key] = self.generate_timestamp()
-        return
 
     def __get_signal_timestamp(
         self,

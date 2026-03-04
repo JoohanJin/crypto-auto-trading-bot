@@ -23,15 +23,16 @@ SOFTWARE.
 """
 
 import argparse
+
 # Standard Library
 import sys
 import time
 
 # Custom Library
 from src import VERSION
-from src.infrastructure.logging.set_logger import (get_logger,
-                                                   set_global_log_level)
+from src.infrastructure.logging.set_logger import get_logger, set_global_log_level
 from src.infrastructure.system_manager import SystemManager
+
 
 logger = get_logger(__name__)
 
@@ -87,14 +88,13 @@ def main():
         logger.warning("[APP_SHUTDOWN] User interrupt received | Action: graceful shutdown")
         sys.exit(0)
     except RuntimeError as e:
-        logger.critical(f"[MAIN_RUNTIME_ERROR] RuntimeError | Error: RuntimeError: {str(e)}")
+        logger.critical(f"[MAIN_RUNTIME_ERROR] RuntimeError | Error: RuntimeError: {e!s}")
         sys.exit(1)
     except Exception as e:
         logger.critical(
-            f"[APP_STARTUP_ERROR] Unexpected error during startup | Error: {type(e).__name__}: {str(e)}"
+            f"[APP_STARTUP_ERROR] Unexpected error during startup | Error: {type(e).__name__}: {e!s}"
         )
         sys.exit(1)
-    return
 
 
 if __name__ == "__main__":

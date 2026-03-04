@@ -10,7 +10,6 @@ class ScoreMapper:
             TradeSignal.LONG_TERM_SELL: -5,
             TradeSignal.HOLD: 0,
         }
-        return
 
     def map(
         self,

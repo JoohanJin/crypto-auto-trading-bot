@@ -1,11 +1,13 @@
-import time
 import threading
-import pandas as pd
+import time
 from queue import Queue
 
-from src.interfaces.websocket_interface import WebSocketInterface
-from src.infrastructure.logging.set_logger import get_logger, get_adapter
+import pandas as pd
+
 from src.core.models.service_dto import Ticker
+from src.infrastructure.logging.set_logger import get_adapter, get_logger
+from src.interfaces.websocket_interface import WebSocketInterface
+
 
 logger = get_logger(__name__)
 
@@ -30,27 +32,25 @@ class DataCollector:
     ) -> None:
         self.name: str = name if name else "DATA_COLLECTOR"
         self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
-        
+
         self.wsi: WebSocketInterface = websocket_interface
         time.sleep(1)
 
         # Initialize DataFrame with explicit schema to avoid FutureWarning
         self.price_data: pd.DataFrame = price_data
-        
+
         self.lock_price_data: threading.Lock = lock_price_data
 
         self.threads: list[threading.Thread] = []
         self._stop: threading.Event = threading.Event()
 
         self.price_fetch_buffer: Queue = Queue()
-        return
 
     def start(self) -> None:
         self.wsi.ticker(callback = self._put_ticker_data)
 
         self.__initialize_threads()
         self.__start_threads()
-        return
 
     def stop(self) -> None:
         """
@@ -60,7 +60,6 @@ class DataCollector:
         self._stop.set()
         # Unblock the get() call in the background thread
         self.price_fetch_buffer.put(None)
-        return
 
     def __initialize_threads(self) -> None:
         try:
@@ -78,11 +77,10 @@ class DataCollector:
                 ]
             )
         except (RuntimeError, TypeError, AttributeError, MemoryError) as e:
-            self.logger.error(f"[THREAD_ERROR] fail to make instances for the thread: {str(e)}")
+            self.logger.error(f"[THREAD_ERROR] fail to make instances for the thread: {e!s}")
         except Exception as e:
-            self.logger.critical(f"[THREAD_ERROR] Unexpected error constructing thread pool - {str(e)}")
+            self.logger.critical(f"[THREAD_ERROR] Unexpected error constructing thread pool - {e!s}")
 
-        return
 
     def __start_threads(self) -> None:
         """
@@ -100,14 +98,13 @@ class DataCollector:
                 thread.start()
                 self.logger.info(f"[THREAD_START] {thread.name} | Status: running")
             except RuntimeError as e:
-                self.logger.critical(f"[THREAD_ERROR] {thread.name} failed | Error: {type(e).__name__}: {str(e)}")
+                self.logger.critical(f"[THREAD_ERROR] {thread.name} failed | Error: {type(e).__name__}: {e!s}")
                 raise RuntimeError
             except Exception as e:
                 self.logger.critical(
-                    f"[THREAD_ERROR] Unexpected error starting thread: '{thread.name}': {str(e)}"
+                    f"[THREAD_ERROR] Unexpected error starting thread: '{thread.name}': {e!s}"
                 )
                 raise
-        return
 
     """
     ######################################################################################################################
@@ -141,7 +138,7 @@ class DataCollector:
             return
         except Exception as e:
             self.logger.critical(
-                f"[DATA_ERROR] _put_ticker_data() | Error: {type(e).__name__}: {str(e)}"
+                f"[DATA_ERROR] _put_ticker_data() | Error: {type(e).__name__}: {e!s}"
             )
         return
 
@@ -166,7 +163,7 @@ class DataCollector:
 
             return result
         except Exception as e:
-            self.logger.critical(f"[DATA_ERROR] _get_data_buffer() | Error: {type(e).__name__}: {str(e)}")
+            self.logger.critical(f"[DATA_ERROR] _get_data_buffer() | Error: {type(e).__name__}: {e!s}")
             return None
 
     # data fetcher
@@ -198,6 +195,5 @@ class DataCollector:
 
             except Exception as e:
                 self.logger.critical(
-                    f'[DATA_ERROR] _price_data_fetch() | Error: {type(e).__name__}: {str(e)}'
+                    f'[DATA_ERROR] _price_data_fetch() | Error: {type(e).__name__}: {e!s}'
                 )
-        return

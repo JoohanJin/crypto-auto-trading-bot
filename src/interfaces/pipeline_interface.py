@@ -1,8 +1,9 @@
-from typing import Generic, TypeVar
-from src.pipeline.base_pipeline import BasePipeline
 import time
+from typing import Generic, TypeVar
 
-from src.infrastructure.logging.set_logger import get_logger, get_adapter
+from src.infrastructure.logging.set_logger import get_adapter, get_logger
+from src.pipeline.base_pipeline import BasePipeline
+
 
 T = TypeVar('T')  # User Defined template
 logger = get_logger(__name__)
@@ -32,13 +33,12 @@ class PipelineController(Generic[T]):
         '''
         self.name: str = name if name else "PIPELINE_CONTROLLER"
         self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
-        
+
         # Let the programmer decides which operation to be used.
         self.pipeline: BasePipeline = pipeline  # ! DataPipeline or SignalPipeline -> Unified Registry?
         self.time_window: int = time_window
 
         self.logger.info(f"[SERVICE_INIT] {self.name} initialized")
-        return
 
     def push(
         self,
@@ -51,7 +51,7 @@ class PipelineController(Generic[T]):
             return True
         except Exception as e:
             self.logger.warning(
-                f"[DATA_ERROR] push() | Error: {type(e).__name__}: {str(e)}"
+                f"[DATA_ERROR] push() | Error: {type(e).__name__}: {e!s}"
             )
             return False
 
@@ -74,7 +74,7 @@ class PipelineController(Generic[T]):
             return None
         except Exception as e:
             # ! raise CustomException
-            self.logger.warning(f"[DATA_ERROR] pop() | Error: {type(e).__name__}: {str(e)}")
+            self.logger.warning(f"[DATA_ERROR] pop() | Error: {type(e).__name__}: {e!s}")
             raise  # ! raise the custom exception
 
     def check_data_validity(

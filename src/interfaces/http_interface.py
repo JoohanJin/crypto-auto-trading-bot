@@ -1,4 +1,6 @@
-from typing import Callable, Any
+from collections.abc import Callable
+from typing import Any
+
 from src.brokers.base.http_client import HttpClient
 from src.core.models.service_dto import AccountInformation, Ping, Position
 from src.interfaces.base.base_interface import BaseInterface
@@ -16,7 +18,7 @@ class HttpInterface(BaseInterface[HttpClientRegistry, HttpClient]):
             if client_registry
             else HttpClientRegistry(name=f"{name.upper()}_REGISTRY" if name else "HTTP_CLIENT_INTERFACE_REGISTRY")
         )
-        
+
         super().__init__(
             client_registry=registry,
             name=name.upper() if name else "HTTP_CLIENT_INTERFACE"
@@ -57,10 +59,10 @@ class HttpInterface(BaseInterface[HttpClientRegistry, HttpClient]):
                     result_key = result_key_extractor(response)
                     results[result_key] = response
             except Exception as e:
-                self.logger.error(f"[SERVICE_INIT_ERROR] {key} | Failed to execute {method_name} | Error: {type(e).__name__}: {str(e)}")
+                self.logger.error(f"[SERVICE_INIT_ERROR] {key} | Failed to execute {method_name} | Error: {type(e).__name__}: {e!s}")
 
         return results
-    
+
     def ping(self) -> dict[str, Ping]:
         return self._execute_on_all_clients(
             method_name="ping",

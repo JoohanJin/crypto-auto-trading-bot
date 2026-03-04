@@ -1,15 +1,19 @@
 # Standard Library
 import time
-from typing import Callable, Literal, Union
+from collections.abc import Callable
+from typing import Literal
 
 # WebSocket
 from src.brokers.base.ws_client import WebSocketClient
 from src.brokers.mexc.ws_gateway import MexcWebSocket
+
 # Models
 from src.core.models.service_dto import OrderBook, Ticker
 from src.core.models.trade import TradePair
+
 # Logger
 from src.infrastructure.logging.set_logger import get_adapter, get_logger
+
 
 logger = get_logger(__name__)
 
@@ -40,7 +44,6 @@ class MexcWebSocketClient(WebSocketClient):
             ping_interval=ping_interval,
             default_callback=default_callback,
         )
-        return
 
     def start(self) -> None:
         try:
@@ -50,9 +53,8 @@ class MexcWebSocketClient(WebSocketClient):
             )
         except Exception as e:
             self.logger.info(
-                f"[WS_OPEN] MexC | Error: {type(e).__name__}: {str(e)}"
+                f"[WS_OPEN] MexC | Error: {type(e).__name__}: {e!s}"
             )
-        return
 
     @classmethod
     def _parse_trade_pair(
@@ -104,7 +106,6 @@ class MexcWebSocketClient(WebSocketClient):
         """
         topic = "tickers"
         self.ws.subscribe(topic=topic, callback=callback, param={})
-        return
 
     # Essential Function
     def ticker(
@@ -141,7 +142,6 @@ class MexcWebSocketClient(WebSocketClient):
                 param=param,
             ),
         )
-        return
 
     def deal(
         self,
@@ -161,7 +161,6 @@ class MexcWebSocketClient(WebSocketClient):
                 param=param,
             ),
         )
-        return
 
     def order_book(
         self,
@@ -181,7 +180,6 @@ class MexcWebSocketClient(WebSocketClient):
                 bids=[],
             )
             callback(depth_dto)
-            return
 
         topic = "depth"
         self.ws.subscribe(
@@ -192,24 +190,12 @@ class MexcWebSocketClient(WebSocketClient):
                 param=param,
             ),
         )
-        return
 
     def kline(
         self,
         callback: Callable,
         trade_pair: TradePair | None = None,
-        interval: Union[
-            Literal["Min1"],
-            Literal["Min5"],
-            Literal["Min15"],
-            Literal["Min30"],
-            Literal["Min60"],
-            Literal["Hour4"],
-            Literal["Hour8"],
-            Literal["Day1"],
-            Literal["Week1"],
-            Literal["Month1"],
-        ] | None = "Min1",
+        interval: Literal["Min1"] | Literal["Min5"] | Literal["Min15"] | Literal["Min30"] | Literal["Min60"] | Literal["Hour4"] | Literal["Hour8"] | Literal["Day1"] | Literal["Week1"] | Literal["Month1"] | None = "Min1",
     ):
         """
         - Get the k-line data of the contract and keep updating.
@@ -230,7 +216,6 @@ class MexcWebSocketClient(WebSocketClient):
         param = dict(symbol=symbol, interval=interval)
         topic = "kline"
         self.ws.subscribe(topic=topic, callback=callback, param=param)
-        return
 
     def funding_rate(
         self,
@@ -250,7 +235,6 @@ class MexcWebSocketClient(WebSocketClient):
                 param=param,
             ),
         )
-        return
 
     def index_price(
         self,
@@ -270,7 +254,6 @@ class MexcWebSocketClient(WebSocketClient):
                 param=param,
             ),
         )
-        return
 
     def fair_price(
         self,
@@ -290,7 +273,6 @@ class MexcWebSocketClient(WebSocketClient):
                 param=param,
             ),
         )
-        return
 
     """
     ####################################################################################
@@ -325,7 +307,6 @@ class MexcWebSocketClient(WebSocketClient):
                 param=param,
             ),
         )
-        return
 
     def asset(
         self,
@@ -353,7 +334,6 @@ class MexcWebSocketClient(WebSocketClient):
             callback=callback,
             param=param,
         )
-        return None
 
     def position(
         self,
@@ -362,7 +342,6 @@ class MexcWebSocketClient(WebSocketClient):
     ) -> None:
         # TODO: Need to implement the position function
         raise NotImplementedError
-        return
 
     def risk_limitation(
         self,
@@ -371,7 +350,6 @@ class MexcWebSocketClient(WebSocketClient):
     ) -> None:
         # TODO: Need to implement the risk_limitation function
         raise NotImplementedError
-        return
 
     def adl(
         self,
@@ -380,7 +358,6 @@ class MexcWebSocketClient(WebSocketClient):
     ) -> None:
         # TODO: Need to implement the adl function
         raise NotImplementedError
-        return
 
     def position_mode(
         self,
@@ -389,13 +366,11 @@ class MexcWebSocketClient(WebSocketClient):
     ) -> None:
         # TODO: Need to implement the position_mode function
         raise NotImplementedError
-        return
 
 
 if __name__ == "__main__":
     def print_msg(msg):
         print(msg)
-        return
 
     mwc = MexcWebSocketClient(default_callback=print_msg)
     mwc.start()
