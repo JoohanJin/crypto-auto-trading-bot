@@ -12,7 +12,6 @@ from cryptography.hazmat.primitives.serialization import load_pem_private_key
 from src.brokers.base.ws_service import WebSocket
 from src.infrastructure.logging.set_logger import get_adapter, get_logger
 
-
 logger = get_logger(__name__)
 
 
@@ -50,7 +49,7 @@ class BinanceUserWebSocket(WebSocket):
             )
 
         # callback function map based on the topics
-        self.callbacks_lock : threading.Lock = threading.Lock()
+        self.callbacks_lock: threading.Lock = threading.Lock()
         self.callbacks: dict[str | int, Callable] = {}
 
         self.subscriptions_lock: threading.Lock = threading.Lock()
@@ -189,6 +188,7 @@ class BinanceUserWebSocket(WebSocket):
     # Threads
     #######################
     '''
+
     def _initialize_threads(self) -> None:
         self.threads.append(
             threading.Thread(
@@ -296,6 +296,7 @@ class BinanceUserWebSocket(WebSocket):
     #                                    Overriden                                     #
     ####################################################################################
     '''
+
     def connect(self) -> None:
         self._initialize_threads()
         self._start_threads()
@@ -322,12 +323,11 @@ class BinanceUserWebSocket(WebSocket):
             "params": params,
         }
 
-        with self.callbacks_lock :
+        with self.callbacks_lock:
             self.callbacks[id] = callback_function
 
         with self.subscriptions_lock:
             self.subscriptions[id] = payload
-
 
     def unsubscribe(self) -> None:
         return
@@ -367,6 +367,7 @@ class BinanceUserWebSocket(WebSocket):
     #                           Overriden - WebSocketApp                               #
     ####################################################################################
     '''
+
     def on_open(
         self,
         ws: websocket.WebSocketApp,
@@ -382,7 +383,7 @@ class BinanceUserWebSocket(WebSocket):
         method_id = data.get("id")
 
         if method_id and isinstance(method_id, int):
-            with self.callbacks_lock :
+            with self.callbacks_lock:
                 callback = self.callbacks.get(method_id, None)
 
             if isinstance(callback, Callable):
@@ -436,6 +437,7 @@ class BinanceUserWebSocket(WebSocket):
     #                                    WebSocketApp                                  #
     ####################################################################################
     '''
+
     def _construct_wsa(
         self,
         on_open: Callable | None = None,
@@ -449,7 +451,7 @@ class BinanceUserWebSocket(WebSocket):
             (on_open or self.on_open)(ws)
 
         return websocket.WebSocketApp(
-            url = self.url,
+            url=self.url,
             on_open=on_open_wrapper,
             on_close=on_close or self.on_close,
             on_message=on_message or self.on_message,
@@ -467,6 +469,7 @@ class BinanceMarketWebSocket(WebSocket):
     - Topic-based callbacks: callbacks[stream_name] (persistent)
     Stream format: "symbol@streamType" e.g., "btcusdt@ticker", "ethusdt@depth"
     """
+
     def __repr__(self):
         return f"BINANCE_{self.__class__.__name__}: {self.name}"
 
@@ -550,6 +553,7 @@ class BinanceMarketWebSocket(WebSocket):
     #                                    Threads                                       #
     ####################################################################################
     '''
+
     def _initialize_threads(self) -> None:
         """Initialize connection thread. No polling needed for push-based streams."""
         self.threads.append(
@@ -602,6 +606,7 @@ class BinanceMarketWebSocket(WebSocket):
     #                                    Overriden                                     #
     ####################################################################################
     '''
+
     def connect(self) -> None:
         self._initialize_threads()
         self._start_threads()
@@ -671,7 +676,6 @@ class BinanceMarketWebSocket(WebSocket):
             self.logger.warning(
                 f"[WS_SUBSCRIBE] Binance | Error: {type(e).__name__}: {e!s}"
             )
-
 
     def unsubscribe(
         self,
@@ -793,6 +797,7 @@ class BinanceMarketWebSocket(WebSocket):
     #                           Overriden - WebSocketApp                               #
     ####################################################################################
     '''
+
     def on_open(self, ws: websocket.WebSocketApp) -> None:
         self.logger.info(
             f"[WS_OPEN] Binance | URL: {ws.url} | Status: opened"
@@ -904,6 +909,7 @@ class BinanceMarketWebSocket(WebSocket):
     #                                    WebSocketApp                                  #
     ####################################################################################
     '''
+
     def _construct_wsa(
         self,
         on_open: Callable | None = None,
