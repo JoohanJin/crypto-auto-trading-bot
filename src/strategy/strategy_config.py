@@ -1,6 +1,6 @@
 # STANDARD LIBRARY
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 # CUSTOM LIBRARY
 from src.core.models.index import IndexType
@@ -12,10 +12,10 @@ from src.strategy.strategy_condition import StrategyCondition
 class StrategyConfig:
     name: str
     enabled: bool
-    indicators: List[IndexType]
+    indicators: list[IndexType]
     verify_freshness: bool
-    conditions: List[StrategyCondition]
+    conditions: list[StrategyCondition]
     signal_type: TradeSignal
     signal_window: int
-    parameters: Optional[Dict[str, Any]] = None
+    parameters: dict[str, Any] | None = None
     description: str | None = None

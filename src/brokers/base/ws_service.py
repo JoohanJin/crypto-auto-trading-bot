@@ -1,10 +1,16 @@
 # Built-in Library
-from abc import ABC, abstractmethod
 import time
-import threading
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
+
 import websocket
 
-from src.infrastructure.logging.set_logger import get_logger, get_adapter
+from src.infrastructure.logging.set_logger import get_adapter, get_logger
+
+
+if TYPE_CHECKING:
+    import threading
+
 
 logger = get_logger(__name__)
 
@@ -56,7 +62,6 @@ class WebSocket(ABC):
         # threads list
         self.threads: list[threading.Thread] = []
 
-        return
 
     '''
     ####################################################################################

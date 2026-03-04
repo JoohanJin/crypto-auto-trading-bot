@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from dataclasses import dataclass
 
 from src.core.models.base import ImmutableModel, Side, TradePair

@@ -12,5 +12,4 @@ class WebSocketClientRegistry(BaseClientRegistry[WebSocketClient]):
                 if hasattr(self._registry[key], 'start'):
                     self._registry[key].start()
             except Exception as e:
-                self.logger.warning(f"[SERVICE_INIT_ERROR] {key} | Failed to start | Error: {type(e).__name__}: {str(e)}")
-        return
+                self.logger.warning(f"[SERVICE_INIT_ERROR] {key} | Failed to start | Error: {type(e).__name__}: {e!s}")

@@ -4,15 +4,16 @@ from __future__ import annotations
 
 from src.core.exceptions.basic_exceptions import BasicException
 
+
 # TODO: can implement some custom error code as well.
 __all__ = [
-    "TradingException",  # For Uncategorized Trading Exception
-    "OrderPlacementError",
-    "OrderCancellationError",
-    "PositionNotFoundError",
     "InsufficientBalanceError",
+    "OrderCancellationError",
+    "OrderPlacementError",
+    "PositionNotFoundError",
     "PriceFetchError",
     "TradeConfigurationError",
+    "TradingException",  # For Uncategorized Trading Exception
 ]
 
 

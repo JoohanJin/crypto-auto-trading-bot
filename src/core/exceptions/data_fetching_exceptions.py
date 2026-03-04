@@ -1,5 +1,6 @@
 from src.core.exceptions.basic_exceptions import BasicException
 
+
 __all__ = ["DataFetchingException"]
 
 

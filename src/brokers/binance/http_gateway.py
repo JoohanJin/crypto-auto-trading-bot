@@ -1,11 +1,13 @@
 # Standard Library
-from typing import Union, Literal
-from urllib.parse import urlencode
 import json
+from typing import Literal
+from urllib.parse import urlencode
+
+from src.brokers.base.http_service import HttpService
 
 # Custom Library
-from src.infrastructure.logging.set_logger import get_logger, get_adapter
-from src.brokers.base.http_service import HttpService
+from src.infrastructure.logging.set_logger import get_adapter, get_logger
+
 
 logger = get_logger(__name__)
 
@@ -33,16 +35,10 @@ class BinanceFutureGateway(HttpService):
         self.logger = get_adapter(logger, f"{self.__class__.__name__}_{self.name}")
         # Set the specific content type for Binance
         self.set_content_type("application/x-www-form-urlencoded")
-        return
 
     def call(
         self,
-        method: Union[
-            Literal["GET"],
-            Literal["POST"],
-            Literal["PUT"],
-            Literal["DELETE"],
-        ],
+        method: Literal["GET"] | Literal["POST"] | Literal["PUT"] | Literal["DELETE"],
         url: str,
         api_key_title: str = "X-MBX-APIKEY",
         params: dict | None = None,
@@ -95,35 +91,35 @@ class BinanceFutureGateway(HttpService):
 
                 if status == 400:
                     self.logger.critical(
-                        f"[BROKER_ERROR] Binance | Status: {status} | Error: BadRequest: {str(error_msg)}"
+                        f"[BROKER_ERROR] Binance | Status: {status} | Error: BadRequest: {error_msg!s}"
                     )
                 elif status == 401:
                     self.logger.critical(
-                        f"[BROKER_ERROR] Binance | Status: {status} | Error: Unauthorized: {str(error_msg)}"
+                        f"[BROKER_ERROR] Binance | Status: {status} | Error: Unauthorized: {error_msg!s}"
                     )
                 elif status == 403:
                     self.logger.critical(
-                        f"[BROKER_ERROR] Binance | Status: {status} | Error: Forbidden: {str(error_msg)}"
+                        f"[BROKER_ERROR] Binance | Status: {status} | Error: Forbidden: {error_msg!s}"
                     )
                 elif status == 404:
                     self.logger.critical(
-                        f"[BROKER_ERROR] Binance | Status: {status} | Error: NotFound: {str(error_msg)}"
+                        f"[BROKER_ERROR] Binance | Status: {status} | Error: NotFound: {error_msg!s}"
                     )
                 elif status == 418:
                     self.logger.critical(
-                        f"[BROKER_ERROR] Binance | Status: {status} | Error: RateLimitBan: {str(error_msg)}"
+                        f"[BROKER_ERROR] Binance | Status: {status} | Error: RateLimitBan: {error_msg!s}"
                     )
                 elif status == 429:
                     self.logger.critical(
-                        f"[BROKER_ERROR] Binance | Status: {status} | Error: TooManyRequests: {str(error_msg)}"
+                        f"[BROKER_ERROR] Binance | Status: {status} | Error: TooManyRequests: {error_msg!s}"
                     )
                 elif 500 <= status < 600:
                     self.logger.critical(
-                        f"[BROKER_ERROR] Binance | Status: {status} | Error: ServerError: {str(error_msg)}"
+                        f"[BROKER_ERROR] Binance | Status: {status} | Error: ServerError: {error_msg!s}"
                     )
                 else:
                     self.logger.critical(
-                        f"[BROKER_ERROR] Binance | Status: {status} | Error: ClientError: {str(error_msg)}"
+                        f"[BROKER_ERROR] Binance | Status: {status} | Error: ClientError: {error_msg!s}"
                     )
 
                 raise Exception(error_msg)
@@ -133,5 +129,5 @@ class BinanceFutureGateway(HttpService):
             response.raise_for_status()
             return None
         except Exception as e:
-            self.logger.critical(f"[BROKER_ERROR] Binance | Error: {type(e).__name__}: {str(e)}")
+            self.logger.critical(f"[BROKER_ERROR] Binance | Error: {type(e).__name__}: {e!s}")
             return None

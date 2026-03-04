@@ -1,5 +1,4 @@
 import time
-from typing import Dict
 
 from src.core.models.index import Index, IndexType
 
@@ -23,11 +22,11 @@ class IndexFactory:
 
     def generate_index(
         self,
-        index: Dict[str, int | IndexType | Dict[int, float]],
+        index: dict[str, int | IndexType | dict[int, float]],
     ) -> Index | None:
         timestamp: int = index.get("timestamp", IndexFactory.generate_timestamp())
-        index_type: IndexType | None = index.get("type", None)
-        data: Dict[int, float] | None = index.get("data", None)
+        index_type: IndexType | None = index.get("type")
+        data: dict[int, float] | None = index.get("data")
 
         if (index_type and data):
             return Index(

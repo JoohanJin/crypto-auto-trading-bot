@@ -1,11 +1,12 @@
 # Standard Library
 import queue
-from typing import Dict
+
+from src.core.models.index import Index
 
 # CUSTOM LIBRARY
-from src.infrastructure.logging.set_logger import get_logger, get_adapter
-from src.core.models.index import Index
+from src.infrastructure.logging.set_logger import get_adapter, get_logger
 from src.pipeline.base_pipeline import BasePipeline
+
 
 logger = get_logger(__name__)
 
@@ -50,11 +51,10 @@ class DataPipeline(BasePipeline[Index]):  # TODO: Make the object for th Data ob
 
         self.logger.info(f"[COMPONENT_INIT] {self.name} | Status: active")
 
-        return
 
     def push(
         self,
-        data: Dict[str, int | str | Dict[int, float]],
+        data: dict[str, int | str | dict[int, float]],
         block: bool = False,
         timeout: int = 1,  # 1 second
     ) -> bool:
@@ -86,10 +86,10 @@ class DataPipeline(BasePipeline[Index]):  # TODO: Make the object for th Data ob
             )
             return True
         except queue.Full:
-            self.logger.warning(f"[DATA_ERROR] push() | Error: Queue is full")
+            self.logger.warning("[DATA_ERROR] push() | Error: Queue is full")
             return False
         except Exception as e:
-            self.logger.warning(f"[DATA_ERROR] push() | Error: {type(e).__name__}: {str(e)}")
+            self.logger.warning(f"[DATA_ERROR] push() | Error: {type(e).__name__}: {e!s}")
             return False
 
     def pop(
@@ -117,8 +117,8 @@ class DataPipeline(BasePipeline[Index]):  # TODO: Make the object for th Data ob
         try:
             return self.queue.get(block=block, timeout=timeout)
         except queue.Empty:
-            self.logger.warning(f"[DATA_ERROR] pop() | Error: Queue is empty")
+            self.logger.warning("[DATA_ERROR] pop() | Error: Queue is empty")
             return None
         except Exception as e:
-            self.logger.warning(f"[DATA_ERROR] pop() | Error: {type(e).__name__}: {str(e)}")
+            self.logger.warning(f"[DATA_ERROR] pop() | Error: {type(e).__name__}: {e!s}")
             return None

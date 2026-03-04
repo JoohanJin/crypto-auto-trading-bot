@@ -1,21 +1,23 @@
-from collections.abc import Callable
 import time
-from typing import Literal, Union
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Literal
 
-# Logger
-from src.infrastructure.logging.set_logger import get_logger, get_adapter
+from src.brokers.base.ws_client import WebSocketClient
+
+# WebSocket
+from src.brokers.binance.ws_gateway import BinanceMarketWebSocket, BinanceUserWebSocket
 
 # Custom Models
 from src.core.models.service_dto import Ticker
 from src.core.models.trade import TradePair
 
-# WebSocket
-from src.brokers.binance.ws_gateway import (
-    BinanceMarketWebSocket,
-    BinanceUserWebSocket
-)
-from src.brokers.base.ws_client import WebSocketClient
-from src.brokers.base.ws_service import WebSocket
+# Logger
+from src.infrastructure.logging.set_logger import get_adapter, get_logger
+
+
+if TYPE_CHECKING:
+    from src.brokers.base.ws_service import WebSocket
+
 
 logger = get_logger(__name__)
 
@@ -78,7 +80,6 @@ class BinanceWebSocketClient(WebSocketClient):
         # TradeWebSCoektClient - Connect to the private endpoint
         # self.wss["trade"]
 
-        return
 
     def _construct_trade_pair(self, symbol: str) -> TradePair:
         symbol_ticker: str = symbol[:len(symbol) - 4] if symbol else "BTC"
@@ -95,11 +96,10 @@ class BinanceWebSocketClient(WebSocketClient):
                 )
             except Exception as e:
                 self.logger.critical(
-                    f"[WS_OPEN] Binance | Error: {type(e).__name__}: {str(e)}"
+                    f"[WS_OPEN] Binance | Error: {type(e).__name__}: {e!s}"
                 )
 
         self._authenticate()
-        return
 
     '''
     ####################################################################################
@@ -113,7 +113,6 @@ class BinanceWebSocketClient(WebSocketClient):
         topic: str = "account.position",
     ) -> None:
         self._user_subscribe(callback, topic, trade_pair)
-        return
 
     '''
     ####################################################################################
@@ -137,7 +136,6 @@ class BinanceWebSocketClient(WebSocketClient):
         '''
         stream: str = f"@{req_topic}"
         self._market_subscribe(stream, push_topic, callback, trade_pair)
-        return
 
     def mark_price(
         self,
@@ -154,30 +152,8 @@ class BinanceWebSocketClient(WebSocketClient):
         callback: Callable,
         trade_pair: TradePair | None = None,
         req_topic: str = "continuousKline",
-        contract_type: Union[
-            Literal["perpetual"],
-            Literal["current_quarter"],
-            Literal["next_quarter"],
-            Literal["tradifi_perpetual"]
-        ] = "perpetual",
-        interval: Union[
-            Literal["1s"],
-            Literal["1m"],
-            Literal["3m"],
-            Literal["5m"],
-            Literal["15m"],
-            Literal["30m"],
-            Literal["1h"],
-            Literal["2h"],
-            Literal["4h"],
-            Literal["6h"],
-            Literal["8h"],
-            Literal["12h"],
-            Literal["1d"],
-            Literal["3d"],
-            Literal["1w"],
-            Literal["1M"],
-        ] = "1s",
+        contract_type: Literal["perpetual"] | Literal["current_quarter"] | Literal["next_quarter"] | Literal["tradifi_perpetual"] = "perpetual",
+        interval: Literal["1s"] | Literal["1m"] | Literal["3m"] | Literal["5m"] | Literal["15m"] | Literal["30m"] | Literal["1h"] | Literal["2h"] | Literal["4h"] | Literal["6h"] | Literal["8h"] | Literal["12h"] | Literal["1d"] | Literal["3d"] | Literal["1w"] | Literal["1M"] = "1s",
         push_topic: str = "continuous_kline",
     ) -> None:
         '''
@@ -191,7 +167,6 @@ class BinanceWebSocketClient(WebSocketClient):
         '''
         stream: str = f"_{contract_type}@{req_topic}_{interval}"
         self._market_subscribe(stream, push_topic, callback, trade_pair)
-        return
 
     def ticker(
         self,
@@ -208,7 +183,7 @@ class BinanceWebSocketClient(WebSocketClient):
         - push_topic: 24hrTicker
         '''
         def ticker_wrapper(msg: dict) -> None:
-            symbol: str = msg.get("s", None)
+            symbol: str = msg.get("s")
             trade_pair: TradePair = self._construct_trade_pair(symbol)
             ticker = Ticker(
                 ticker=trade_pair,
@@ -217,11 +192,9 @@ class BinanceWebSocketClient(WebSocketClient):
                 timestamp=int(msg.get("E", self.generate_timestamp()))
             )
             callback(ticker)
-            return
 
         stream: str = f"@{req_topic}"
         self._market_subscribe(stream, push_topic, ticker_wrapper, trade_pair)
-        return
 
     def order_book(
         self,
@@ -236,7 +209,6 @@ class BinanceWebSocketClient(WebSocketClient):
         '''
         stream: str = f"@{req_topic}"
         self._market_subscribe(stream, push_topic, callback, trade_pair)
-        return
 
     def partial_book_depth(self) -> None:
         raise NotImplementedError
@@ -277,7 +249,7 @@ class BinanceWebSocketClient(WebSocketClient):
             ws.subscribe(streams=stream, push_topic=push_topic, callback=callback)
             self.logger.info(f"[WS_SUBSCRIBE] Binance | Topic: {stream} | Status: subscribed")
         except Exception as e:
-            self.logger.critical(f"[WS_SUBSCRIBE] Binance | Error: {type(e).__name__}: {str(e)}")
+            self.logger.critical(f"[WS_SUBSCRIBE] Binance | Error: {type(e).__name__}: {e!s}")
         return
 
     def _user_subscribe(
@@ -307,14 +279,13 @@ class BinanceWebSocketClient(WebSocketClient):
             )
             self.logger.info(f"[WS_SUBSCRIBE] Binance | Topic: {stream} | Status: subscribed")
         except Exception as e:
-            self.logger.critical(f"[WS_SUBSCRIBE] Binance | Error: {type(e).__name__}: {str(e)}")
+            self.logger.critical(f"[WS_SUBSCRIBE] Binance | Error: {type(e).__name__}: {e!s}")
         return
 
 
 if __name__ == "__main__":
     def print_msg(msg) -> None:
         print(msg)
-        return
 
     print("Binance WebSocket Client")
     bwc = BinanceWebSocketClient(
