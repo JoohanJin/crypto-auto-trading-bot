@@ -94,11 +94,15 @@ class TestAnalyzeSignals(unittest.TestCase):
         self.tm = _make_trade_manager()
 
     def _inject_signals(self, signals: list[TradeSignal], offset_ms: int = 0):
-        """Helper to inject signals into history."""
+        """Helper to inject signals into modular windows."""
         now = self.tm.generate_timestamp()
         with self.tm.signal_history_lock:
             for s in signals:
-                self.tm.signal_history.append((now - offset_ms, s))
+                weight = self.tm.delta_mapper.map(s)
+                ts = now - offset_ms
+                self.tm.window_short.add(ts, s, weight)
+                self.tm.window_mid.add(ts, s, weight)
+                self.tm.window_struct.add(ts, s, weight)
 
     # --- WARM-UP test ---
     def test_warmup_period_returns_hold(self):
@@ -120,9 +124,7 @@ class TestAnalyzeSignals(unittest.TestCase):
 
         result = self.tm._analyze_signals()
         print(f"Current pos: {self.tm.current_position}")
-        print(f"History len: {len(self.tm.signal_history)}")
-        now = self.tm.generate_timestamp()
-        print(f"Oldest: {now - self.tm.signal_history[0][0]}")
+        print(f"History len: {self.tm.window_struct.density}")
         self.assertEqual(result, TradeState.NEW_BUY)
 
     def test_new_sell_burst(self):
@@ -216,7 +218,7 @@ class TestAnalyzeSignals(unittest.TestCase):
         self.assertEqual(
             result, TradeState.HOLD
         )  # Also HOLD because history is empty after pruning
-        self.assertEqual(len(self.tm.signal_history), 0)
+        self.assertEqual(self.tm.window_struct.density, 0)
 
 
 # =============================================================================
