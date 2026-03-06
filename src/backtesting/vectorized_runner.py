@@ -16,6 +16,14 @@ Improvements over v1:
   11. Walk-forward split (train 70 % / test 30 %) to detect overfitting
   12. Per-phase final PnL run printed after each optimization phase
   13. Optimal config exported to JSON
+
+Volatility fix (v2.1):
+  - Replaced rolling std/mean (7.5h window → 0.1-2% scale, non-transferable to live)
+    with per-candle H-L range: (high - low) / close * 100
+  - H-L% is computed once per 15m candle and broadcast to all 4 OHLC ticks
+  - Produces 0.1-0.5% quiet / 0.5-2% volatile — same interpretable scale as
+    the live system's intra-period price movement
+  - Search range updated from [0.0, 0.10] to [0.0, 0.80] to match new scale
 """
 
 from __future__ import annotations
@@ -323,14 +331,25 @@ class HighResPeakOptimizer:
         is_hold = ((sig_scores == 0) | (np.abs(sma60 - ema60) > DIVERGENCE_THRESHOLD)).astype(float)
         expanded_df["hold_ratio"] = pd.Series(is_hold).rolling(window=SHORT_WINDOW).mean().values
 
-        # --- Volatility (normalized stddev %) ---
-        expanded_df["volatility"] = (
-            expanded_df["price"].rolling(window=SHORT_WINDOW).std()
-            / expanded_df["price"].rolling(window=SHORT_WINDOW).mean()
-        ) * 100
+        # --- Volatility: per-candle H-L range as % of close ---
+        # Rolling std/mean over 120 ticks (7.5 hours) produced 0.1-2% values that are
+        # NOT comparable to the live system (which uses 10-60s windows → 0.004-0.04%).
+        # Per-candle H-L% captures actual intra-period movement on the same timescale
+        # as the candle itself, giving a meaningful and interpretable chop filter.
+        # Typical BTC 15m values: 0.1-0.4% quiet, 0.4-1.0% normal, 1.0%+ volatile.
+        candle_hl_pct = ((df["high"] - df["low"]) / df["close"] * 100).values
+        # Each candle expands to 4 ticks — broadcast volatility to all 4
+        expanded_df["volatility"] = np.repeat(candle_hl_pct, 4)
 
         result = expanded_df.dropna().reset_index(drop=True)
-        print(f"[2/2] {result.shape[0]:,} ticks after warm-up. Signal scoring uses max weight ±{MAX_SIGNAL_SCORE:.0f}.")
+        vol_p25 = np.percentile(result["volatility"], 25)
+        vol_p50 = np.percentile(result["volatility"], 50)
+        vol_p75 = np.percentile(result["volatility"], 75)
+        print(
+            f"[2/2] {result.shape[0]:,} ticks after warm-up. "
+            f"Signal scoring max weight ±{MAX_SIGNAL_SCORE:.0f}. "
+            f"Volatility (H-L%): p25={vol_p25:.3f}  p50={vol_p50:.3f}  p75={vol_p75:.3f}"
+        )
         return result
 
     # -----------------------------------------------------------------------
@@ -405,7 +424,7 @@ class HighResPeakOptimizer:
         print(f"  Profit/Trade:   ${ppt:+.2f}")
         print(f"  Max Drawdown:   {max_dd:.2f}%")
         print(f"  Entry:  c_short={config['c_short']:.3f}  c_mid={config['c_mid']:.3f}  c_struct={config['c_struct']:.3f}")
-        print(f"  Volatility Threshold: {config.get('vol_threshold', 0):.4f}%")
+        print(f"  Volatility Threshold (H-L%): {config.get('vol_threshold', 0):.3f}%")
         if use_exit:
             print(f"  Exit:   ex_short={config.get('ex_short', 0):.3f}  ex_mid={config.get('ex_mid', 0):.3f}  ex_struct={config.get('ex_struct', 0):.3f}")
 
@@ -463,9 +482,11 @@ class HighResPeakOptimizer:
         print("=" * 80)
 
         # Stage 1: Coarse entry + volatility search
+        # H-L% scale: 0.0 (disabled) then 0.1% steps up to 0.8%
+        # Typical BTC 15m: p25~0.2%, p50~0.35%, p75~0.55% — search covers full range
         print("\n=== Stage 1: Coarse Entry & Volatility Search (0.1 step) ===")
         coarse_range = [round(x, 2) for x in np.arange(0.30, 1.01, 0.1)]
-        vol_range = [round(x, 3) for x in np.arange(0.0, 0.11, 0.02)]
+        vol_range = [round(x, 2) for x in np.arange(0.0, 0.81, 0.1)]
         coarse_combos = list(itertools.product(coarse_range, coarse_range, coarse_range, vol_range))
 
         results_coarse_entry: list[tuple] = []
@@ -495,7 +516,7 @@ class HighResPeakOptimizer:
             get_fine_range(best_coarse_entry["c_short"]),
             get_fine_range(best_coarse_entry["c_mid"]),
             get_fine_range(best_coarse_entry["c_struct"]),
-            get_fine_range(best_coarse_entry["vol_threshold"], step=0.005, spread=0.02),
+            get_fine_range(best_coarse_entry["vol_threshold"], step=0.02, spread=0.15),
         ))
 
         results_fine_entry: list[tuple] = []
