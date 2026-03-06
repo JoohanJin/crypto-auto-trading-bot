@@ -11,7 +11,6 @@ from src.integrations.telegram.telegram_bot_class import CustomTelegramBot
 from src.interfaces.pipeline_interface import PipelineController
 from src.strategy.strategy_manager import StrategyManager
 
-
 logger = get_logger(__name__)
 
 
@@ -106,9 +105,13 @@ class SignalGenerator:
             IndexType.SMA: None,
             IndexType.EMA: None,
             IndexType.PRICE: None,
+            IndexType.VOLATILITY: None,
         }
 
         self.signal_window: int = signal_window
+        # H-L% chop filter threshold — from backtest v2.2 optimization.
+        # data_processor now computes (max-min)/last_price*100 per window.
+        self.volatility_threshold: float = 0.21
 
         # threads pool
         self.threads: list[threading.Thread] = []
@@ -194,9 +197,32 @@ class SignalGenerator:
 
     def push_signal(self, signal: Signal) -> None:
         try:
-            self.signal_pipeline_controller.push(signal)
+            # 1. Volatility Chop Filter
+            final_signal = signal
+            volatility_index = self.indicators.get(IndexType.VOLATILITY)
+
+            if volatility_index and volatility_index.data:
+                # Use 600s (10 min) window for H-L% volatility — closest to
+                # the backtest's 15-min candle. Short windows (10-60s) are too
+                # noisy; 600s captures meaningful price swings.
+                # Fallback to the longest available period if 600 not present.
+                current_volatility = volatility_index.data.get(
+                    600, list(volatility_index.data.values())[-1]
+                )
+
+                if current_volatility < self.volatility_threshold:
+                    self.logger.debug(
+                        f"[CHOP_FILTER] Volatility H-L% ({current_volatility:.3f}%) "
+                        f"< {self.volatility_threshold:.3f}%. "
+                        f"Overriding {signal.signal.name} -> HOLD."
+                    )
+                    # Override the payload with a HOLD signal, keeping the original timestamp
+                    final_signal = Signal(signal=TradeSignal.HOLD, timestamp=signal.timestamp)
+
+            # 2. Push the final signal
+            self.signal_pipeline_controller.push(final_signal)
             self.logger.debug(
-                f"[SIGNAL_GEN] Signal: {signal.signal.name} | Status: success"
+                f"[SIGNAL_GEN] Signal: {final_signal.signal.name} | Status: success"
             )
         except Exception as e:
             self.logger.critical(
