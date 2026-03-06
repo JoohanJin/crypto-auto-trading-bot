@@ -1,6 +1,8 @@
 # Standard Library
+import json
 import threading
 import time
+from pathlib import Path
 
 from src.brokers.binance.http_client import BinanceFutureHttpClient
 from src.core.models.order import Order, Side
@@ -177,6 +179,9 @@ class TradeManager:
         self.exit_mid_term_threshold: float = 0.70
         self.exit_consensus_threshold: float = 0.50
 
+        # Override thresholds from config/optimized_thresholds.json if available
+        self._load_optimized_thresholds()
+
         # Set the thread pool as a member function.
         self.threads: list[threading.Thread] = []
 
@@ -194,6 +199,58 @@ class TradeManager:
         self.logger.info(
             f"[INIT_COMPLETE] Ready | Pair: {self.trade_pair.ticker}/{self.trade_pair.quote} | "
             f"Leverage: {self.leverage} | Window: {self.history_window_ms}ms"
+        )
+
+    def _load_optimized_thresholds(self) -> None:
+        """
+        Load entry/exit thresholds from config/optimized_thresholds.json.
+        Falls back to the hardcoded defaults if the file is missing or malformed.
+
+        Expected JSON keys (all optional — only present keys are overridden):
+            consensus_short_term_threshold, consensus_mid_term_threshold,
+            consensus_threshold, exit_short_term_consensus_threshold,
+            exit_mid_term_threshold, exit_consensus_threshold
+        """
+        config_path = Path("config") / "optimized_thresholds.json"
+        if not config_path.exists():
+            self.logger.info(
+                "[CONFIG] optimized_thresholds.json not found — using hardcoded defaults"
+            )
+            return
+
+        try:
+            with open(config_path) as f:
+                cfg = json.load(f)
+        except (json.JSONDecodeError, OSError) as e:
+            self.logger.warning(
+                f"[CONFIG] Failed to load optimized_thresholds.json: {e} — using defaults"
+            )
+            return
+
+        # --- Entry thresholds ---
+        if "consensus_short_term_threshold" in cfg:
+            self.consensus_short_term_threshold = float(cfg["consensus_short_term_threshold"])
+        if "consensus_mid_term_threshold" in cfg:
+            self.consensus_mid_term_threshold = float(cfg["consensus_mid_term_threshold"])
+        if "consensus_threshold" in cfg:
+            self.consensus_threshold = float(cfg["consensus_threshold"])
+
+        # --- Exit thresholds ---
+        if "exit_short_term_consensus_threshold" in cfg:
+            self.exit_short_term_consensus_threshold = float(cfg["exit_short_term_consensus_threshold"])
+        if "exit_mid_term_threshold" in cfg:
+            self.exit_mid_term_threshold = float(cfg["exit_mid_term_threshold"])
+        if "exit_consensus_threshold" in cfg:
+            self.exit_consensus_threshold = float(cfg["exit_consensus_threshold"])
+
+        self.logger.info(
+            f"[CONFIG] Loaded optimized_thresholds.json | "
+            f"Entry: short={self.consensus_short_term_threshold:.2f}, "
+            f"mid={self.consensus_mid_term_threshold:.2f}, "
+            f"struct={self.consensus_threshold:.2f} | "
+            f"Exit: short={self.exit_short_term_consensus_threshold:.2f}, "
+            f"mid={self.exit_mid_term_threshold:.2f}, "
+            f"struct={self.exit_consensus_threshold:.2f}"
         )
 
     def __del__(
@@ -748,8 +805,8 @@ class TradeManager:
             is_reversal_sell()
         ):  # stronger condition than exit condition: oppstie position + sell signal
             return TradeState.REVERSE_SELL
-            # elif is_exit():
-            #     return TradeState.EXIT
+        elif is_exit():
+            return TradeState.EXIT
         return TradeState.HOLD
 
     def _thread_decide_trade(
