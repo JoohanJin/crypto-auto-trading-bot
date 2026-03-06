@@ -12,6 +12,7 @@ from src.core.models.service_dto import AccountInformation, MarkPrice, Position
 
 # Core Models
 from src.core.models.signal import Signal, TradeSignal
+from src.core.models.signal_window import SignalWindow
 from src.core.models.trade import PositionState, TradePair, TradeState
 from src.infrastructure.logging.set_logger import get_adapter, get_logger
 from src.integrations.telegram.telegram_bot_class import CustomTelegramBot
@@ -154,15 +155,16 @@ class TradeManager:
 
         self.disable_trade: bool = disable_trade
 
-        # --- Weighted Signal Density & Consensus (WSDC) Settings ---
-        # These settings balance noise filtering with timely responsiveness.
-        self.signal_history: deque[tuple[int, TradeSignal]] = (
-            deque()
-        )  # (timestamp, TradeSignal)
-        self.signal_history_lock: threading.Lock = threading.Lock()
+        # --- Multi-Window Sliding Storage (Modularized) ---
         self.history_window_ms: int = 600_000  # 10 minutes (structural backbone)
         self.mid_term_window_ms: int = self.history_window_ms // 2  # 5 minutes
         self.short_term_window_ms: int = self.history_window_ms // 5  # 2 minutes
+
+        self.window_short = SignalWindow(window_ms=self.short_term_window_ms)
+        self.window_mid = SignalWindow(window_ms=self.mid_term_window_ms)
+        self.window_struct = SignalWindow(window_ms=self.history_window_ms)
+
+        self.signal_history_lock: threading.Lock = threading.Lock()
 
         # --- Entry thresholds (require all 3 windows) ---
         # TODO: need to test the correct value with back-testing facilities
@@ -208,9 +210,9 @@ class TradeManager:
             - need to remove all the threads and possibly dynamic objects as well.
         """
         self.logger.info(
-            f"[SHUTDOWN] Cleanup initiated | Threads: {len(self.threads)} | History Size: {len(self.signal_history)}",
+            f"[SHUTDOWN] Cleanup initiated | Threads: {len(self.threads)} | History Size: {self.window_struct.density}",
         )
-
+        return
     """
     #########################
     # Multi-Thread Management
@@ -253,25 +255,10 @@ class TradeManager:
                 time.sleep(60)  # Log every 60 seconds
 
                 with self.signal_history_lock:
-                    history_size = len(self.signal_history)
-                    # Prune old signals to get accurate current window counts
-                    now = self.generate_timestamp()
-
-                    # mid term momentum
-                    mid_term_momentum: list = [
-                        s
-                        for ts, s in self.signal_history
-                        if (now - ts) <= self.mid_term_window_ms
-                    ]
-                    mid_term_density: int = len(mid_term_momentum)
-
-                    # short term momentum
-                    short_term_momentum: list = [
-                        s
-                        for ts, s in self.signal_history
-                        if (now - ts) <= self.short_term_window_ms
-                    ]
-                    short_term_density: int = len(short_term_momentum)
+                    history_size = self.window_struct.density
+                    mid_term_density = self.window_mid.density
+                    short_term_density = self.window_short.density
+                    hold_count = self.window_short._hold_count
 
                 # Re-fetch current position as it might have changed
                 with self.lock_current_position:
@@ -281,21 +268,10 @@ class TradeManager:
                 if current_pos_state:
                     pos_status = f"{current_pos_state.side.name} ({current_pos_state.ticker_size:.4f} {self.trade_pair.ticker})"
 
-                # Calculate consensus for logging (can be simplified for logging only)
-                # Using a simplified consensus calculation for logging to avoid full _analyze_signals call
-                # For precise logging, one could reuse parts of _analyze_signals or call it if performance allows.
-                # Here, we'll use a basic approximation for demonstration.
-                # A more accurate way would be to have _analyze_signals return these metrics.
-
-                # For simplicity and avoiding re-implementing complex logic, log relevant stored states.
-                # If _analyze_signals was called recently, its logs might be sufficient.
-                # To provide actual running status, we can log basic info.
-
                 self.logger.info(
                     f"[STATUS_HEARTBEAT] Position: {pos_status} | "
-                    f"{self.history_window_ms / 1_000} s History: {history_size} signals | "
-                    f"{self.mid_term_window_ms / 1_000} s Density: {mid_term_density} signals | "
-                    f"{self.short_term_window_ms / 1_000} s Density: {short_term_density} signals | "
+                    f"Struct: {history_size} | Mid: {mid_term_density} | Short: {short_term_density} | "
+                    f"HOLDs: {hold_count:.0f} | "
                     f"Last Trade: {self.generate_timestamp() - self.last_trade_timestamp if self.last_trade_timestamp else 'N/A'} ms ago"
                 )
 
@@ -671,117 +647,51 @@ class TradeManager:
             raise Exception
         return
 
-    def _prune_history(self, now: int) -> None:
-        # 1. Prune old signals (Memory & Logic Management)
-        with self.signal_history_lock:
-            while self.signal_history and (
-                now - self.signal_history[0][0] > self.history_window_ms
-            ):
-                self.signal_history.popleft()
-
     def _analyze_signals(self) -> TradeState:
         """
-        Analyze signal history to determine the next trade action.
-
-        This method implements the core decision matrix:
-        1. Pruning: Removes stale signals to keep the decision window relevant.
-        2. Warm-up Check: Waits for history to fill (at least 9 minutes).
-        3. Weighted Consensus: Calculates the 'conviction' of the crowd (-1.0 to 1.0).
-        4. Multi-Window Analysis: Compares 1m 'Momentum' vs 10m 'Structure'.
+        Analyze signal history to determine the next trade action using O(1) sliding windows.
         """
-
-        """
-        ################
-        SUB-FUNCTIONS
-        ################
-        """
-
-        def get_weighted_consensus(signals: list[TradeSignal]) -> float:
-            """
-            Returns a value between -1.0 (pure Sell) and 1.0 (pure Buy).
-            Weights are determined by the ScoreMapper (e.g., LONG_TERM_BUY = 5, SHORT_TERM_BUY = 2).
-            """
-            if not signals:
-                return 0.0
-            total_weight = 0.0
-            net_weight = 0.0
-
-            for s in signals:  # ! Linear - should be fine with the current strategy since it only stores 10-min data.
-                weight = self.delta_mapper.map(
-                    s
-                )  # ? based on the score mapping score -> which is correct.
-                total_weight += abs(weight)
-                net_weight += weight
-
-            return net_weight / total_weight if total_weight > 0 else 0.0
-
-        """
-        ################
-        Implementations
-        ################
-        """
-        now: int = self.generate_timestamp()  # timestamp
-
-        self._prune_history(now)
+        now: int = self.generate_timestamp()
 
         with self.signal_history_lock:
-            if not self.signal_history:
+            # 1. Slide the Windows
+            self.window_short.prune(now)
+            self.window_mid.prune(now)
+            self.window_struct.prune(now)
+
+            # 2. Warm-up & Density Checks
+            history_density = self.window_struct.density
+            short_term_density = self.window_short.density
+            mid_term_density = self.window_mid.density
+
+            if history_density == 0:
                 return TradeState.HOLD
 
-            # 2. Warm-up Check (Data Sufficiency)
             # Require at least 90% of the history window (9 minutes) to be filled
-            # before making any decisions. This prevents premature actions on cold starts.
-            oldest_signal_time = self.signal_history[0][0]
-            if (now - oldest_signal_time) < (self.history_window_ms * 0.95):
-                self.logger.debug(
-                    f"[WARMUP] Gathering data... {int((now - oldest_signal_time) / 1000)}s / {int(self.history_window_ms / 1000)}s"
-                )
+            oldest_ts = self.window_struct.oldest_timestamp
+            if oldest_ts and (now - oldest_ts) < (self.history_window_ms * 0.95):
                 return TradeState.HOLD
 
-            # 3. Extract Windows
-            # Structural: The full 10m history.
-            # Momentum: The immediate 1m 'burst' window.
-            history = list(self.signal_history)
+            # Minimum density thresholds
+            if history_density < 350 or short_term_density < 70:
+                return TradeState.HOLD
 
-            # make the list of pools for momentum and structural signals
-            short_term_momentum_signals = [
-                s for ts, s in history if (now - ts) <= self.short_term_window_ms
-            ]
-            mid_term_momentum_signals = [
-                s for ts, s in history if (now - ts) <= self.mid_term_window_ms
-            ]
-            structural_signals = [s for ts, s in history]
+            # 3. HOLD Ratio Check (Chop Filter)
+            hold_ratio = self.window_short.hold_ratio
+            if hold_ratio >= 0.50:
+                self.logger.debug(f"[CHOP_FILTER] HOLD Ratio ({hold_ratio:.0%}) >= 50%. Vetoing trade.")
+                return TradeState.HOLD
 
-        history_density: int = len(structural_signals)
-        mid_term_density: int = len(mid_term_momentum_signals)
-        short_term_density: int = len(short_term_momentum_signals)
+            # 4. Extract Consensus Metrics
+            consensus_short_term = self.window_short.consensus
+            consensus_mid_term = self.window_mid.consensus
+            consensus_structural = self.window_struct.consensus
 
-        # Minimum boundary — use density thresholds
-        if history_density < 350 or short_term_density < 70:
-            return TradeState.HOLD
-
-        # 3.5 HOLD Ratio Check (Chop Filter)
-        # If the market is dead, the SignalGenerator will flood the pipeline with HOLD signals.
-        hold_count = sum(1 for s in short_term_momentum_signals if s == TradeSignal.HOLD)
-        hold_ratio = hold_count / short_term_density if short_term_density > 0 else 0
-        
-        if hold_ratio >= 0.50:  # If 50% or more of recent signals are HOLD, we abort
-            self.logger.debug(f"[CHOP_FILTER] HOLD Ratio ({hold_ratio:.0%}) >= 50%. Vetoing trade.")
-            return TradeState.HOLD
-
-        # 4. Calculate Metrics
-        # TODO: Change this to sliding windows for O(1) computation
-        consensus_short_term: float = get_weighted_consensus(
-            short_term_momentum_signals
-        )
-        consensus_mid_term: float = get_weighted_consensus(mid_term_momentum_signals)
-        consensus_structural: float = get_weighted_consensus(structural_signals)
-
-        # 4-1. logging
+        # 5. Logging
         self.logger.debug(
-            f"[WSDC_STATS] Short Term Momentum ({(self.history_window_ms * 0.2) / 1_000} s): {consensus_short_term:+.2f} [D={short_term_density}] | "
-            f"Mid Term Momentum ({(self.history_window_ms * 0.5) / 1_000} s): {consensus_mid_term:+.2f} [D={mid_term_density}] | "
-            f"Structure({self.history_window_ms / 1_000} s): {consensus_structural:+.2f} [H={len(history)}]"
+            f"[WSDC_STATS] Short: {consensus_short_term:+.2f} [D={short_term_density}] | "
+            f"Mid: {consensus_mid_term:+.2f} [D={mid_term_density}] | "
+            f"Struct: {consensus_structural:+.2f} [D={history_density}]"
         )
 
         with self.lock_current_position:
@@ -953,10 +863,17 @@ class TradeManager:
                     timestamp_window=timestamp_window,
                 )
                 if isinstance(signal, TradeSignal):
+                    weight = self.delta_mapper.map(signal)
+                    now = self.generate_timestamp()
+                    entry = (now, signal, weight)
+
                     with self.signal_history_lock:
-                        self.signal_history.append((self.generate_timestamp(), signal))
+                        self.window_short.add(now, signal, weight)
+                        self.window_mid.add(now, signal, weight)
+                        self.window_struct.add(now, signal, weight)
+
                         self.logger.debug(
-                            f"[SIGNAL_TRACK] Added signal: {signal.name} | Total History: {len(self.signal_history)}"
+                            f"[SIGNAL_TRACK] Added: {signal.name} | Struct Density: {self.window_struct.density}"
                         )
 
             except Exception as e:
