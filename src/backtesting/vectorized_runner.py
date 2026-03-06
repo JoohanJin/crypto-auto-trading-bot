@@ -24,6 +24,17 @@ Volatility fix (v2.1):
   - Produces 0.1-0.5% quiet / 0.5-2% volatile — same interpretable scale as
     the live system's intra-period price movement
   - Search range updated from [0.0, 0.10] to [0.0, 0.80] to match new scale
+
+Bug-fix release (v2.2):
+  - Open positions are now settled at end of simulation — previously the last
+    trade's unrealized P&L was silently lost, biasing rankings and making the
+    test set look artificially dead
+  - Divergence threshold changed from absolute (0.02) to percentage-based
+    (0.10 % of midpoint). The absolute threshold was almost always exceeded
+    at higher prices (BTC 50-100k), pushing hold_ratio → 1.0 and blocking
+    all entries in the test set (late-period high-price data)
+  - MIN_TRADES raised from 20 → 50 to discourage ultra-sparse configs that
+    overfit to a handful of lucky trades
 """
 
 from __future__ import annotations
@@ -47,7 +58,7 @@ INITIAL_BALANCE = 10_000.0
 TRADE_WEIGHT = 0.15
 LEVERAGE = 10
 TAKER_FEE = 0.001
-MIN_TRADES = 20          # minimum trades for a config to be ranked fairly
+MIN_TRADES = 50          # minimum trades for a config to be ranked fairly
 COOLDOWN_TICKS = 8       # ~2 hours of cooldown at 15-min/4-tick resolution
 EXIT_COOLDOWN_TICKS = 40  # extended cooldown after panic exit (~10 hours)
 
@@ -57,7 +68,7 @@ WEIGHT_EMA_TREND = 5         # EMA60 > EMA300
 WEIGHT_PRICE_VS_SMA = 3      # PRICE > SMA300
 MAX_SIGNAL_SCORE = float(WEIGHT_GOLDEN_CROSS + WEIGHT_EMA_TREND + WEIGHT_PRICE_VS_SMA)  # 13
 
-DIVERGENCE_THRESHOLD = 0.02  # |SMA60 - EMA60| threshold for HOLD signal
+DIVERGENCE_THRESHOLD_PCT = 0.10  # |SMA60 - EMA60| / midpoint as %, for HOLD signal
 
 # Window sizes (in ticks; 1 tick ≈ 3.75 min with 4x OHLC expansion)
 SHORT_WINDOW = 120
@@ -245,6 +256,21 @@ def _simulate_core(
         if dd > max_drawdown_pct:
             max_drawdown_pct = dd
 
+    # ---- v2.2 fix: settle any open position at end of data ----
+    # Previously the last trade's unrealized P&L was silently lost.
+    if current_side == 1:
+        pnl = position_size * ((prices[n - 1] - entry_price) / entry_price) * leverage
+        fee = position_size * leverage * taker_fee
+        balance += pnl - fee
+        if pnl > 0:
+            wins += 1
+    elif current_side == -1:
+        pnl = position_size * ((entry_price - prices[n - 1]) / entry_price) * leverage
+        fee = position_size * leverage * taker_fee
+        balance += pnl - fee
+        if pnl > 0:
+            wins += 1
+
     return balance - initial_balance, trades, wins, max_drawdown_pct, balance
 
 
@@ -327,8 +353,12 @@ class HighResPeakOptimizer:
         expanded_df["density_short"] = pd.Series(non_zero).rolling(window=SHORT_WINDOW).sum().values
 
         # --- Hold ratio (FIX #3 & #4: include divergence HOLD) ---
-        # A tick is "HOLD-like" when sig_scores==0 OR |SMA60-EMA60| > divergence threshold
-        is_hold = ((sig_scores == 0) | (np.abs(sma60 - ema60) > DIVERGENCE_THRESHOLD)).astype(float)
+        # A tick is "HOLD-like" when sig_scores==0 OR SMA/EMA diverge by > threshold %
+        # v2.2 fix: use % of midpoint so the filter is consistent across the 10x
+        # price range in the dataset (BTC $7k-$100k).
+        midpoint = (sma60 + ema60) / 2.0
+        relative_div = np.abs(sma60 - ema60) / np.where(midpoint > 0, midpoint, 1.0) * 100
+        is_hold = ((sig_scores == 0) | (relative_div > DIVERGENCE_THRESHOLD_PCT)).astype(float)
         expanded_df["hold_ratio"] = pd.Series(is_hold).rolling(window=SHORT_WINDOW).mean().values
 
         # --- Volatility: per-candle H-L range as % of close ---
@@ -345,10 +375,16 @@ class HighResPeakOptimizer:
         vol_p25 = np.percentile(result["volatility"], 25)
         vol_p50 = np.percentile(result["volatility"], 50)
         vol_p75 = np.percentile(result["volatility"], 75)
+        hr_p25 = np.percentile(result["hold_ratio"], 25)
+        hr_p50 = np.percentile(result["hold_ratio"], 50)
+        hr_p75 = np.percentile(result["hold_ratio"], 75)
+        hr_below50 = (result["hold_ratio"] < 0.50).mean() * 100
         print(
             f"[2/2] {result.shape[0]:,} ticks after warm-up. "
-            f"Signal scoring max weight ±{MAX_SIGNAL_SCORE:.0f}. "
-            f"Volatility (H-L%): p25={vol_p25:.3f}  p50={vol_p50:.3f}  p75={vol_p75:.3f}"
+            f"Signal scoring max weight ±{MAX_SIGNAL_SCORE:.0f}.\n"
+            f"      Volatility (H-L%): p25={vol_p25:.3f}  p50={vol_p50:.3f}  p75={vol_p75:.3f}\n"
+            f"      Hold ratio:  p25={hr_p25:.3f}  p50={hr_p50:.3f}  p75={hr_p75:.3f}  "
+            f"(below 0.50 veto: {hr_below50:.1f}% of ticks)"
         )
         return result
 
@@ -482,11 +518,13 @@ class HighResPeakOptimizer:
         print("=" * 80)
 
         # Stage 1: Coarse entry + volatility search
-        # H-L% scale: 0.0 (disabled) then 0.1% steps up to 0.8%
-        # Typical BTC 15m: p25~0.2%, p50~0.35%, p75~0.55% — search covers full range
+        # H-L% scale: capped at ~p50 (0.35%) to prevent aggressive filtering.
+        # Anything above median filters >50% of candles, starving the strategy
+        # of data and overfitting to the few remaining volatile bars.
+        # Typical BTC 15m: p25~0.20%, p50~0.32%, p75~0.52%
         print("\n=== Stage 1: Coarse Entry & Volatility Search (0.1 step) ===")
-        coarse_range = [round(x, 2) for x in np.arange(0.30, 1.01, 0.1)]
-        vol_range = [round(x, 2) for x in np.arange(0.0, 0.81, 0.1)]
+        coarse_range = [round(x, 2) for x in np.arange(0.10, 1.01, 0.1)]
+        vol_range = [round(x, 2) for x in np.arange(0.0, 0.36, 0.05)]
         coarse_combos = list(itertools.product(coarse_range, coarse_range, coarse_range, vol_range))
 
         results_coarse_entry: list[tuple] = []
@@ -516,7 +554,7 @@ class HighResPeakOptimizer:
             get_fine_range(best_coarse_entry["c_short"]),
             get_fine_range(best_coarse_entry["c_mid"]),
             get_fine_range(best_coarse_entry["c_struct"]),
-            get_fine_range(best_coarse_entry["vol_threshold"], step=0.02, spread=0.15),
+            get_fine_range(best_coarse_entry["vol_threshold"], step=0.01, spread=0.05),
         ))
 
         results_fine_entry: list[tuple] = []
