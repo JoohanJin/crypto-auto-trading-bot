@@ -109,7 +109,9 @@ class SignalGenerator:
         }
 
         self.signal_window: int = signal_window
-        self.volatility_threshold: float = 0.05
+        # H-L% chop filter threshold — from backtest v2.2 optimization.
+        # data_processor now computes (max-min)/last_price*100 per window.
+        self.volatility_threshold: float = 0.21
 
         # threads pool
         self.threads: list[threading.Thread] = []
@@ -200,13 +202,18 @@ class SignalGenerator:
             volatility_index = self.indicators.get(IndexType.VOLATILITY)
 
             if volatility_index and volatility_index.data:
-                # Use the shortest available period (first value) for immediate volatility
-                current_volatility = list(volatility_index.data.values())[0]
+                # Use 600s (10 min) window for H-L% volatility — closest to
+                # the backtest's 15-min candle. Short windows (10-60s) are too
+                # noisy; 600s captures meaningful price swings.
+                # Fallback to the longest available period if 600 not present.
+                current_volatility = volatility_index.data.get(
+                    600, list(volatility_index.data.values())[-1]
+                )
 
-                # Default threshold set to 0.05% (to be tuned via backtesting)
                 if current_volatility < self.volatility_threshold:
                     self.logger.debug(
-                        f"[CHOP_FILTER] Volatility ({current_volatility:.3f}%) < 0.05%. "
+                        f"[CHOP_FILTER] Volatility H-L% ({current_volatility:.3f}%) "
+                        f"< {self.volatility_threshold:.3f}%. "
                         f"Overriding {signal.signal.name} -> HOLD."
                     )
                     # Override the payload with a HOLD signal, keeping the original timestamp

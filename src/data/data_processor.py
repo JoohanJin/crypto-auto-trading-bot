@@ -9,7 +9,6 @@ from src.data.index_factory import IndexFactory
 from src.infrastructure.logging.set_logger import get_adapter, get_logger
 from src.interfaces.pipeline_interface import PipelineController
 
-
 logger = get_logger(__name__)
 
 
@@ -183,11 +182,16 @@ class DataProcessor:
                 mean_val = float(window.mean())
                 sma[period] = mean_val
                 ema[period] = float(window.ewm(span=period, adjust=False).mean().iloc[-1])
-                
-                # Volatility: Standard Deviation normalized by the mean price (as a percentage)
-                # If mean_val is 0 (impossible for BTC but safe to check), fallback to 0
-                std_val = float(window.std())
-                volatility[period] = (std_val / mean_val) * 100 if mean_val > 0 else 0.0
+
+                # Volatility: H-L% — (max - min) / last_price * 100
+                # This is the real-time equivalent of a candle's (high - low) / close.
+                # Matches the backtest metric so the optimized threshold (0.21%)
+                # transfers directly. Old std/mean produced 0.003-0.04% on short
+                # windows — far too small to be useful as a chop filter.
+                high_val = float(window.max())
+                low_val = float(window.min())
+                last_price = float(window.iloc[-1])
+                volatility[period] = ((high_val - low_val) / last_price) * 100 if last_price > 0 else 0.0
 
             timestamp: int = self.generate_timestamp()
 
@@ -202,7 +206,7 @@ class DataProcessor:
                 "timestamp": timestamp,
                 "type": IndexType.EMA,
             }
-            
+
             volatilities: dict[str, float | IndexType | dict[int, float]] = {
                 "data": volatility,
                 "timestamp": timestamp,
