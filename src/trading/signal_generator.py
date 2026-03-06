@@ -11,7 +11,6 @@ from src.integrations.telegram.telegram_bot_class import CustomTelegramBot
 from src.interfaces.pipeline_interface import PipelineController
 from src.strategy.strategy_manager import StrategyManager
 
-
 logger = get_logger(__name__)
 
 
@@ -110,6 +109,7 @@ class SignalGenerator:
         }
 
         self.signal_window: int = signal_window
+        self.volatility_threshold: float = 0.05
 
         # threads pool
         self.threads: list[threading.Thread] = []
@@ -204,7 +204,7 @@ class SignalGenerator:
                 current_volatility = list(volatility_index.data.values())[0]
 
                 # Default threshold set to 0.05% (to be tuned via backtesting)
-                if current_volatility < 0.05:
+                if current_volatility < self.volatility_threshold:
                     self.logger.debug(
                         f"[CHOP_FILTER] Volatility ({current_volatility:.3f}%) < 0.05%. "
                         f"Overriding {signal.signal.name} -> HOLD."

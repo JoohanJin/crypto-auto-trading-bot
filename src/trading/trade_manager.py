@@ -1,15 +1,12 @@
 # Standard Library
 import threading
 import time
-from collections import deque
 
 from src.brokers.binance.http_client import BinanceFutureHttpClient
 from src.core.models.order import Order, Side
 from src.core.models.score_mapping import ScoreMapper
-
 # Custom Library
 from src.core.models.service_dto import AccountInformation, MarkPrice, Position
-
 # Core Models
 from src.core.models.signal import Signal, TradeSignal
 from src.core.models.signal_window import SignalWindow
@@ -18,7 +15,6 @@ from src.infrastructure.logging.set_logger import get_adapter, get_logger
 from src.integrations.telegram.telegram_bot_class import CustomTelegramBot
 from src.interfaces.http_interface import HttpInterface
 from src.interfaces.pipeline_interface import PipelineController
-
 
 logger = get_logger(__name__)
 
@@ -865,7 +861,6 @@ class TradeManager:
                 if isinstance(signal, TradeSignal):
                     weight = self.delta_mapper.map(signal)
                     now = self.generate_timestamp()
-                    entry = (now, signal, weight)
 
                     with self.signal_history_lock:
                         self.window_short.add(now, signal, weight)
