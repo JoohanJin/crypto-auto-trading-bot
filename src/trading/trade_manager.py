@@ -760,6 +760,15 @@ class TradeManager:
         if history_density < 350 or short_term_density < 70:
             return TradeState.HOLD
 
+        # 3.5 HOLD Ratio Check (Chop Filter)
+        # If the market is dead, the SignalGenerator will flood the pipeline with HOLD signals.
+        hold_count = sum(1 for s in short_term_momentum_signals if s == TradeSignal.HOLD)
+        hold_ratio = hold_count / short_term_density if short_term_density > 0 else 0
+        
+        if hold_ratio >= 0.50:  # If 50% or more of recent signals are HOLD, we abort
+            self.logger.debug(f"[CHOP_FILTER] HOLD Ratio ({hold_ratio:.0%}) >= 50%. Vetoing trade.")
+            return TradeState.HOLD
+
         # 4. Calculate Metrics
         # TODO: Change this to sliding windows for O(1) computation
         consensus_short_term: float = get_weighted_consensus(
@@ -943,7 +952,7 @@ class TradeManager:
                 signal: TradeSignal = self._get_signal(
                     timestamp_window=timestamp_window,
                 )
-                if isinstance(signal, TradeSignal) and signal != TradeSignal.HOLD:
+                if isinstance(signal, TradeSignal):
                     with self.signal_history_lock:
                         self.signal_history.append((self.generate_timestamp(), signal))
                         self.logger.debug(
