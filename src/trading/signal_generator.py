@@ -106,6 +106,7 @@ class SignalGenerator:
             IndexType.SMA: None,
             IndexType.EMA: None,
             IndexType.PRICE: None,
+            IndexType.VOLATILITY: None,
         }
 
         self.signal_window: int = signal_window
@@ -194,9 +195,27 @@ class SignalGenerator:
 
     def push_signal(self, signal: Signal) -> None:
         try:
-            self.signal_pipeline_controller.push(signal)
+            # 1. Volatility Chop Filter
+            final_signal = signal
+            volatility_index = self.indicators.get(IndexType.VOLATILITY)
+
+            if volatility_index and volatility_index.data:
+                # Use the shortest available period (first value) for immediate volatility
+                current_volatility = list(volatility_index.data.values())[0]
+
+                # Default threshold set to 0.05% (to be tuned via backtesting)
+                if current_volatility < 0.05:
+                    self.logger.debug(
+                        f"[CHOP_FILTER] Volatility ({current_volatility:.3f}%) < 0.05%. "
+                        f"Overriding {signal.signal.name} -> HOLD."
+                    )
+                    # Override the payload with a HOLD signal, keeping the original timestamp
+                    final_signal = Signal(signal=TradeSignal.HOLD, timestamp=signal.timestamp)
+
+            # 2. Push the final signal
+            self.signal_pipeline_controller.push(final_signal)
             self.logger.debug(
-                f"[SIGNAL_GEN] Signal: {signal.signal.name} | Status: success"
+                f"[SIGNAL_GEN] Signal: {final_signal.signal.name} | Status: success"
             )
         except Exception as e:
             self.logger.critical(
