@@ -7,6 +7,7 @@ class IndexType(IntFlag):
     EMA = 1 << 0  # 0001
     SMA = 1 << 1  # 0010
     PRICE = 1 << 2  # 0100
+    VOLATILITY = 1 << 3  # 1000
 
 
 @dataclass

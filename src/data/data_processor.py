@@ -145,20 +145,10 @@ class DataProcessor:
         self,
         periods: tuple[
             int, ...
-        ] = MA_WRITE_PERIODS,  # this will be just used. -> just default input.
+        ] = MA_WRITE_PERIODS,  # this will be just used. -> default input.
     ) -> tuple[dict[str, float | int | IndexType]] | None:
         """
-        # TODO: make a separate class fo this.
-        func __calculate_ema_sma_price():
-            - It calculate the Simple Moving Average (SMA) and Exponential Moving Average (EMA) of the lastPrice.
-
-        params self: DataCollectorAndProcessor
-            - class object
-        params periods: Tuple[int]
-            - periods for the calculation of the SMA and EMA
-
-        return (smas, emas): Tuple[Tuple[float], Tuple[float]] | None
-            - Tuple of SMA and EMA values
+        - Calculate SMA, EMA, Price, and Volatility (Normalized StdDev).
         """
         try:
             current_ts = self.generate_timestamp()
@@ -170,32 +160,34 @@ class DataProcessor:
                 mask = self.price_data.index >= cutoff_ts
                 tmp_dataframe = self.price_data.loc[mask, "price"].copy()
 
-            sma: dict[int, float] = {}  # make the dictionary object and put it.
+            sma: dict[int, float] = {}
             ema: dict[int, float] = {}
+            volatility: dict[int, float] = {}
             price: dict[int, float] = {
                 0: float(tmp_dataframe.iloc[-1])
-            }  # just last price data.
+            }
 
-            # TODO: this should be fast enough, but can be optimized further.
             for period in periods:
                 period_ms = period * 1_000
                 period_cutoff_ts = current_ts - period_ms
 
                 window = tmp_dataframe[tmp_dataframe.index >= period_cutoff_ts]
 
-                # 최소 2개 데이터 필요
                 if len(window) < 2:
                     continue
 
-                # 실제 데이터 스팬 체크 (80% 이상 커버해야 함)
                 data_span = window.index.max() - window.index.min()
                 if data_span < period_ms * 0.8:
                     continue
 
-                sma[period] = float(window.mean())
-                ema[period] = float(
-                    window.ewm(span=period, adjust=False).mean().iloc[-1]
-                )
+                mean_val = float(window.mean())
+                sma[period] = mean_val
+                ema[period] = float(window.ewm(span=period, adjust=False).mean().iloc[-1])
+                
+                # Volatility: Standard Deviation normalized by the mean price (as a percentage)
+                # If mean_val is 0 (impossible for BTC but safe to check), fallback to 0
+                std_val = float(window.std())
+                volatility[period] = (std_val / mean_val) * 100 if mean_val > 0 else 0.0
 
             timestamp: int = self.generate_timestamp()
 
@@ -210,14 +202,20 @@ class DataProcessor:
                 "timestamp": timestamp,
                 "type": IndexType.EMA,
             }
+            
+            volatilities: dict[str, float | IndexType | dict[int, float]] = {
+                "data": volatility,
+                "timestamp": timestamp,
+                "type": IndexType.VOLATILITY,
+            }
 
-            price: dict[str, float | IndexType | dict[int, float]] = {
+            prices: dict[str, float | IndexType | dict[int, float]] = {
                 "data": price,
                 "timestamp": timestamp,
                 "type": IndexType.PRICE,
             }
 
-            return smas, emas, price
+            return smas, emas, prices, volatilities
 
         except KeyError as e:
             # Specific error handling for KeyError, i.e., missing collumn
@@ -292,6 +290,7 @@ class DataProcessor:
                     dict[int, float],
                     dict[int, float],
                     dict[int, float],
+                    dict[int, float],
                 ]
                 | None
             ) = self.__calculate_ema_sma_price()
@@ -300,8 +299,9 @@ class DataProcessor:
                 sma_values: Index = self.__index_factory.generate_index(data[0])
                 ema_values: Index = self.__index_factory.generate_index(data[1])
                 price: Index = self.__index_factory.generate_index(data[2])
+                volatility: Index = self.__index_factory.generate_index(data[3])
 
-                indexes: list[Index,] = [sma_values, ema_values, price]
+                indexes: list[Index,] = [sma_values, ema_values, price, volatility]
 
                 # TODO: need to change -> other wrapper which can get the result and push to the data pipeline.
                 self.__push_indexes(indexes)
