@@ -167,19 +167,21 @@ class TradeManager:
         self.signal_history_lock: threading.Lock = threading.Lock()
 
         # --- Entry thresholds (require all 3 windows) ---
-        # TODO: need to test the correct value with back-testing facilities
-        # Loosened to avoid entering too late after the move is already underway.
-        self.consensus_short_term_threshold: float = 0.5
-        self.consensus_mid_term_threshold: float = 0.5
-        self.consensus_threshold: float = (
-            0.9  # structural: just needs directional agreement
-        )
+        # Defaults mirror latest backtest v2.3 (sliding-window volatility).
+        self.consensus_short_term_threshold: float = 1.0
+        self.consensus_mid_term_threshold: float = 0.50
+        self.consensus_threshold: float = 0.78
 
         # --- Exit thresholds (require all 3 windows) ---
-        # Tightened so normal retracements don't trigger panic exits.
-        self.exit_short_term_consensus_threshold: float = 0.85
-        self.exit_mid_term_threshold: float = 0.70
-        self.exit_consensus_threshold: float = 0.50
+        self.exit_short_term_consensus_threshold: float = 0.25
+        self.exit_mid_term_threshold: float = 0.25
+        self.exit_consensus_threshold: float = 0.98
+
+        # --- use_exit flag from config ---
+        self.use_exit: bool = False
+
+        # Override thresholds from config/optimized_thresholds.json if available
+        self._load_optimized_thresholds()
 
         # Override thresholds from config/optimized_thresholds.json if available
         self._load_optimized_thresholds()
@@ -245,6 +247,10 @@ class TradeManager:
         if "exit_consensus_threshold" in cfg:
             self.exit_consensus_threshold = float(cfg["exit_consensus_threshold"])
 
+        # --- use_exit flag ---
+        if "use_exit" in cfg:
+            self.use_exit = bool(cfg["use_exit"])
+
         self.logger.info(
             f"[CONFIG] Loaded optimized_thresholds.json | "
             f"Entry: short={self.consensus_short_term_threshold:.2f}, "
@@ -252,7 +258,8 @@ class TradeManager:
             f"struct={self.consensus_threshold:.2f} | "
             f"Exit: short={self.exit_short_term_consensus_threshold:.2f}, "
             f"mid={self.exit_mid_term_threshold:.2f}, "
-            f"struct={self.exit_consensus_threshold:.2f}"
+            f"struct={self.exit_consensus_threshold:.2f} | "
+            f"use_exit={self.use_exit}"
         )
 
     def __del__(
@@ -807,7 +814,7 @@ class TradeManager:
             is_reversal_sell()
         ):  # stronger condition than exit condition: oppstie position + sell signal
             return TradeState.REVERSE_SELL
-        elif is_exit():
+        elif self.use_exit and is_exit():
             return TradeState.EXIT
         return TradeState.HOLD
 

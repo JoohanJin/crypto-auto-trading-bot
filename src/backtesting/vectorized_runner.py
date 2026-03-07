@@ -361,15 +361,15 @@ class HighResPeakOptimizer:
         is_hold = ((sig_scores == 0) | (relative_div > DIVERGENCE_THRESHOLD_PCT)).astype(float)
         expanded_df["hold_ratio"] = pd.Series(is_hold).rolling(window=SHORT_WINDOW).mean().values
 
-        # --- Volatility: per-candle H-L range as % of close ---
-        # Rolling std/mean over 120 ticks (7.5 hours) produced 0.1-2% values that are
-        # NOT comparable to the live system (which uses 10-60s windows → 0.004-0.04%).
-        # Per-candle H-L% captures actual intra-period movement on the same timescale
-        # as the candle itself, giving a meaningful and interpretable chop filter.
-        # Typical BTC 15m values: 0.1-0.4% quiet, 0.4-1.0% normal, 1.0%+ volatile.
-        candle_hl_pct = ((df["high"] - df["low"]) / df["close"] * 100).values
-        # Each candle expands to 4 ticks — broadcast volatility to all 4
-        expanded_df["volatility"] = np.repeat(candle_hl_pct, 4)
+        # --- Volatility: rolling sliding-window H-L% (matches live system) ---
+        # Live data_processor computes (max-min)/last_price*100 over a 600s (10min)
+        # sliding window of tick prices. With 15m candles expanded to 4 ticks each,
+        # 10 minutes ≈ 2.67 candles ≈ ~11 ticks. We use rolling max-min on the
+        # expanded price series to replicate the same sliding-window behavior.
+        VOL_WINDOW = 11  # ~10 minutes worth of expanded ticks
+        rolling_max = pd.Series(prices).rolling(window=VOL_WINDOW).max()
+        rolling_min = pd.Series(prices).rolling(window=VOL_WINDOW).min()
+        expanded_df["volatility"] = ((rolling_max - rolling_min) / prices * 100).values
 
         result = expanded_df.dropna().reset_index(drop=True)
         vol_p25 = np.percentile(result["volatility"], 25)
@@ -432,9 +432,19 @@ class HighResPeakOptimizer:
     # -----------------------------------------------------------------------
     @staticmethod
     def _rank_key(result: tuple) -> float:
+        """Rank configs by profit-per-trade, penalizing configs with fewer
+        than MIN_TRADES and those with excessive trade counts.
+        Goal: highest profit, fewest trades.
+        Score = profit_per_trade * min(1, trades/MIN_TRADES)
+          → below MIN_TRADES: hard ramp-up penalty
+          → above MIN_TRADES: pure profit-per-trade (naturally rewards
+            configs that achieve the same PnL with fewer trades)
+        """
         pnl, trades = result[0], result[1]
-        ppt = pnl / max(1, trades)
-        trade_penalty = min(1.0, trades / MIN_TRADES)  # ramp 0→1 over MIN_TRADES
+        if trades <= 0:
+            return -1e18
+        ppt = pnl / trades
+        trade_penalty = min(1.0, trades / MIN_TRADES)  # ramp 0→1
         return ppt * trade_penalty
 
     # -----------------------------------------------------------------------
@@ -518,13 +528,12 @@ class HighResPeakOptimizer:
         print("=" * 80)
 
         # Stage 1: Coarse entry + volatility search
-        # H-L% scale: capped at ~p50 (0.35%) to prevent aggressive filtering.
-        # Anything above median filters >50% of candles, starving the strategy
-        # of data and overfitting to the few remaining volatile bars.
-        # Typical BTC 15m: p25~0.20%, p50~0.32%, p75~0.52%
+        # Sliding-window H-L% scale: capped at ~p50 to prevent aggressive filtering.
+        # Anything above median filters >50% of ticks, starving the strategy.
+        # Sliding-window BTC 15m: p25~0.32%, p50~0.51%, p75~0.84%
         print("\n=== Stage 1: Coarse Entry & Volatility Search (0.1 step) ===")
         coarse_range = [round(x, 2) for x in np.arange(0.10, 1.01, 0.1)]
-        vol_range = [round(x, 2) for x in np.arange(0.0, 0.36, 0.05)]
+        vol_range = [round(x, 2) for x in np.arange(0.0, 0.55, 0.05)]
         coarse_combos = list(itertools.product(coarse_range, coarse_range, coarse_range, vol_range))
 
         results_coarse_entry: list[tuple] = []
@@ -545,8 +554,15 @@ class HighResPeakOptimizer:
         # Stage 2: Fine entry search
         print("\n=== Stage 2: Fine Entry & Volatility Search (0.01 step) ===")
 
-        def get_fine_range(center: float, step: float = 0.01, spread: float = 0.05) -> list[float]:
-            lo = max(0.0, center - spread)
+        COARSE_MIN = 0.10  # fine grid must not go below coarse grid minimum
+
+        def get_fine_range(
+            center: float,
+            step: float = 0.01,
+            spread: float = 0.05,
+            floor: float = COARSE_MIN,
+        ) -> list[float]:
+            lo = max(floor, center - spread)
             hi = center + spread
             return [round(x, 3) for x in np.arange(lo, hi + step / 2, step)]
 
@@ -554,7 +570,7 @@ class HighResPeakOptimizer:
             get_fine_range(best_coarse_entry["c_short"]),
             get_fine_range(best_coarse_entry["c_mid"]),
             get_fine_range(best_coarse_entry["c_struct"]),
-            get_fine_range(best_coarse_entry["vol_threshold"], step=0.01, spread=0.05),
+            get_fine_range(best_coarse_entry["vol_threshold"], step=0.01, spread=0.05, floor=0.0),
         ))
 
         results_fine_entry: list[tuple] = []
