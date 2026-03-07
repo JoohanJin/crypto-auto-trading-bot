@@ -1,7 +1,9 @@
 # TODO: Need to re-plan the structure of Signal generator.
 # STANDARD LIBRARY
+import json
 import threading
 import time
+from pathlib import Path
 
 # CUSTOM LIBRARY
 from src.core.models.index import Index, IndexType
@@ -109,9 +111,12 @@ class SignalGenerator:
         }
 
         self.signal_window: int = signal_window
-        # H-L% chop filter threshold — from backtest v2.2 optimization.
-        # data_processor now computes (max-min)/last_price*100 per window.
-        self.volatility_threshold: float = 0.21
+        # H-L% chop filter threshold — from backtest v2.3 (sliding-window volatility).
+        # data_processor computes (max-min)/last_price*100 over 600s sliding window.
+        self.volatility_threshold: float = 0.45
+
+        # Override volatility threshold from config/optimized_thresholds.json if available
+        self._load_optimized_thresholds()
 
         # threads pool
         self.threads: list[threading.Thread] = []
@@ -126,6 +131,32 @@ class SignalGenerator:
         self.start()
 
         self.logger.info(f"[COMPONENT_INIT] {self.name} | Status: ready")
+
+    def _load_optimized_thresholds(self) -> None:
+        """Load volatility_threshold from config/optimized_thresholds.json.
+        Falls back to the hardcoded default if the file is missing or malformed."""
+        config_path = Path("config") / "optimized_thresholds.json"
+        if not config_path.exists():
+            self.logger.info(
+                "[CONFIG] optimized_thresholds.json not found — using hardcoded volatility_threshold"
+            )
+            return
+
+        try:
+            with open(config_path) as f:
+                cfg = json.load(f)
+        except (json.JSONDecodeError, OSError) as e:
+            self.logger.warning(
+                f"[CONFIG] Failed to load optimized_thresholds.json: {e} — using defaults"
+            )
+            return
+
+        if "volatility_threshold" in cfg:
+            self.volatility_threshold = float(cfg["volatility_threshold"])
+
+        self.logger.info(
+            f"[CONFIG] Loaded optimized_thresholds.json | volatility_threshold={self.volatility_threshold:.4f}"
+        )
 
     def start(self) -> None:
         # initialize the threads
