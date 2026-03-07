@@ -183,6 +183,9 @@ class TradeManager:
         # Override thresholds from config/optimized_thresholds.json if available
         self._load_optimized_thresholds()
 
+        # Override thresholds from config/optimized_thresholds.json if available
+        self._load_optimized_thresholds()
+
         # Set the thread pool as a member function.
         self.threads: list[threading.Thread] = []
 
