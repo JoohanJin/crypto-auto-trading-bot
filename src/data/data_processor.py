@@ -140,7 +140,7 @@ class DataProcessor:
         return
 
     # Data Processor
-    def __calculate_ema_sma_price(
+    def _calculate_indexes(
         self,
         periods: tuple[
             int, ...
@@ -185,7 +185,7 @@ class DataProcessor:
 
                 # Volatility: H-L% — (max - min) / last_price * 100
                 # This is the real-time equivalent of a candle's (high - low) / close.
-                # Matches the backtest metric so the optimized threshold (0.21%)
+                # Matches the backtest metric so the optimized threshold
                 # transfers directly. Old std/mean produced 0.003-0.04% on short
                 # windows — far too small to be useful as a chop filter.
                 high_val = float(window.max())
@@ -224,20 +224,20 @@ class DataProcessor:
         except KeyError as e:
             # Specific error handling for KeyError, i.e., missing collumn
             self.logger.error(
-                f"[DATA_ERROR] __calculate_ema_sma_price() | Error: KeyError: {e}"
+                f"[DATA_ERROR] _calculate_indexes() | Error: KeyError: {e}"
             )
             return None
 
         except IndexError as e:
             # Specific error handling for IndexError, i.e., out of range and slicing of the DataFrame.
             self.logger.error(
-                f"[DATA_ERROR] __calculate_ema_sma_price() | Error: IndexError: {e}"
+                f"[DATA_ERROR] _calculate_indexes() | Error: IndexError: {e}"
             )
             return None
 
         except Exception as e:
             self.logger.warning(
-                f"[DATA_ERROR] __calculate_ema_sma_price() | Error: {type(e).__name__}: {e!s}."
+                f"[DATA_ERROR] _calculate_indexes() | Error: {type(e).__name__}: {e!s}."
             )
             return None
 
@@ -281,7 +281,7 @@ class DataProcessor:
     ) -> None:
         """
         func _push_moving_averages():
-            - call the function __calculate_ema_sma_price() to calculate the EMA and SMA
+            - call the function _calculate_indexes() to calculate the EMA and SMA
             - get tuple of data where:
                 - data[0] = SMA values
                 - data[1] = EMA values
@@ -297,7 +297,7 @@ class DataProcessor:
                     dict[int, float],
                 ]
                 | None
-            ) = self.__calculate_ema_sma_price()
+            ) = self._calculate_indexes()
 
             if data:
                 sma_values: Index = self.__index_factory.generate_index(data[0])
