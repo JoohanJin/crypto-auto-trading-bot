@@ -16,7 +16,7 @@ from src.brokers.mexc.ws_client import MexcWebSocketClient
 from src.core.models.index import Index
 from src.core.models.score_mapping import ScoreMapper
 from src.core.models.signal import Signal
-from src.data.data_manager import DataManager
+from src.data_layer.data_manager import DataManager
 
 # CUSTOM LIBRARY
 from src.infrastructure.logging.set_logger import get_adapter, get_logger

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from src.data.data_collector import DataCollector
+from src.data_layer.data_collector import DataCollector
 
 
 class DataCollectorTest(unittest.TestCase):
