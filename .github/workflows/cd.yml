@@ -26,13 +26,16 @@ jobs:
 
       - name: 'Build and Push Image'
         run: |
-          # Push both 'latest' and a unique commit SHA tag for traceability
-          gcloud builds submit \
-            --tag asia-northeast3-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot:latest \
-            --tag asia-northeast3-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot:${{ github.sha }} .
+          IMAGE=asia-northeast3-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot
+          # Build and tag with commit SHA first
+          gcloud builds submit --tag ${IMAGE}:${{ github.sha }} .
+          # Re-tag the SHA image as latest
+          gcloud artifacts docker tags add ${IMAGE}:${{ github.sha }} ${IMAGE}:latest
 
       - name: 'Update VM Instance'
         run: |
+          IMAGE=asia-northeast3-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot
           gcloud compute instances update-container crypto-bot-vm \
             --zone=asia-northeast3-a \
-            --container-image=asia-northeast3-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot:latest
+            --container-image=${IMAGE}:${{ github.sha }}
+          gcloud compute instances reset crypto-bot-vm --zone=asia-northeast3-a
