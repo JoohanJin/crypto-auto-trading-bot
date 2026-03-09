@@ -1,40 +1,39 @@
 """
-Vectorized Backtesting Runner — v2
-===================================
-Improvements over v1:
-  1.  PnL uses position size locked at entry (not current balance at close)
-  2.  Signal scoring separates stacking strategies (golden_cross + ema_trend_follow)
-      and computes EMA(60) independently; normalization divisor = 13
-  3.  Hold-ratio veto (>=50 % HOLD ticks in short window suppresses entry)
-  4.  ema/sma divergence HOLD scoring (|SMA60-EMA60|>0.02 → counted as HOLD for ratio)
-  5.  Density minimum filter (struct >= 350, short >= 70)
-  6.  Warm-up guard (skip first struct_window ticks explicitly)
-  7.  Minimum trade-count filter in ranking (configs with < MIN_TRADES are penalized)
-  8.  Risk metrics: max drawdown, win-rate reported
-  9.  Trade cooldown (configurable ticks between trades; extended after panic exit)
-  10. Numba @njit simulation loop (~50-100x faster)
-  11. Walk-forward split (train 70 % / test 30 %) to detect overfitting
-  12. Per-phase final PnL run printed after each optimization phase
-  13. Optimal config exported to JSON
+Vectorized Backtesting Runner — v3.3
+======================================
+v3.3: Aligned consensus formula with live system
+------------------------------------------------------------
+Key change from v3.2:
+  The consensus formula now matches the live SignalWindow exactly:
+    consensus = net_weight / abs_weight
+  where HOLD signals (weight=0) contribute 0 to BOTH numerator and denominator,
+  effectively excluding themselves from the calculation.
 
-Volatility fix (v2.1):
-  - Replaced rolling std/mean (7.5h window → 0.1-2% scale, non-transferable to live)
-    with per-candle H-L range: (high - low) / close * 100
-  - H-L% is computed once per 15m candle and broadcast to all 4 OHLC ticks
-  - Produces 0.1-0.5% quiet / 0.5-2% volatile — same interpretable scale as
-    the live system's intra-period price movement
-  - Search range updated from [0.0, 0.10] to [0.0, 0.80] to match new scale
+  Previously (v3.2), consensus = rolling_mean(sig_scores) / 13, which caused
+  HOLD-equivalent ticks to dilute consensus toward 0 — making thresholds
+  non-transferable to the live system.
 
-Bug-fix release (v2.2):
-  - Open positions are now settled at end of simulation — previously the last
-    trade's unrealized P&L was silently lost, biasing rankings and making the
-    test set look artificially dead
-  - Divergence threshold changed from absolute (0.02) to percentage-based
-    (0.10 % of midpoint). The absolute threshold was almost always exceeded
-    at higher prices (BTC 50-100k), pushing hold_ratio → 1.0 and blocking
-    all entries in the test set (late-period high-price data)
-  - MIN_TRADES raised from 20 → 50 to discourage ultra-sparse configs that
-    overfit to a handful of lucky trades
+  HOLD signals are now generated from two sources (matching live):
+  1. Volatility filter: when H-L% < vol_threshold → ALL signals become HOLD
+  2. ema_sma_divergence: when |SMA-EMA| > threshold → emits additional HOLD
+
+  Consensus and hold_ratio are computed INSIDE the Numba simulation loop using
+  running sums, so vol_threshold (optimizer parameter) properly affects them
+  on-the-fly without recomputing signal arrays for each threshold.
+
+60-tick OHLC expansion (carried from v3.2):
+  Each 1m candle is expanded to 60 synthetic ticks (~1 tick ≈ 1 second) using
+  linear interpolation between OHLC pivot points.
+
+Effective timescales (1 candle = 60 ticks):
+  MA_SHORT_PERIOD = 60 × 60 = 3600 ticks = 60 min   (live: SMA/EMA 60s)
+  MA_LONG_PERIOD  = 300 × 60 = 18000 ticks = 300 min (live: SMA/EMA 300s)
+  SHORT_WINDOW    = 120 × 60 = 7200 ticks  = 2 h     (live: 2 min)
+  MID_WINDOW      = 300 × 60 = 18000 ticks = 5 h     (live: 5 min)
+  STRUCT_WINDOW   = 600 × 60 = 36000 ticks = 10 h    (live: 10 min)
+  VOL_WINDOW      = 600 ticks = 10 min  ← tick-level, genuine improvement
+  COOLDOWN_TICKS  = 30 ticks  = 30 s   ← tick-level, matches live exactly
+  EXIT_COOLDOWN   = 600 ticks = 10 min ← tick-level, matches live exactly
 """
 
 from __future__ import annotations
@@ -44,7 +43,6 @@ import itertools
 import json
 import os
 import time
-from enum import IntFlag
 from pathlib import Path
 
 import numpy as np
@@ -58,50 +56,66 @@ INITIAL_BALANCE = 10_000.0
 TRADE_WEIGHT = 0.15
 LEVERAGE = 10
 TAKER_FEE = 0.001
-MIN_TRADES = 50          # minimum trades for a config to be ranked fairly
-COOLDOWN_TICKS = 8       # ~2 hours of cooldown at 15-min/4-tick resolution
-EXIT_COOLDOWN_TICKS = 40  # extended cooldown after panic exit (~10 hours)
+MIN_TRADES = 50
 
-# Signal scoring constants (matching live strategy weights)
-WEIGHT_GOLDEN_CROSS = 5      # SMA60 > EMA300
-WEIGHT_EMA_TREND = 5         # EMA60 > EMA300
-WEIGHT_PRICE_VS_SMA = 3      # PRICE > SMA300
+MAX_MONTHS = 6
+
+TICKS_PER_CANDLE = 60
+
+COOLDOWN_TICKS      =  30
+EXIT_COOLDOWN_TICKS = 600
+
+WEIGHT_GOLDEN_CROSS = 5
+WEIGHT_EMA_TREND    = 5
+WEIGHT_PRICE_VS_SMA = 3
 MAX_SIGNAL_SCORE = float(WEIGHT_GOLDEN_CROSS + WEIGHT_EMA_TREND + WEIGHT_PRICE_VS_SMA)  # 13
 
-DIVERGENCE_THRESHOLD_PCT = 0.10  # |SMA60 - EMA60| / midpoint as %, for HOLD signal
+DIVERGENCE_THRESHOLD_PCT = 0.10
 
-# Window sizes (in ticks; 1 tick ≈ 3.75 min with 4x OHLC expansion)
-SHORT_WINDOW = 120
-MID_WINDOW = 300
-STRUCT_WINDOW = 600
+MA_SHORT_PERIOD = 60  * TICKS_PER_CANDLE
+MA_LONG_PERIOD  = 300 * TICKS_PER_CANDLE
 
-# Density minimums (matching live TradeManager)
+SHORT_WINDOW  = 120 * TICKS_PER_CANDLE
+MID_WINDOW    = 300 * TICKS_PER_CANDLE
+STRUCT_WINDOW = 600 * TICKS_PER_CANDLE
+
+VOL_WINDOW = 600
+
 MIN_STRUCT_DENSITY = 350
-MIN_SHORT_DENSITY = 70
+MIN_SHORT_DENSITY  =  70
 
 
-class TradeSignal(IntFlag):
-    SHORT_TERM_BUY = 1 << 0
-    LONG_TERM_BUY = 1 << 1
-    SHORT_TERM_SELL = 1 << 2
-    LONG_TERM_SELL = 1 << 3
-    HOLD = 1 << 4
+def _expand_ohlc_to_ticks(opens: np.ndarray, highs: np.ndarray,
+                          lows: np.ndarray, closes: np.ndarray) -> np.ndarray:
+    """Expand N OHLC candles to N*60 synthetic ticks via linear interpolation."""
+    is_bullish = closes >= opens
+    tick2 = np.where(is_bullish, lows,  highs)
+    tick3 = np.where(is_bullish, highs, lows)
+
+    w = np.linspace(0.0, 1.0, 21)[:-1]
+
+    seg1 = opens[:, None]  * (1.0 - w) + tick2[:, None]  * w
+    seg2 = tick2[:, None]  * (1.0 - w) + tick3[:, None]  * w
+    seg3 = tick3[:, None]  * (1.0 - w) + closes[:, None] * w
+
+    return np.concatenate([seg1, seg2, seg3], axis=1).ravel()
 
 
 # ---------------------------------------------------------------------------
-# Numba-accelerated simulation
+# Numba-accelerated simulation — v3.3
+# consensus = net_weight / abs_weight (matching live SignalWindow)
+# HOLD injection from vol_threshold and divergence, computed per-tick
 # ---------------------------------------------------------------------------
 @njit(cache=True)
 def _simulate_core(
     prices: np.ndarray,
-    c_short: np.ndarray,
-    c_mid: np.ndarray,
-    c_struct: np.ndarray,
+    tick_net_raw: np.ndarray,
+    tick_abs_raw: np.ndarray,
+    tick_div_hold: np.ndarray,
     densities_short: np.ndarray,
     densities_struct: np.ndarray,
-    hold_ratios: np.ndarray,
     volatilities: np.ndarray,
-    # Config params (scalars for Numba compatibility)
+    # Config params
     cs_thresh: float,
     cm_thresh: float,
     cst_thresh: float,
@@ -120,144 +134,191 @@ def _simulate_core(
     min_struct_density: float,
     min_short_density: float,
     warm_up_ticks: int,
+    short_window: int,
+    mid_window: int,
+    struct_window: int,
 ) -> tuple[float, int, int, float, float]:
-    """
-    Returns: (final_pnl, total_trades, wins, max_drawdown_pct, final_balance)
-    """
-    balance = initial_balance
-    peak_balance = initial_balance
+    """Returns: (final_pnl, total_trades, wins, max_drawdown_pct, final_balance)"""
+    balance       = initial_balance
+    peak_balance  = initial_balance
     max_drawdown_pct = 0.0
 
-    current_side = 0       # 0=flat, 1=long, -1=short
-    entry_price = 0.0
-    position_size = 0.0    # locked at entry time
-    trades = 0
-    wins = 0
+    current_side      = 0
+    entry_price       = 0.0
+    position_size     = 0.0
+    trades            = 0
+    wins              = 0
     cooldown_remaining = 0
 
     n = len(prices)
+
+    # Running sums for 3 consensus windows
+    s_net = 0.0; s_abs = 0.0; s_hold = 0.0
+    m_net = 0.0; m_abs = 0.0; m_hold = 0.0
+    t_net = 0.0; t_abs = 0.0; t_hold = 0.0
+
     for i in range(n):
-        # Warm-up guard
+        # --- Compute this tick's effective values based on vol_threshold ---
+        if volatilities[i] >= vol_threshold:
+            net_i  = tick_net_raw[i]
+            abs_i  = tick_abs_raw[i]
+            hold_i = tick_div_hold[i]
+        else:
+            net_i  = 0.0
+            abs_i  = 0.0
+            hold_i = 3.0 + tick_div_hold[i]
+
+        # --- Update running sums: add tick i ---
+        s_net += net_i; s_abs += abs_i; s_hold += hold_i
+        m_net += net_i; m_abs += abs_i; m_hold += hold_i
+        t_net += net_i; t_abs += abs_i; t_hold += hold_i
+
+        # --- Evict oldest tick from each window (recompute effective values) ---
+        if i >= short_window:
+            j = i - short_window
+            if volatilities[j] >= vol_threshold:
+                s_net -= tick_net_raw[j]; s_abs -= tick_abs_raw[j]; s_hold -= tick_div_hold[j]
+            else:
+                s_hold -= 3.0 + tick_div_hold[j]
+
+        if i >= mid_window:
+            j = i - mid_window
+            if volatilities[j] >= vol_threshold:
+                m_net -= tick_net_raw[j]; m_abs -= tick_abs_raw[j]; m_hold -= tick_div_hold[j]
+            else:
+                m_hold -= 3.0 + tick_div_hold[j]
+
+        if i >= struct_window:
+            j = i - struct_window
+            if volatilities[j] >= vol_threshold:
+                t_net -= tick_net_raw[j]; t_abs -= tick_abs_raw[j]; t_hold -= tick_div_hold[j]
+            else:
+                t_hold -= 3.0 + tick_div_hold[j]
+
+        # --- Skip warm-up ---
         if i < warm_up_ticks:
             continue
 
-        # Cooldown
         if cooldown_remaining > 0:
             cooldown_remaining -= 1
             continue
 
-        # Volatility chop filter
-        is_volatile = volatilities[i] >= vol_threshold
+        # --- Compute consensus (matching live: net/abs) ---
+        c_s = s_net / s_abs if s_abs > 0.0 else 0.0
+        c_m = m_net / m_abs if m_abs > 0.0 else 0.0
+        c_t = t_net / t_abs if t_abs > 0.0 else 0.0
 
-        # Hold ratio veto
-        if hold_ratios[i] >= 0.50:
-            is_volatile = False  # suppress all entries in choppy conditions
+        # --- Hold ratio from SHORT window ---
+        hold_ratio = s_hold / densities_short[i] if densities_short[i] > 0.0 else 0.0
 
-        # Density filters
-        has_density = (densities_struct[i] >= min_struct_density) and (densities_short[i] >= min_short_density)
+        # --- Density check ---
+        has_density = (
+            densities_struct[i] >= min_struct_density
+            and densities_short[i] >= min_short_density
+        )
 
-        # Entry/Reverse conditions
+        # --- Hold ratio veto ---
+        if hold_ratio >= 0.50:
+            has_density = False
+
+        # --- Entry / exit signals ---
         is_strong_buy = (
-            is_volatile
-            and has_density
-            and c_short[i] >= cs_thresh
-            and c_mid[i] >= cm_thresh
-            and c_struct[i] >= cst_thresh
+            has_density
+            and c_s >= cs_thresh
+            and c_m >= cm_thresh
+            and c_t >= cst_thresh
         )
         is_strong_sell = (
-            is_volatile
-            and has_density
-            and c_short[i] <= -cs_thresh
-            and c_mid[i] <= -cm_thresh
-            and c_struct[i] <= -cst_thresh
+            has_density
+            and c_s <= -cs_thresh
+            and c_m <= -cm_thresh
+            and c_t <= -cst_thresh
         )
 
-        # Exit conditions (flipped consensus)
-        is_exit_long = False
+        is_exit_long  = False
         is_exit_short = False
         if use_exit:
             is_exit_long = (
-                c_short[i] < -ex_short
-                and c_mid[i] < -ex_mid
-                and c_struct[i] < -ex_struct
+                c_s < -ex_short
+                and c_m < -ex_mid
+                and c_t < -ex_struct
             )
             is_exit_short = (
-                c_short[i] > ex_short
-                and c_mid[i] > ex_mid
-                and c_struct[i] > ex_struct
+                c_s > ex_short
+                and c_m > ex_mid
+                and c_t > ex_struct
             )
 
+        # --- Trading logic (unchanged from v3.2) ---
         if current_side == 0:
             if is_strong_buy:
-                current_side = 1
-                entry_price = prices[i]
-                position_size = balance * trade_weight  # lock at entry
-                trades += 1
+                current_side   = 1
+                entry_price    = prices[i]
+                position_size  = balance * trade_weight
+                trades        += 1
                 cooldown_remaining = cooldown_ticks
             elif is_strong_sell:
-                current_side = -1
-                entry_price = prices[i]
-                position_size = balance * trade_weight
-                trades += 1
+                current_side   = -1
+                entry_price    = prices[i]
+                position_size  = balance * trade_weight
+                trades        += 1
                 cooldown_remaining = cooldown_ticks
 
         elif current_side == 1:
             acted = False
-            if is_strong_sell:  # REVERSE
-                pnl = position_size * ((prices[i] - entry_price) / entry_price) * leverage
-                fee = position_size * leverage * 2 * taker_fee
+            if is_strong_sell:
+                pnl  = position_size * ((prices[i] - entry_price) / entry_price) * leverage
+                fee  = position_size * leverage * 2 * taker_fee
                 balance += pnl - fee
                 if pnl > 0:
                     wins += 1
-                current_side = -1
-                entry_price = prices[i]
+                current_side  = -1
+                entry_price   = prices[i]
                 position_size = balance * trade_weight
-                trades += 1
+                trades       += 1
                 cooldown_remaining = cooldown_ticks
                 acted = True
-            if not acted and use_exit and is_exit_long:  # PANIC EXIT
-                pnl = position_size * ((prices[i] - entry_price) / entry_price) * leverage
-                fee = position_size * leverage * taker_fee
+            if not acted and use_exit and is_exit_long:
+                pnl  = position_size * ((prices[i] - entry_price) / entry_price) * leverage
+                fee  = position_size * leverage * taker_fee
                 balance += pnl - fee
                 if pnl > 0:
                     wins += 1
                 current_side = 0
-                trades += 1
+                trades      += 1
                 cooldown_remaining = exit_cooldown_ticks
 
         elif current_side == -1:
             acted = False
-            if is_strong_buy:  # REVERSE
-                pnl = position_size * ((entry_price - prices[i]) / entry_price) * leverage
-                fee = position_size * leverage * 2 * taker_fee
+            if is_strong_buy:
+                pnl  = position_size * ((entry_price - prices[i]) / entry_price) * leverage
+                fee  = position_size * leverage * 2 * taker_fee
                 balance += pnl - fee
                 if pnl > 0:
                     wins += 1
-                current_side = 1
-                entry_price = prices[i]
+                current_side  = 1
+                entry_price   = prices[i]
                 position_size = balance * trade_weight
-                trades += 1
+                trades       += 1
                 cooldown_remaining = cooldown_ticks
                 acted = True
-            if not acted and use_exit and is_exit_short:  # PANIC EXIT
-                pnl = position_size * ((entry_price - prices[i]) / entry_price) * leverage
-                fee = position_size * leverage * taker_fee
+            if not acted and use_exit and is_exit_short:
+                pnl  = position_size * ((entry_price - prices[i]) / entry_price) * leverage
+                fee  = position_size * leverage * taker_fee
                 balance += pnl - fee
                 if pnl > 0:
                     wins += 1
                 current_side = 0
-                trades += 1
+                trades      += 1
                 cooldown_remaining = exit_cooldown_ticks
 
-        # Track drawdown
         if balance > peak_balance:
             peak_balance = balance
         dd = (peak_balance - balance) / peak_balance * 100.0
         if dd > max_drawdown_pct:
             max_drawdown_pct = dd
 
-    # ---- v2.2 fix: settle any open position at end of data ----
-    # Previously the last trade's unrealized P&L was silently lost.
+    # Settle open position at end of data
     if current_side == 1:
         pnl = position_size * ((prices[n - 1] - entry_price) / entry_price) * leverage
         fee = position_size * leverage * taker_fee
@@ -282,11 +343,16 @@ class HighResPeakOptimizer:
         self.data_dir = data_dir
 
     # -----------------------------------------------------------------------
-    # Data loading & feature engineering
+    # Data loading & feature engineering — v3.3
     # -----------------------------------------------------------------------
     def load_and_signals(self) -> pd.DataFrame:
-        print("[1/2] Vectorizing entire history with OHLC expansion (x4 data points)...")
-        csv_files = sorted(glob.glob(os.path.join(self.data_dir, "BTCUSDT-15m-*.csv")))
+        # 1. Load the most recent MAX_MONTHS monthly 1m CSV files
+        all_files = sorted(glob.glob(os.path.join(self.data_dir, "BTCUSDT-1m-*.csv")))
+        csv_files = all_files[-MAX_MONTHS:]
+        print(
+            f"[1/3] Loading {len(csv_files)} months of 1m history "
+            f"(last {MAX_MONTHS} of {len(all_files)} available)..."
+        )
 
         df_list = [
             pd.read_csv(
@@ -296,118 +362,96 @@ class HighResPeakOptimizer:
             for f in csv_files
         ]
         df = pd.concat(df_list).sort_values("timestamp").reset_index(drop=True)
+        n_candles = len(df)
+        print(f"[1/3] {n_candles:,} 1m candles. Expanding to {n_candles * 60:,} synthetic ~1s ticks...")
 
-        # OHLC → 4 ticks per candle (open → low/high → high/low → close)
-        bullish = df["close"] >= df["open"]
-        tick1 = df["open"].values
-        tick2 = np.where(bullish, df["low"].values, df["high"].values)
-        tick3 = np.where(bullish, df["high"].values, df["low"].values)
-        tick4 = df["close"].values
-
-        prices_matrix = np.empty((len(df), 4))
-        prices_matrix[:, 0] = tick1
-        prices_matrix[:, 1] = tick2
-        prices_matrix[:, 2] = tick3
-        prices_matrix[:, 3] = tick4
-        flat_prices = prices_matrix.flatten()
-
-        expanded_df = pd.DataFrame({"price": flat_prices})
-        expanded_df["price"] = expanded_df["price"] / 1_000
-        print(f"[1/2] {expanded_df.shape[0]:,} expanded ticks loaded.")
-
-        prices = expanded_df["price"].values
-
-        # --- Indicators ---
-        sma60 = expanded_df["price"].rolling(window=60).mean().values
-        ema60 = expanded_df["price"].ewm(span=60, adjust=False).mean().values
-        sma300 = expanded_df["price"].rolling(window=300).mean().values
-        ema300 = expanded_df["price"].ewm(span=300, adjust=False).mean().values
-
-        # --- Signal scoring (FIX #2: separate stacking strategies) ---
+        # 2. 60-tick OHLC expansion
+        scale = 1_000.0
+        prices = _expand_ohlc_to_ticks(
+            df["open"].values  / scale,
+            df["high"].values  / scale,
+            df["low"].values   / scale,
+            df["close"].values / scale,
+        )
         n = len(prices)
-        sig_scores = np.zeros(n)
+        prices_s = pd.Series(prices)
 
-        # golden_cross / death_cross: SMA60 vs EMA300  (weight ±5)
-        sig_scores[sma60 > ema300] += WEIGHT_GOLDEN_CROSS
-        sig_scores[sma60 < ema300] -= WEIGHT_GOLDEN_CROSS
+        print(f"[2/3] Computing indicators on {n:,} synthetic ticks...")
 
-        # ema_trend_follow: EMA60 vs EMA300  (weight ±5)
-        sig_scores[ema60 > ema300] += WEIGHT_EMA_TREND
-        sig_scores[ema60 < ema300] -= WEIGHT_EMA_TREND
+        # 3. Indicators
+        sma_short = prices_s.rolling(window=MA_SHORT_PERIOD).mean().values
+        ema_short = prices_s.ewm(span=MA_SHORT_PERIOD, adjust=False).mean().values
+        sma_long  = prices_s.rolling(window=MA_LONG_PERIOD).mean().values
+        ema_long  = prices_s.ewm(span=MA_LONG_PERIOD, adjust=False).mean().values
 
-        # price_moving_average: PRICE vs SMA300  (weight ±3)
-        sig_scores[prices > sma300] += WEIGHT_PRICE_VS_SMA
-        sig_scores[prices < sma300] -= WEIGHT_PRICE_VS_SMA
+        # --- Per-strategy weights (matching live ScoreMapper) ---
+        gc_weight = np.where(sma_short > ema_long,  WEIGHT_GOLDEN_CROSS,
+                    np.where(sma_short < ema_long, -WEIGHT_GOLDEN_CROSS, 0.0))
+        et_weight = np.where(ema_short > ema_long,  WEIGHT_EMA_TREND,
+                    np.where(ema_short < ema_long, -WEIGHT_EMA_TREND, 0.0))
+        pm_weight = np.where(prices > sma_long,  WEIGHT_PRICE_VS_SMA,
+                    np.where(prices < sma_long, -WEIGHT_PRICE_VS_SMA, 0.0))
 
-        # --- Consensus windows (normalized to [-1, +1]) ---
-        def rolling_consensus(arr: np.ndarray, window: int) -> np.ndarray:
-            return pd.Series(arr).rolling(window=window).mean().values / MAX_SIGNAL_SCORE
+        # Tick-level aggregates for Numba
+        tick_net_raw = gc_weight + et_weight + pm_weight    # signed sum
+        tick_abs_raw = np.abs(gc_weight) + np.abs(et_weight) + np.abs(pm_weight)
 
-        expanded_df["c_short"] = rolling_consensus(sig_scores, SHORT_WINDOW)
-        expanded_df["c_mid"] = rolling_consensus(sig_scores, MID_WINDOW)
-        expanded_df["c_struct"] = rolling_consensus(sig_scores, STRUCT_WINDOW)
+        # ema_sma_divergence HOLD flag
+        midpoint = (sma_short + ema_short) / 2.0
+        relative_div = np.abs(sma_short - ema_short) / np.where(midpoint > 0, midpoint, 1.0) * 100
+        tick_div_hold = (relative_div > DIVERGENCE_THRESHOLD_PCT).astype(np.float64)
 
-        # --- Density (non-zero signal ticks in window) ---
-        non_zero = (sig_scores != 0).astype(float)
-        expanded_df["density_struct"] = pd.Series(non_zero).rolling(window=STRUCT_WINDOW).sum().values
-        expanded_df["density_short"] = pd.Series(non_zero).rolling(window=SHORT_WINDOW).sum().values
+        # Density: signal count per tick (vol-independent: 3 strategies + 0-1 divergence)
+        sig_count_per_tick = 3.0 + tick_div_hold
+        density_short  = pd.Series(sig_count_per_tick).rolling(window=SHORT_WINDOW).sum().values
+        density_struct = pd.Series(sig_count_per_tick).rolling(window=STRUCT_WINDOW).sum().values
 
-        # --- Hold ratio (FIX #3 & #4: include divergence HOLD) ---
-        # A tick is "HOLD-like" when sig_scores==0 OR SMA/EMA diverge by > threshold %
-        # v2.2 fix: use % of midpoint so the filter is consistent across the 10x
-        # price range in the dataset (BTC $7k-$100k).
-        midpoint = (sma60 + ema60) / 2.0
-        relative_div = np.abs(sma60 - ema60) / np.where(midpoint > 0, midpoint, 1.0) * 100
-        is_hold = ((sig_scores == 0) | (relative_div > DIVERGENCE_THRESHOLD_PCT)).astype(float)
-        expanded_df["hold_ratio"] = pd.Series(is_hold).rolling(window=SHORT_WINDOW).mean().values
+        # Volatility: rolling H-L% over VOL_WINDOW ticks
+        rolling_high = prices_s.rolling(window=VOL_WINDOW).max()
+        rolling_low  = prices_s.rolling(window=VOL_WINDOW).min()
+        volatility = ((rolling_high - rolling_low) / prices_s * 100).values
 
-        # --- Volatility: rolling sliding-window H-L% (matches live system) ---
-        # Live data_processor computes (max-min)/last_price*100 over a 600s (10min)
-        # sliding window of tick prices. With 15m candles expanded to 4 ticks each,
-        # 10 minutes ≈ 2.67 candles ≈ ~11 ticks. We use rolling max-min on the
-        # expanded price series to replicate the same sliding-window behavior.
-        VOL_WINDOW = 11  # ~10 minutes worth of expanded ticks
-        rolling_max = pd.Series(prices).rolling(window=VOL_WINDOW).max()
-        rolling_min = pd.Series(prices).rolling(window=VOL_WINDOW).min()
-        expanded_df["volatility"] = ((rolling_max - rolling_min) / prices * 100).values
+        result = pd.DataFrame({
+            "price":          prices,
+            "tick_net_raw":   tick_net_raw,
+            "tick_abs_raw":   tick_abs_raw,
+            "tick_div_hold":  tick_div_hold,
+            "density_short":  density_short,
+            "density_struct": density_struct,
+            "volatility":     volatility,
+        }).dropna().reset_index(drop=True)
 
-        result = expanded_df.dropna().reset_index(drop=True)
         vol_p25 = np.percentile(result["volatility"], 25)
         vol_p50 = np.percentile(result["volatility"], 50)
         vol_p75 = np.percentile(result["volatility"], 75)
-        hr_p25 = np.percentile(result["hold_ratio"], 25)
-        hr_p50 = np.percentile(result["hold_ratio"], 50)
-        hr_p75 = np.percentile(result["hold_ratio"], 75)
-        hr_below50 = (result["hold_ratio"] < 0.50).mean() * 100
+        dh_pct  = result["tick_div_hold"].mean() * 100
         print(
-            f"[2/2] {result.shape[0]:,} ticks after warm-up. "
-            f"Signal scoring max weight ±{MAX_SIGNAL_SCORE:.0f}.\n"
-            f"      Volatility (H-L%): p25={vol_p25:.3f}  p50={vol_p50:.3f}  p75={vol_p75:.3f}\n"
-            f"      Hold ratio:  p25={hr_p25:.3f}  p50={hr_p50:.3f}  p75={hr_p75:.3f}  "
-            f"(below 0.50 veto: {hr_below50:.1f}% of ticks)"
+            f"[3/3] {result.shape[0]:,} ticks after warm-up.\n"
+            f"      Volatility (H-L% / {VOL_WINDOW}s rolling): "
+            f"p25={vol_p25:.3f}  p50={vol_p50:.3f}  p75={vol_p75:.3f}\n"
+            f"      Divergence HOLD ticks: {dh_pct:.1f}%"
         )
         return result
 
     # -----------------------------------------------------------------------
-    # Simulation wrapper (calls Numba core)
+    # Simulation wrapper — v3.3
     # -----------------------------------------------------------------------
     def simulate(
         self,
         prices: np.ndarray,
-        c_short: np.ndarray,
-        c_mid: np.ndarray,
-        c_struct: np.ndarray,
+        tick_net_raw: np.ndarray,
+        tick_abs_raw: np.ndarray,
+        tick_div_hold: np.ndarray,
         densities_short: np.ndarray,
         densities_struct: np.ndarray,
-        hold_ratios: np.ndarray,
         volatilities: np.ndarray,
         config: dict,
         use_exit: bool = False,
     ) -> tuple[float, int, int, float, float]:
         """Returns (pnl, trades, wins, max_drawdown_pct, final_balance)."""
         return _simulate_core(
-            prices, c_short, c_mid, c_struct,
-            densities_short, densities_struct, hold_ratios, volatilities,
+            prices, tick_net_raw, tick_abs_raw, tick_div_hold,
+            densities_short, densities_struct, volatilities,
             cs_thresh=config["c_short"],
             cm_thresh=config["c_mid"],
             cst_thresh=config["c_struct"],
@@ -424,27 +468,22 @@ class HighResPeakOptimizer:
             exit_cooldown_ticks=EXIT_COOLDOWN_TICKS,
             min_struct_density=MIN_STRUCT_DENSITY,
             min_short_density=MIN_SHORT_DENSITY,
-            warm_up_ticks=STRUCT_WINDOW,  # explicit warm-up guard
+            warm_up_ticks=STRUCT_WINDOW,
+            short_window=SHORT_WINDOW,
+            mid_window=MID_WINDOW,
+            struct_window=STRUCT_WINDOW,
         )
 
     # -----------------------------------------------------------------------
-    # Ranking metric (FIX #7: penalize low-trade configs)
+    # Ranking metric
     # -----------------------------------------------------------------------
     @staticmethod
     def _rank_key(result: tuple) -> float:
-        """Rank configs by profit-per-trade, penalizing configs with fewer
-        than MIN_TRADES and those with excessive trade counts.
-        Goal: highest profit, fewest trades.
-        Score = profit_per_trade * min(1, trades/MIN_TRADES)
-          → below MIN_TRADES: hard ramp-up penalty
-          → above MIN_TRADES: pure profit-per-trade (naturally rewards
-            configs that achieve the same PnL with fewer trades)
-        """
         pnl, trades = result[0], result[1]
         if trades <= 0:
             return -1e18
         ppt = pnl / trades
-        trade_penalty = min(1.0, trades / MIN_TRADES)  # ramp 0→1
+        trade_penalty = min(1.0, trades / MIN_TRADES)
         return ppt * trade_penalty
 
     # -----------------------------------------------------------------------
@@ -461,7 +500,7 @@ class HighResPeakOptimizer:
         final_bal: float,
         use_exit: bool,
     ) -> None:
-        ppt = pnl / max(1, trades)
+        ppt      = pnl / max(1, trades)
         win_rate = (wins / trades * 100) if trades > 0 else 0.0
         print(f"\n--- {label} ---")
         print(f"  Final Balance:  ${final_bal:,.2f}")
@@ -477,10 +516,9 @@ class HighResPeakOptimizer:
     def _run_and_print_final(
         self, label: str, config: dict, arrays: tuple, use_exit: bool,
     ) -> tuple[float, int, int, float, float]:
-        """Run simulation with given config on provided arrays and print results."""
-        prices, cs, cm, cst, ds, dst, hr, vols = arrays
+        p, tnr, tar, tdh, ds, dst, vols = arrays
         pnl, trades, wins, max_dd, final_bal = self.simulate(
-            prices, cs, cm, cst, ds, dst, hr, vols, config, use_exit=use_exit,
+            p, tnr, tar, tdh, ds, dst, vols, config, use_exit=use_exit,
         )
         self._print_phase_result(label, config, pnl, trades, wins, max_dd, final_bal, use_exit)
         return pnl, trades, wins, max_dd, final_bal
@@ -493,29 +531,26 @@ class HighResPeakOptimizer:
 
         all_arrays = (
             df["price"].values,
-            df["c_short"].values,
-            df["c_mid"].values,
-            df["c_struct"].values,
+            df["tick_net_raw"].values,
+            df["tick_abs_raw"].values,
+            df["tick_div_hold"].values,
             df["density_short"].values,
             df["density_struct"].values,
-            df["hold_ratio"].values,
             df["volatility"].values,
         )
 
-        # Walk-forward split (70 % train / 30 % test)
         n = len(df)
         split = int(n * 0.7)
         train_arrays = tuple(a[:split] for a in all_arrays)
-        test_arrays = tuple(a[split:] for a in all_arrays)
+        test_arrays  = tuple(a[split:] for a in all_arrays)
         print(f"\nWalk-forward split: train={split:,} ticks, test={n - split:,} ticks")
 
-        prices, cs, cm, cst, ds, dst, hr, vols = train_arrays
+        p, tnr, tar, tdh, ds, dst, vols = train_arrays
 
-        # JIT warm-up (first call compiles; use a small throwaway run)
         print("\n[JIT] Compiling Numba kernel (one-time)...")
         jit_start = time.time()
-        _ = self.simulate(prices[:1000], cs[:1000], cm[:1000], cst[:1000],
-                          ds[:1000], dst[:1000], hr[:1000], vols[:1000],
+        _ = self.simulate(p[:2000], tnr[:2000], tar[:2000], tdh[:2000],
+                          ds[:2000], dst[:2000], vols[:2000],
                           {"c_short": 0.5, "c_mid": 0.5, "c_struct": 0.5, "vol_threshold": 0.0},
                           use_exit=False)
         print(f"[JIT] Compilation complete in {time.time() - jit_start:.2f}s.")
@@ -527,13 +562,9 @@ class HighResPeakOptimizer:
         print("PHASE 1: NO-EXIT OPTIMIZATION (Trend Reversal Only)")
         print("=" * 80)
 
-        # Stage 1: Coarse entry + volatility search
-        # Sliding-window H-L% scale: capped at ~p50 to prevent aggressive filtering.
-        # Anything above median filters >50% of ticks, starving the strategy.
-        # Sliding-window BTC 15m: p25~0.32%, p50~0.51%, p75~0.84%
         print("\n=== Stage 1: Coarse Entry & Volatility Search (0.1 step) ===")
-        coarse_range = [round(x, 2) for x in np.arange(0.10, 1.01, 0.1)]
-        vol_range = [round(x, 2) for x in np.arange(0.0, 0.55, 0.05)]
+        coarse_range  = [round(x, 2) for x in np.arange(0.10, 1.01, 0.1)]
+        vol_range     = [round(x, 2) for x in np.arange(0.0, 0.55, 0.05)]
         coarse_combos = list(itertools.product(coarse_range, coarse_range, coarse_range, vol_range))
 
         results_coarse_entry: list[tuple] = []
@@ -544,17 +575,16 @@ class HighResPeakOptimizer:
             if i % 500 == 0:
                 print(f"  Progress: {i:,}/{total:,} ...", flush=True)
             config = {"c_short": c1, "c_mid": c2, "c_struct": c3, "vol_threshold": v}
-            pnl, trd, wins, dd, fb = self.simulate(prices, cs, cm, cst, ds, dst, hr, vols, config, use_exit=False)
+            pnl, trd, wins, dd, fb = self.simulate(p, tnr, tar, tdh, ds, dst, vols, config, use_exit=False)
             results_coarse_entry.append((pnl, trd, wins, dd, fb, config))
 
         results_coarse_entry.sort(key=self._rank_key, reverse=True)
         best_coarse_entry = results_coarse_entry[0][5]
         print(f"Stage 1 complete in {time.time() - start:.1f}s. Best: {best_coarse_entry}")
 
-        # Stage 2: Fine entry search
         print("\n=== Stage 2: Fine Entry & Volatility Search (0.01 step) ===")
 
-        COARSE_MIN = 0.10  # fine grid must not go below coarse grid minimum
+        COARSE_MIN = 0.10
 
         def get_fine_range(
             center: float,
@@ -581,18 +611,16 @@ class HighResPeakOptimizer:
             if i % 1000 == 0:
                 print(f"  Progress: {i:,}/{total:,} ...", flush=True)
             config = {"c_short": c1, "c_mid": c2, "c_struct": c3, "vol_threshold": v}
-            pnl, trd, wins, dd, fb = self.simulate(prices, cs, cm, cst, ds, dst, hr, vols, config, use_exit=False)
+            pnl, trd, wins, dd, fb = self.simulate(p, tnr, tar, tdh, ds, dst, vols, config, use_exit=False)
             results_fine_entry.append((pnl, trd, wins, dd, fb, config))
 
         results_fine_entry.sort(key=self._rank_key, reverse=True)
         best_no_exit_cfg = results_fine_entry[0][5]
         print(f"Stage 2 complete in {time.time() - start:.1f}s. Best: {best_no_exit_cfg}")
 
-        # Phase 1 final PnL: re-run best no-exit config on TRAIN set
         print("\n>>> PHASE 1 RESULT (TRAIN SET — No Exit) <<<")
         self._run_and_print_final("Train / No Exit", best_no_exit_cfg, train_arrays, use_exit=False)
 
-        # Phase 1 final PnL: run best no-exit config on TEST set
         print("\n>>> PHASE 1 RESULT (TEST SET — No Exit) <<<")
         self._run_and_print_final("Test / No Exit", best_no_exit_cfg, test_arrays, use_exit=False)
 
@@ -603,16 +631,15 @@ class HighResPeakOptimizer:
         print("PHASE 2: WITH-EXIT OPTIMIZATION (Panic Exit Enabled)")
         print("=" * 80)
 
-        # Stage 3: Coarse exit search
         print("\n=== Stage 3: Coarse Exit Search (0.1 step) ===")
-        exit_coarse_range = [round(x, 2) for x in np.arange(0.30, 1.01, 0.1)]
+        exit_coarse_range  = [round(x, 2) for x in np.arange(0.30, 1.01, 0.1)]
         exit_coarse_combos = list(itertools.product(exit_coarse_range, exit_coarse_range, exit_coarse_range))
 
         results_coarse_exit: list[tuple] = []
         start = time.time()
         for e1, e2, e3 in exit_coarse_combos:
             config = {**best_no_exit_cfg, "ex_short": e1, "ex_mid": e2, "ex_struct": e3}
-            pnl, trd, wins, dd, fb = self.simulate(prices, cs, cm, cst, ds, dst, hr, vols, config, use_exit=True)
+            pnl, trd, wins, dd, fb = self.simulate(p, tnr, tar, tdh, ds, dst, vols, config, use_exit=True)
             results_coarse_exit.append((pnl, trd, wins, dd, fb, config))
 
         results_coarse_exit.sort(key=self._rank_key, reverse=True)
@@ -623,7 +650,6 @@ class HighResPeakOptimizer:
             f"ex_struct={best_coarse_exit['ex_struct']}"
         )
 
-        # Stage 4: Fine exit search
         print("\n=== Stage 4: Fine Exit Search (0.01 step) ===")
         fine_exit_combos = list(itertools.product(
             get_fine_range(best_coarse_exit["ex_short"]),
@@ -635,34 +661,32 @@ class HighResPeakOptimizer:
         start = time.time()
         for e1, e2, e3 in fine_exit_combos:
             config = {**best_no_exit_cfg, "ex_short": e1, "ex_mid": e2, "ex_struct": e3}
-            pnl, trd, wins, dd, fb = self.simulate(prices, cs, cm, cst, ds, dst, hr, vols, config, use_exit=True)
+            pnl, trd, wins, dd, fb = self.simulate(p, tnr, tar, tdh, ds, dst, vols, config, use_exit=True)
             results_fine_exit.append((pnl, trd, wins, dd, fb, config))
 
         results_fine_exit.sort(key=self._rank_key, reverse=True)
         best_exit_cfg = results_fine_exit[0][5]
         print(f"Stage 4 complete in {time.time() - start:.1f}s.")
 
-        # Phase 2 final PnL: re-run best exit config on TRAIN set
         print("\n>>> PHASE 2 RESULT (TRAIN SET — With Exit) <<<")
         self._run_and_print_final("Train / With Exit", best_exit_cfg, train_arrays, use_exit=True)
 
-        # Phase 2 final PnL: run best exit config on TEST set
         print("\n>>> PHASE 2 RESULT (TEST SET — With Exit) <<<")
         self._run_and_print_final("Test / With Exit", best_exit_cfg, test_arrays, use_exit=True)
 
         # ===================================================================
-        # FINAL REPORT (full dataset)
+        # FINAL REPORT
         # ===================================================================
         print("\n" + "=" * 80)
-        print("ULTIMATE SWEET SPOT REPORT  (v2 — Full Dataset)")
+        print(f"ULTIMATE SWEET SPOT REPORT  (v3.3 — last {MAX_MONTHS} months, synthetic 1s resolution)")
         print("=" * 80)
 
-        print("\n🏆 OPTION 1: NO EXIT (Trend Reversal Only)")
+        print("\nOPTION 1: NO EXIT (Trend Reversal Only)")
         pnl1, trd1, w1, dd1, fb1 = self._run_and_print_final(
             "Full Dataset / No Exit", best_no_exit_cfg, all_arrays, use_exit=False,
         )
 
-        print("\n🏆 OPTION 2: WITH EXIT (Panic Exit Enabled)")
+        print("\nOPTION 2: WITH EXIT (Panic Exit Enabled)")
         pnl2, trd2, w2, dd2, fb2 = self._run_and_print_final(
             "Full Dataset / With Exit", best_exit_cfg, all_arrays, use_exit=True,
         )
@@ -671,14 +695,13 @@ class HighResPeakOptimizer:
         ppt2 = pnl2 / max(1, trd2)
         if ppt1 >= ppt2:
             winner, winner_cfg, winner_exit = "NO EXIT", best_no_exit_cfg, False
-            print("\n✅ CONCLUSION: 'NO EXIT' is superior (higher profit/trade).")
+            print("\nCONCLUSION: 'NO EXIT' is superior (higher profit/trade).")
         else:
             winner, winner_cfg, winner_exit = "WITH EXIT", best_exit_cfg, True
-            print("\n✅ CONCLUSION: 'WITH EXIT' is superior (higher profit/trade).")
+            print("\nCONCLUSION: 'WITH EXIT' is superior (higher profit/trade).")
         print(f"Winner: {winner}")
         print("=" * 80)
 
-        # Export optimal config
         self._export_config(winner_cfg, winner_exit)
 
     # -----------------------------------------------------------------------
@@ -688,23 +711,23 @@ class HighResPeakOptimizer:
     def _export_config(config: dict, use_exit: bool) -> None:
         output = {
             "consensus_short_term_threshold": config["c_short"],
-            "consensus_mid_term_threshold": config["c_mid"],
-            "consensus_threshold": config["c_struct"],
-            "volatility_threshold": config.get("vol_threshold", 0.0),
-            "use_exit": use_exit,
+            "consensus_mid_term_threshold":   config["c_mid"],
+            "consensus_threshold":            config["c_struct"],
+            "volatility_threshold":           config.get("vol_threshold", 0.0),
+            "use_exit":                       use_exit,
         }
         if use_exit:
             output["exit_short_term_consensus_threshold"] = config.get("ex_short", 0.0)
-            output["exit_mid_term_threshold"] = config.get("ex_mid", 0.0)
-            output["exit_consensus_threshold"] = config.get("ex_struct", 0.0)
+            output["exit_mid_term_threshold"]             = config.get("ex_mid", 0.0)
+            output["exit_consensus_threshold"]            = config.get("ex_struct", 0.0)
 
         out_path = Path("config") / "optimized_thresholds.json"
         out_path.parent.mkdir(parents=True, exist_ok=True)
         with open(out_path, "w") as f:
             json.dump(output, f, indent=2)
-        print(f"\n📁 Optimized thresholds saved to {out_path}")
+        print(f"\nOptimized thresholds saved to {out_path}")
 
 
 if __name__ == "__main__":
-    opt = HighResPeakOptimizer("data/historical")
+    opt = HighResPeakOptimizer("data/historical/1m")
     opt.run()
