@@ -1111,7 +1111,9 @@ class TradeManager:
             # TODO: get the available data.
             # What are we going to do here ? -> get the average from different source of data?
             account_info: AccountInformation = self._get_account_info()
-            return round(account_info.available_balance, 4)
+            available_balance: float = account_info.balance
+
+            return round(available_balance, 4)
         except Exception as e:
             self.logger.critical(
                 f"[BALANCE_FETCH_ERROR] Quote: {self.trade_pair.quote} | Error: {type(e).__name__}: {e!s}"
