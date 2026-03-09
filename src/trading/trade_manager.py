@@ -172,6 +172,8 @@ class TradeManager:
         self.consensus_mid_term_threshold: float = 0.50
         self.consensus_threshold: float = 0.78
 
+        self.hold_threshold: float = 0.5
+
         # --- Exit thresholds (require all 3 windows) ---
         self.exit_short_term_consensus_threshold: float = 0.25
         self.exit_mid_term_threshold: float = 0.25
@@ -179,9 +181,6 @@ class TradeManager:
 
         # --- use_exit flag from config ---
         self.use_exit: bool = False
-
-        # Override thresholds from config/optimized_thresholds.json if available
-        self._load_optimized_thresholds()
 
         # Override thresholds from config/optimized_thresholds.json if available
         self._load_optimized_thresholds()
@@ -740,7 +739,7 @@ class TradeManager:
 
             # 3. HOLD Ratio Check (Chop Filter)
             hold_ratio = self.window_short.hold_ratio
-            if hold_ratio >= 0.50:
+            if hold_ratio >= self.hold_threshold:
                 self.logger.debug(f"[CHOP_FILTER] HOLD Ratio ({hold_ratio:.0%}) >= 50%. Vetoing trade.")
                 return TradeState.HOLD
 
