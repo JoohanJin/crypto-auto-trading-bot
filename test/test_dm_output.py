@@ -25,7 +25,7 @@ from src.brokers.base.ws_client import WebSocketClient
 from src.core.models.index import Index, IndexType
 from src.core.models.service_dto import Ticker
 from src.core.models.trade import TradePair
-from src.data.data_manager import DataManager
+from src.data_layer.data_manager import DataManager
 from src.interfaces.pipeline_interface import PipelineController
 from src.interfaces.websocket_interface import WebSocketInterface
 from src.interfaces.ws_client_registry import WebSocketClientRegistry

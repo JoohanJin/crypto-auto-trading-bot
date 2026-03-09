@@ -5,9 +5,9 @@ import unittest
 from src.core.models.index import IndexType  # type: ignore
 
 
-try:
-    from src.data.data_processor import (  # type: ignore
-        DataProcessor,
+from src.data_layer.data_processor import (  # type: ignore
+    DataProcessor,
+)
         IndexFactory,
     )
 except ModuleNotFoundError:

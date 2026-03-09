@@ -7,7 +7,7 @@ from src.backtesting.mock_broker import MockBinanceFutureHttpClient
 from src.backtesting.time_manager import MockTimeManager, patch_system_time
 from src.core.models.score_mapping import ScoreMapper
 from src.core.models.trade import TradePair
-from src.data.data_manager import DataManager
+from src.data_layer.data_manager import DataManager
 from src.integrations.telegram.telegram_bot_class import CustomTelegramBot
 from src.interfaces.pipeline_interface import PipelineController
 from src.pipeline.data_pipeline import DataPipeline

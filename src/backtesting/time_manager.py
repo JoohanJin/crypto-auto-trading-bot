@@ -27,8 +27,8 @@ def patch_system_time():
     import time
 
     from src.core.models.index import Index
-    from src.data.data_manager import DataManager
-    from src.data.data_processor import DataProcessor
+    from src.data_layer.data_manager import DataManager
+    from src.data_layer.data_processor import DataProcessor
     from src.trading.trade_manager import TradeManager
 
     # Overwrite the generate_timestamp classmethods
