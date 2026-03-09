@@ -31,8 +31,8 @@ jobs:
             --tag asia-northeast3-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot:latest \
             --tag asia-northeast3-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot:${{ github.sha }} .
 
-      # - name: 'Update VM Instance'
-      #   run: |
-      #     gcloud compute instances update-container crypto-bot-vm \
-      #       --zone=asia-northeast3-a \
-      #       --container-image=asia-northeast3-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot:latest
+      - name: 'Update VM Instance'
+        run: |
+          gcloud compute instances update-container crypto-bot-vm \
+            --zone=asia-northeast3-a \
+            --container-image=asia-northeast3-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot:latest
