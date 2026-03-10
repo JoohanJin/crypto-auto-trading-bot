@@ -115,8 +115,8 @@ class SignalGenerator:
         # data_processor computes (max-min)/last_price*100 over 600s sliding window.
         self.volatility_threshold: float = 0.45
 
-        # Override volatility threshold from config/optimized_thresholds.json if available
-        self._load_optimized_thresholds()
+        # Override volatility threshold from config/thresholds.json if available
+        self._load_thresholds()
 
         # threads pool
         self.threads: list[threading.Thread] = []
@@ -132,13 +132,13 @@ class SignalGenerator:
 
         self.logger.info(f"[COMPONENT_INIT] {self.name} | Status: ready")
 
-    def _load_optimized_thresholds(self) -> None:
-        """Load volatility_threshold from config/optimized_thresholds.json.
+    def _load_thresholds(self) -> None:
+        """Load volatility_threshold from config/thresholds.json.
         Falls back to the hardcoded default if the file is missing or malformed."""
-        config_path = Path("config") / "optimized_thresholds.json"
+        config_path = Path("config") / "thresholds.json"
         if not config_path.exists():
             self.logger.info(
-                "[CONFIG] optimized_thresholds.json not found — using hardcoded volatility_threshold"
+                "[CONFIG] thresholds.json not found — using hardcoded volatility_threshold"
             )
             return
 
@@ -147,7 +147,7 @@ class SignalGenerator:
                 cfg = json.load(f)
         except (json.JSONDecodeError, OSError) as e:
             self.logger.warning(
-                f"[CONFIG] Failed to load optimized_thresholds.json: {e} — using defaults"
+                f"[CONFIG] Failed to load thresholds.json: {e} — using defaults"
             )
             return
 
@@ -155,7 +155,7 @@ class SignalGenerator:
             self.volatility_threshold = float(cfg["volatility_threshold"])
 
         self.logger.info(
-            f"[CONFIG] Loaded optimized_thresholds.json | volatility_threshold={self.volatility_threshold:.4f}"
+            f"[CONFIG] Loaded thresholds.json | volatility_threshold={self.volatility_threshold:.4f}"
         )
 
     def start(self) -> None:

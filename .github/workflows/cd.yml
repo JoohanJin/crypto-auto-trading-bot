@@ -10,6 +10,8 @@ jobs:
     # Only run if the PR was merged (not just closed)
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
+    env:
+      IMAGE: asia-northeast3-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -26,16 +28,14 @@ jobs:
 
       - name: 'Build and Push Image'
         run: |
-          IMAGE=asia-northeast3-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot
           # Build and tag with commit SHA first
           gcloud builds submit --tag ${IMAGE}:${{ github.sha }} .
-          # Re-tag the SHA image as latest
+          # Re-tag the SHA image as latest in the registry
           gcloud artifacts docker tags add ${IMAGE}:${{ github.sha }} ${IMAGE}:latest
 
       - name: 'Update VM Instance'
         run: |
-          IMAGE=asia-northeast3-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/crypto-bot-repo/crypto-bot
+          # Use the exact image built in the previous step
           gcloud compute instances update-container crypto-bot-vm \
             --zone=asia-northeast3-a \
             --container-image=${IMAGE}:${{ github.sha }}
-          gcloud compute instances reset crypto-bot-vm --zone=asia-northeast3-a
