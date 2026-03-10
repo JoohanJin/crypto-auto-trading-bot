@@ -60,10 +60,10 @@ MIN_TRADES = 50
 
 MAX_MONTHS = 6
 
-TICKS_PER_CANDLE = 60
+TICKS_PER_CANDLE = 4
 
-COOLDOWN_TICKS = 30
-EXIT_COOLDOWN_TICKS = 600
+COOLDOWN_TICKS = 2
+EXIT_COOLDOWN_TICKS = 40
 
 WEIGHT_GOLDEN_CROSS = 5
 WEIGHT_EMA_TREND = 5
@@ -79,7 +79,7 @@ SHORT_WINDOW = 120 * TICKS_PER_CANDLE
 MID_WINDOW = 300 * TICKS_PER_CANDLE
 STRUCT_WINDOW = 600 * TICKS_PER_CANDLE
 
-VOL_WINDOW = 600
+VOL_WINDOW = 40
 
 MIN_STRUCT_DENSITY = 350
 MIN_SHORT_DENSITY = 70
@@ -87,18 +87,17 @@ MIN_SHORT_DENSITY = 70
 
 def _expand_ohlc_to_ticks(opens: np.ndarray, highs: np.ndarray,
                           lows: np.ndarray, closes: np.ndarray) -> np.ndarray:
-    """Expand N OHLC candles to N*60 synthetic ticks via linear interpolation."""
+    """Expand N OHLC candles to N*4 ticks: Open, High/Low, Low/High, Close (direction-aware)."""
     is_bullish = closes >= opens
     tick2 = np.where(is_bullish, lows,  highs)
     tick3 = np.where(is_bullish, highs, lows)
 
-    w = np.linspace(0.0, 1.0, 21)[:-1]
-
-    seg1 = opens[:, None] * (1.0 - w) + tick2[:, None] * w
-    seg2 = tick2[:, None] * (1.0 - w) + tick3[:, None] * w
-    seg3 = tick3[:, None] * (1.0 - w) + closes[:, None] * w
-
-    return np.concatenate([seg1, seg2, seg3], axis=1).ravel()
+    prices = np.empty((len(opens), 4))
+    prices[:, 0] = opens
+    prices[:, 1] = tick2
+    prices[:, 2] = tick3
+    prices[:, 3] = closes
+    return prices.ravel()
 
 
 # ---------------------------------------------------------------------------
@@ -255,7 +254,7 @@ def _simulate_core(
 
         is_exit_long = False
         is_exit_short = False
-        if use_exit:
+        if use_exit and has_density:
             is_exit_long = (
                 c_s < -ex_short
                 and c_m < -ex_mid
@@ -381,9 +380,9 @@ class HighResPeakOptimizer:
         ]
         df = pd.concat(df_list).sort_values("timestamp").reset_index(drop=True)
         n_candles = len(df)
-        print(f"[1/3] {n_candles:,} 1m candles. Expanding to {n_candles * 60:,} synthetic ~1s ticks...")
+        print(f"[1/3] {n_candles:,} 1m candles. Expanding to {n_candles * TICKS_PER_CANDLE:,} ticks (OHLC)...")
 
-        # 2. 60-tick OHLC expansion
+        # 2. 4-tick OHLC expansion
         scale = 1_000.0
         prices = _expand_ohlc_to_ticks(
             df["open"].values / scale,
@@ -497,12 +496,8 @@ class HighResPeakOptimizer:
     # -----------------------------------------------------------------------
     @staticmethod
     def _rank_key(result: tuple) -> float:
-        pnl, trades = result[0], result[1]
-        if trades <= 0:
-            return -1e18
-        ppt = pnl / trades
-        trade_penalty = min(1.0, trades / MIN_TRADES)
-        return ppt * trade_penalty
+        pnl = result[0]
+        return pnl
 
     # -----------------------------------------------------------------------
     # Print helpers
@@ -580,19 +575,21 @@ class HighResPeakOptimizer:
         print("PHASE 1: NO-EXIT OPTIMIZATION (Trend Reversal Only)")
         print("=" * 80)
 
-        print("\n=== Stage 1: Coarse Entry & Volatility Search (0.1 step) ===")
-        coarse_range = [round(x, 2) for x in np.arange(0.10, 1.01, 0.1)]
-        vol_range = [round(x, 2) for x in np.arange(0.0, 0.55, 0.05)]
-        coarse_combos = list(itertools.product(coarse_range, coarse_range, coarse_range, vol_range))
+        # vol_threshold fixed at 0.0 — no volatility filter
+        VOL_THRESHOLD = 0.0
+
+        print("\n=== Stage 1: Entry Search (0.05 step) ===")
+        coarse_range = [round(x, 2) for x in np.arange(0.50, 1.01, 0.05)]
+        coarse_combos = list(itertools.product(coarse_range, coarse_range, coarse_range))
 
         results_coarse_entry: list[tuple] = []
         start = time.time()
         total = len(coarse_combos)
         print(f"Running {total:,} coarse simulations...")
-        for i, (c1, c2, c3, v) in enumerate(coarse_combos):
+        for i, (c1, c2, c3) in enumerate(coarse_combos):
             if i % 500 == 0:
                 print(f"  Progress: {i:,}/{total:,} ...", flush=True)
-            config = {"c_short": c1, "c_mid": c2, "c_struct": c3, "vol_threshold": v}
+            config = {"c_short": c1, "c_mid": c2, "c_struct": c3, "vol_threshold": VOL_THRESHOLD}
             pnl, trd, wins, dd, fb = self.simulate(p, tnr, tar, tdh, ds, dst, vols, config, use_exit=False)
             results_coarse_entry.append((pnl, trd, wins, dd, fb, config))
 
@@ -600,9 +597,9 @@ class HighResPeakOptimizer:
         best_coarse_entry = results_coarse_entry[0][5]
         print(f"Stage 1 complete in {time.time() - start:.1f}s. Best: {best_coarse_entry}")
 
-        print("\n=== Stage 2: Fine Entry & Volatility Search (0.01 step) ===")
+        print("\n=== Stage 2: Fine Entry Search (0.01 step) ===")
 
-        COARSE_MIN = 0.10
+        COARSE_MIN = 0.50
 
         def get_fine_range(
             center: float,
@@ -618,17 +615,16 @@ class HighResPeakOptimizer:
             get_fine_range(best_coarse_entry["c_short"]),
             get_fine_range(best_coarse_entry["c_mid"]),
             get_fine_range(best_coarse_entry["c_struct"]),
-            get_fine_range(best_coarse_entry["vol_threshold"], step=0.01, spread=0.05, floor=0.0),
         ))
 
         results_fine_entry: list[tuple] = []
         start = time.time()
         total = len(fine_entry_combos)
         print(f"Running {total:,} fine simulations...")
-        for i, (c1, c2, c3, v) in enumerate(fine_entry_combos):
-            if i % 1000 == 0:
+        for i, (c1, c2, c3) in enumerate(fine_entry_combos):
+            if i % 200 == 0:
                 print(f"  Progress: {i:,}/{total:,} ...", flush=True)
-            config = {"c_short": c1, "c_mid": c2, "c_struct": c3, "vol_threshold": v}
+            config = {"c_short": c1, "c_mid": c2, "c_struct": c3, "vol_threshold": VOL_THRESHOLD}
             pnl, trd, wins, dd, fb = self.simulate(p, tnr, tar, tdh, ds, dst, vols, config, use_exit=False)
             results_fine_entry.append((pnl, trd, wins, dd, fb, config))
 
@@ -649,8 +645,8 @@ class HighResPeakOptimizer:
         print("PHASE 2: WITH-EXIT OPTIMIZATION (Panic Exit Enabled)")
         print("=" * 80)
 
-        print("\n=== Stage 3: Coarse Exit Search (0.1 step) ===")
-        exit_coarse_range = [round(x, 2) for x in np.arange(0.30, 1.01, 0.1)]
+        print("\n=== Stage 3: Coarse Exit Search (0.05 step) ===")
+        exit_coarse_range = [round(x, 2) for x in np.arange(0.50, 1.01, 0.05)]
         exit_coarse_combos = list(itertools.product(exit_coarse_range, exit_coarse_range, exit_coarse_range))
 
         results_coarse_exit: list[tuple] = []
@@ -700,12 +696,12 @@ class HighResPeakOptimizer:
         print("=" * 80)
 
         print("\nOPTION 1: NO EXIT (Trend Reversal Only)")
-        pnl1, trd1, w1, dd1, fb1 = self._run_and_print_final(
+        pnl1, trd1, *_ = self._run_and_print_final(
             "Full Dataset / No Exit", best_no_exit_cfg, all_arrays, use_exit=False,
         )
 
         print("\nOPTION 2: WITH EXIT (Panic Exit Enabled)")
-        pnl2, trd2, w2, dd2, fb2 = self._run_and_print_final(
+        pnl2, trd2, *_ = self._run_and_print_final(
             "Full Dataset / With Exit", best_exit_cfg, all_arrays, use_exit=True,
         )
 
@@ -747,5 +743,5 @@ class HighResPeakOptimizer:
 
 
 if __name__ == "__main__":
-    opt = HighResPeakOptimizer("data/historical/1m")
+    opt = HighResPeakOptimizer("market_data/historical")
     opt.run()
