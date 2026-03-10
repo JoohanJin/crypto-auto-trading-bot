@@ -182,8 +182,8 @@ class TradeManager:
         # --- use_exit flag from config ---
         self.use_exit: bool = False
 
-        # Override thresholds from config/optimized_thresholds.json if available
-        self._load_optimized_thresholds()
+        # Override thresholds from config/thresholds.json if available
+        self._load_thresholds()
 
         # Set the thread pool as a member function.
         self.threads: list[threading.Thread] = []
@@ -204,9 +204,9 @@ class TradeManager:
             f"Leverage: {self.leverage} | Window: {self.history_window_ms}ms"
         )
 
-    def _load_optimized_thresholds(self) -> None:
+    def _load_thresholds(self) -> None:
         """
-        Load entry/exit thresholds from config/optimized_thresholds.json.
+        Load entry/exit thresholds from config/thresholds.json.
         Falls back to the hardcoded defaults if the file is missing or malformed.
 
         Expected JSON keys (all optional — only present keys are overridden):
@@ -214,10 +214,10 @@ class TradeManager:
             consensus_threshold, exit_short_term_consensus_threshold,
             exit_mid_term_threshold, exit_consensus_threshold
         """
-        config_path = Path("config") / "optimized_thresholds.json"
+        config_path = Path("config") / "thresholds.json"
         if not config_path.exists():
             self.logger.info(
-                "[CONFIG] optimized_thresholds.json not found — using hardcoded defaults"
+                "[CONFIG] thresholds.json not found — using hardcoded defaults"
             )
             return
 
@@ -226,7 +226,7 @@ class TradeManager:
                 cfg = json.load(f)
         except (json.JSONDecodeError, OSError) as e:
             self.logger.warning(
-                f"[CONFIG] Failed to load optimized_thresholds.json: {e} — using defaults"
+                f"[CONFIG] Failed to load thresholds.json: {e} — using defaults"
             )
             return
 
@@ -251,7 +251,7 @@ class TradeManager:
             self.use_exit = bool(cfg["use_exit"])
 
         self.logger.info(
-            f"[CONFIG] Loaded optimized_thresholds.json | "
+            f"[CONFIG] Loaded thresholds.json | "
             f"Entry: short={self.consensus_short_term_threshold:.2f}, "
             f"mid={self.consensus_mid_term_threshold:.2f}, "
             f"struct={self.consensus_threshold:.2f} | "
