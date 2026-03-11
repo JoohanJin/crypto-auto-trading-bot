@@ -1,7 +1,7 @@
 {
   "consensus_short_term_threshold": 0.5,
-  "consensus_mid_term_threshold": 1.0,
-  "consensus_threshold": 0.55,
+  "consensus_mid_term_threshold": 0.5,
+  "consensus_threshold": 0.9,
   "volatility_threshold": 0.0,
   "use_exit": false
 }
