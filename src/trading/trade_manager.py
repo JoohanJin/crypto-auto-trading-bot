@@ -182,6 +182,9 @@ class TradeManager:
         # --- use_exit flag from config ---
         self.use_exit: bool = False
 
+        # --- cooldowns (overridable from config) ---
+        self.exit_cooldown_ms: int = self.history_window_ms  # default: 10 min
+
         # Override thresholds from config/thresholds.json if available
         self._load_thresholds()
 
@@ -250,6 +253,14 @@ class TradeManager:
         if "use_exit" in cfg:
             self.use_exit = bool(cfg["use_exit"])
 
+        # --- cooldowns ---
+        if "cooldown_seconds" in cfg:
+            cd_ms = int(cfg["cooldown_seconds"]) * 1_000
+            self.default_trade_cooldown_ms = cd_ms
+            self.trade_cooldown_ms = cd_ms
+        if "exit_cooldown_seconds" in cfg:
+            self.exit_cooldown_ms = int(cfg["exit_cooldown_seconds"]) * 1_000
+
         self.logger.info(
             f"[CONFIG] Loaded thresholds.json | "
             f"Entry: short={self.consensus_short_term_threshold:.2f}, "
@@ -258,7 +269,9 @@ class TradeManager:
             f"Exit: short={self.exit_short_term_consensus_threshold:.2f}, "
             f"mid={self.exit_mid_term_threshold:.2f}, "
             f"struct={self.exit_consensus_threshold:.2f} | "
-            f"use_exit={self.use_exit}"
+            f"use_exit={self.use_exit} | "
+            f"CD={self.default_trade_cooldown_ms/1000:.0f}s, "
+            f"ECD={self.exit_cooldown_ms/1000:.0f}s"
         )
 
     def __del__(
@@ -851,11 +864,10 @@ class TradeManager:
                     # Add dynamic cooldown for Panic Exits (Whipsaw protection)
                     if decision == TradeState.EXIT:
                         self.logger.warning(
-                            "[WHIPSAW_PROTECTION] Panic exit triggered! Extending cooldown to 10 minutes."
+                            f"[WHIPSAW_PROTECTION] Panic exit triggered! "
+                            f"Extending cooldown to {self.exit_cooldown_ms/1000:.0f}s."
                         )
-                        self.trade_cooldown_ms = (
-                            self.history_window_ms
-                        )  # Pause for full structural window
+                        self.trade_cooldown_ms = self.exit_cooldown_ms
                     else:
                         self.trade_cooldown_ms = (
                             self.default_trade_cooldown_ms
