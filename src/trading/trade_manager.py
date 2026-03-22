@@ -95,7 +95,7 @@ class TradeManager:
         delta_mapper: ScoreMapper,
         telegram_bot: CustomTelegramBot,
         trade_pair: TradePair | None = None,
-        leverage: int = 10,
+        leverage: int = 50,
         trade_weight: float = 0.15,  # 20% of the total asset
         take_profit_rate: float = 0.2,  # 20% -> to prevent the error
         stop_loss_rate: float = 0.2,  # 20% -> to prevent the error
