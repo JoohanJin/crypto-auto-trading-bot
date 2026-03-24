@@ -58,6 +58,10 @@ class TradeManager:
         """
         return int(time.time() * 1_000)
 
+    @classmethod
+    def convert_s_to_ms(cls, second):
+        return second * 1_000
+
     def verify_signal(
         self,
         signal_data: Signal,
@@ -94,12 +98,23 @@ class TradeManager:
         binance_future_client: BinanceFutureHttpClient,
         delta_mapper: ScoreMapper,
         telegram_bot: CustomTelegramBot,
-        trade_pair: TradePair | None = None,
+        default_cooldown: int = 1_200,
+        trade_cooldown: int = 1_200,
+        exit_cooldown: int = 240,
+        trade_weight: float = 0.1,
         leverage: int = 30,
-        trade_weight: float = 0.10,  # 10% of the total asset
-        take_profit_rate: float = 0.2,  # 20% -> to prevent the error
-        stop_loss_rate: float = 0.2,  # 20% -> to prevent the error
-        trade_cooldown_ms: int = 30_000,  # minimum milliseconds between consecutive trades
+        tp_rate: float = 0.2,
+        sl_rate: float = 0.2,
+        history_window: int = 600,
+        hold_threshold: float = 0.5,
+        use_exit: bool = False,
+        consensus_short_term_threshold: float = 1.0,
+        consensus_mid_term_threshold: float = 0.9,
+        consensus_threshold: float = 0.9,
+        exit_short_term_threshold: float = 0.9,
+        exit_mid_term_threshold: float = 0.8,
+        exit_threshold: float = 0.8,
+        trade_pair: TradePair | None = None,
         name: str | None = None,
         disable_trade: bool = False,
     ) -> None:
@@ -141,46 +156,48 @@ class TradeManager:
 
         self.telegram_bot: CustomTelegramBot = telegram_bot
 
-        self.default_trade_cooldown_ms: int = trade_cooldown_ms
-        self.trade_cooldown_ms: int = trade_cooldown_ms
+        self.default_trade_cooldown_ms: int = self.convert_s_to_ms(default_cooldown)
+        self.trade_cooldown_ms: int = self.convert_s_to_ms(trade_cooldown)
+        self.exit_cooldown_ms: int = self.convert_s_to_ms(exit_cooldown)
+
         self.last_trade_timestamp: int = 0  # epoch ms of the last executed trade
 
         # TODO_LONG_TERM: decide these variables dynamically
         self.leverage: int = leverage
         self.trade_weight: float = trade_weight
-        self.tp_rate: float = take_profit_rate
-        self.sl_rate: float = stop_loss_rate
+        self.tp_rate: float = tp_rate
+        self.sl_rate: float = sl_rate
 
         self.disable_trade: bool = disable_trade
 
         self.disable_trade: bool = disable_trade
 
         # --- Multi-Window Sliding Storage (Modularized) ---
-        self.history_window_ms: int = 600_000  # 10 minutes (structural backbone)
+        self.history_window_ms: int = self.convert_s_to_ms(history_window)  # 10 minutes (structural backbone)
         self.mid_term_window_ms: int = self.history_window_ms // 2  # 5 minutes
         self.short_term_window_ms: int = self.history_window_ms // 5  # 2 minutes
 
-        self.window_short = SignalWindow(window_ms=self.short_term_window_ms)
-        self.window_mid = SignalWindow(window_ms=self.mid_term_window_ms)
-        self.window_struct = SignalWindow(window_ms=self.history_window_ms)
-
         self.signal_history_lock: threading.Lock = threading.Lock()
 
-        # --- Entry thresholds (require all 3 windows) ---
-        # Defaults mirror latest backtest v2.3 (sliding-window volatility).
-        self.consensus_short_term_threshold: float = 1.0
-        self.consensus_mid_term_threshold: float = 0.50
-        self.consensus_threshold: float = 0.78
+        self.window_short: SignalWindow = SignalWindow(window_ms=self.short_term_window_ms)
+        self.window_mid: SignalWindow = SignalWindow(window_ms=self.mid_term_window_ms)
+        self.window_struct: SignalWindow = SignalWindow(window_ms=self.history_window_ms)
 
-        self.hold_threshold: float = 0.5
+        # --- Entry thresholds (require all 3 windows) ---
+        self.hold_threshold: float = hold_threshold
+
+        # Defaults mirror latest backtest v2.3 (sliding-window volatility).
+        self.consensus_short_term_threshold: float = consensus_short_term_threshold
+        self.consensus_mid_term_threshold: float = consensus_short_term_threshold
+        self.consensus_threshold: float = consensus_threshold
 
         # --- Exit thresholds (require all 3 windows) ---
-        self.exit_short_term_consensus_threshold: float = 0.25
-        self.exit_mid_term_threshold: float = 0.25
-        self.exit_consensus_threshold: float = 0.98
+        self.exit_short_term_threshold: float = exit_short_term_threshold
+        self.exit_mid_term_threshold: float = exit_mid_term_threshold
+        self.exit_threshold: float = exit_threshold
 
         # --- use_exit flag from config ---
-        self.use_exit: bool = False
+        self.use_exit: bool = use_exit
 
         # --- cooldowns (overridable from config) ---
         self.exit_cooldown_ms: int = self.history_window_ms  # default: 10 min
@@ -214,8 +231,9 @@ class TradeManager:
 
         Expected JSON keys (all optional — only present keys are overridden):
             consensus_short_term_threshold, consensus_mid_term_threshold,
-            consensus_threshold, exit_short_term_consensus_threshold,
-            exit_mid_term_threshold, exit_consensus_threshold
+            consensus_threshold,exit_short_term_threshold ,
+            exit_mid_term_threshold,
+            exit_threshold,
         """
         config_path = Path("config") / "thresholds.json"
         if not config_path.exists():
@@ -242,12 +260,12 @@ class TradeManager:
             self.consensus_threshold = float(cfg["consensus_threshold"])
 
         # --- Exit thresholds ---
-        if "exit_short_term_consensus_threshold" in cfg:
-            self.exit_short_term_consensus_threshold = float(cfg["exit_short_term_consensus_threshold"])
+        if "exit_short_term_threshold" in cfg:
+            self.exit_short_term_threshold = float(cfg["exit_short_term_threshold"])
         if "exit_mid_term_threshold" in cfg:
             self.exit_mid_term_threshold = float(cfg["exit_mid_term_threshold"])
-        if "exit_consensus_threshold" in cfg:
-            self.exit_consensus_threshold = float(cfg["exit_consensus_threshold"])
+        if "exit_threshold" in cfg:
+            self.exit_threshold = float(cfg["exit_threshold"])
 
         # --- use_exit flag ---
         if "use_exit" in cfg:
@@ -255,20 +273,40 @@ class TradeManager:
 
         # --- cooldowns ---
         if "cooldown_seconds" in cfg:
-            cd_ms = int(cfg["cooldown_seconds"]) * 1_000
+            cd_ms = self.convert_s_to_ms(int(cfg["cooldown_seconds"]))
             self.default_trade_cooldown_ms = cd_ms
             self.trade_cooldown_ms = cd_ms
         if "exit_cooldown_seconds" in cfg:
-            self.exit_cooldown_ms = int(cfg["exit_cooldown_seconds"]) * 1_000
+            self.exit_cooldown_ms = self.convert_s_to_ms(
+                int(
+                    cfg["exit_cooldown_seconds"]
+                )
+            )
+
+        if "leverage" in cfg:
+            self.leverage = int(cfg["leverage"])
+
+        if "trade_weight" in cfg:
+            self.trade_weight = float(cfg["trade_weight"])
+
+        if "tp_rate" in cfg:
+            self.tp_rate = float(cfg["tp_rate"])
+
+        if "sl_rate" in cfg:
+            self.sl_rate = float(cfg["sl_rate"])
 
         self.logger.info(
             f"[CONFIG] Loaded thresholds.json | "
+            f"Leverage = {self.leverage} | "
+            f"Trade weight = {self.trade_weight} | "
+            f"Take Profit Rate = {self.tp_rate} | "
+            f"Stop Loss Rate = {self.sl_rate} | "
             f"Entry: short={self.consensus_short_term_threshold:.2f}, "
             f"mid={self.consensus_mid_term_threshold:.2f}, "
             f"struct={self.consensus_threshold:.2f} | "
-            f"Exit: short={self.exit_short_term_consensus_threshold:.2f}, "
+            f"Exit: short={self.exit_short_term_threshold:.2f}, "
             f"mid={self.exit_mid_term_threshold:.2f}, "
-            f"struct={self.exit_consensus_threshold:.2f} | "
+            f"struct={self.exit_threshold:.2f} | "
             f"use_exit={self.use_exit} | "
             f"CD={self.default_trade_cooldown_ms/1000:.0f}s, "
             f"ECD={self.exit_cooldown_ms/1000:.0f}s"
@@ -790,17 +828,17 @@ class TradeManager:
         def is_exit_from_buy() -> bool:
             # Require ALL 3 windows to flip against us — prevents premature exits on normal pullbacks
             return (current_pos.side == Side.BUY) and (
-                (consensus_short_term < -(self.exit_short_term_consensus_threshold))
+                (consensus_short_term < -(self.exit_short_term_threshold))
                 and (consensus_mid_term < -(self.exit_mid_term_threshold))
-                and (consensus_structural < -(self.exit_consensus_threshold))
+                and (consensus_structural < -(self.exit_threshold))
             )
 
         def is_exit_from_sell() -> bool:
             # Require ALL 3 windows to flip against us — prevents premature exits on normal pullbacks
             return (current_pos.side == Side.SELL) and (
-                (consensus_short_term > self.exit_short_term_consensus_threshold)
+                (consensus_short_term > self.exit_short_term_threshold)
                 and (consensus_mid_term > self.exit_mid_term_threshold)
-                and (consensus_structural > self.exit_consensus_threshold)
+                and (consensus_structural > self.exit_threshold)
             )
 
         def is_exit() -> bool:
