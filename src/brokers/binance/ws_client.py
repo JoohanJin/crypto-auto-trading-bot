@@ -4,17 +4,14 @@ from typing import Literal
 
 from src.brokers.base.ws_client import WebSocketClient
 from src.brokers.base.ws_service import WebSocket
-
 # WebSocket
-from src.brokers.binance.ws_gateway import BinanceMarketWebSocket, BinanceUserWebSocket
-
+from src.brokers.binance.ws_gateway import (BinanceMarketWebSocket,
+                                            BinanceUserWebSocket)
 # Custom Models
 from src.core.models.service_dto import Ticker
 from src.core.models.trade import TradePair
-
 # Logger
 from src.infrastructure.logging.set_logger import get_adapter, get_logger
-
 
 logger = get_logger(__name__)
 

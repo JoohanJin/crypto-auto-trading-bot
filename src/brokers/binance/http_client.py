@@ -5,23 +5,15 @@ from typing import Literal
 from src.brokers.base.http_client import HttpClient
 from src.brokers.base.http_service import HttpService
 from src.brokers.binance.http_gateway import BinanceFutureGateway
-
 # logger
 from src.core.models.order import Order, Side
-
 # Data Structure
-from src.core.models.service_dto import (
-    AccountInformation,
-    MarkPrice,
-    Ping,
-    Position,
-    Ticker,
-)
-
+from src.core.models.service_dto import (AccountInformation, MarkPrice, Ping,
+                                         Position, Ticker)
 # Custom Library
-from src.core.models.trade import PositionState, PositionType, TimeInForce, TradePair
+from src.core.models.trade import (PositionState, PositionType, TimeInForce,
+                                   TradePair)
 from src.infrastructure.logging.set_logger import get_adapter, get_logger
-
 
 logger = get_logger(__name__)
 
@@ -1133,7 +1125,8 @@ class BinanceFutureHttpClient(HttpClient):
                     working_type=order.get("workingType", "CONTRACT_PRICE"),
                     price_match=order.get("priceMatch", "NONE"),
                     self_trade_prevention_mode=order.get(
-                        "selfTradePreventionMode", "NONE"
+                        "selfTradePreventionMode",
+                        "NONE"  # default value
                     ),
                     good_till_date=order.get("goodTillDate", 0),
                     price_protect=order.get("priceProtect", False),
