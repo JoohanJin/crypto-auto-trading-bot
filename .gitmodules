@@ -1,0 +1,9 @@
+[submodule "bot"]
+	path = bot
+	url = ./bot
+[submodule "orderbook"]
+	path = orderbook
+	url = ./orderbook
+[submodule "db"]
+	path = db
+	url = ./db

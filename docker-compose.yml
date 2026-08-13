@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  # Database Component (TimescaleDB / PostgreSQL)
+  db:
+    build:
+      context: ./db
+      dockerfile: Dockerfile
+    container_name: autocryptotrading-db
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-autocryptotrading}
+      POSTGRES_USER: ${POSTGRES_USER:-crypto_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-crypto_pass_secure}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks:
+      - trading_network
+
+  # C++ Orderbook Component
+  orderbook:
+    build:
+      context: ./orderbook
+      dockerfile: Dockerfile
+    container_name: autocryptotrading-orderbook
+    restart: always
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    depends_on:
+      - db
+    networks:
+      - trading_network
+
+  # Python Trading Bot Component
+  bot:
+    build:
+      context: ./bot
+      dockerfile: Dockerfile
+    container_name: autocryptotrading-bot
+    restart: always
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB:-autocryptotrading}
+      DB_USER: ${POSTGRES_USER:-crypto_user}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-crypto_pass_secure}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    depends_on:
+      - db
+      - orderbook
+    networks:
+      - trading_network
+
+networks:
+  trading_network:
+    driver: bridge
+
+volumes:
+  db_data:
