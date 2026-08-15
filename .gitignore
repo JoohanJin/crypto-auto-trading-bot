@@ -1,144 +1,16 @@
-# =============================================================================
-# Custom
-# =============================================================================
-# Test File
-test/test.py
-
-
-# =============================================================================
-# Python
-# =============================================================================
-# Byte-compiled / optimized / DLL files
-__pycache__/
-*.py[cod]
-*$py.class
-
-# C extensions
-*.so
-
-# Distribution / packaging
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# PyInstaller
-*.manifest
-*.spec
-
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
-
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.nox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.py,cover
-.hypothesis/
-.pytest_cache/
-
-# Translations
-*.mo
-*.pot
-
-# =============================================================================
-# Virtual Environments
-# =============================================================================
-.venv/
-venv/
-ENV/
-env/
-.env.local
-
-# =============================================================================
-# IDE / Editor
-# =============================================================================
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# =============================================================================
-# Project Specific
-# =============================================================================
-# Temporary files
-*tmp*
-tmp/
-*foo*
-foo/
-
-# Market data (large files)
-market_data/
-
-# Archive data
-*archieve*
-
-# Jupyter notebooks
-.ipynb_checkpoints/
-
-# Logging
-log/*.log*
-
-# Environment variables (secrets)
+# Environment files
 .env
-.env.*
-!.env.example
+*.env.local
 
-# Data files
-*.csv
-
-# =============================================================================
-# OS Specific
-# =============================================================================
-# MacOS
+# MacOS / OS generated
 .DS_Store
-.AppleDouble
-.LSOverride
-._*
+.Trashes
 
-# Windows
-Thumbs.db
-ehthumbs.db
-Desktop.ini
+# Virtual Environment & Caches
+.venv/
+__pycache__/
+*.pyc
 
-# Linux
-*~
-
-# =============================================================================
-# Docker
-# =============================================================================
-.dockerignore
-
-# =============================================================================
-# Type Checking / Linting
-# =============================================================================
-.mypy_cache/
-.ruff_cache/
-.dmypy.json
-dmypy.json
-
-# =============================================================================
-# Documentation
-# =============================================================================
-site/
-docs/_build/
+# Logs
+*.log
+logs/

@@ -1,292 +1,73 @@
-<!--
-MIT License
+# 🚀 AutoCryptoTrading System
 
-Copyright (c) 2025 JoohanJin
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
--->
-
-
-
-<!-- PROJECT SHIELDS -->
-<!--
-*** I'm using markdown "reference style" links for readability.
-*** Reference links are enclosed in brackets [ ] instead of parentheses ( ).
-*** See the bottom of this document for the declaration of the reference variables
-*** for contributors-url, forks-url, etc. This is an optional, concise syntax you may use.
-*** https://www.markdownguide.org/basic-syntax/#reference-style-links
--->
-<div align="left">
-
-[![MIT License][license-shield]][license-url]
-
-</div>
-
-<!-- PROJECT LOGO -->
-<br />
-<div align="center">
-
-
-<h2 align="center">Crypto-Currency Automatic Trading Bot</h3>
-
-  <p align="center">
-    <!-- project_description -->
-    <!-- <br /> -->
-    <!-- <a href="https://github.com/JoohanJin/AutoCryptoTrading"><strong>Explore the docs »</strong></a> -->
-    <!-- <br /> -->
-    <!-- <br /> -->
-    <!-- <a href="https://github.com/JoohanJin/AutoCryptoTrading">View Demo</a> -->
-    <!-- · -->
-    <!-- <a href="https://github.com/JoohanJin/AutoCryptoTrading/issues">Report Bug</a> -->
-    <!-- · -->
-    <!-- <a href="https://github.com/JoohanJin/AutoCryptoTrading/issues">Request Feature</a> -->
-  </p>
-</div>
-
-A personal crypto trading bot project built to automate trading strategies using real-time data from the MEXC Exchange. More brokers can be added in the future for more accurate and reiliable data fetching.
-
-
-<!-- TABLE OF CONTENTS -->
-<!-- <details>
-  <summary>Table of Contents</summary>
-  <ol>
-    <li>
-      <a href="#about-the-project">About The Project</a>
-      <ul>
-        <li><a href="#built-with">Built With</a></li>
-      </ul>
-    </li>
-    <li>
-      <a href="#getting-started">Getting Started</a>
-      <ul>
-        <li><a href="#prerequisites">Prerequisites</a></li>
-        <li><a href="#installation">Installation</a></li>
-      </ul>
-    </li>
-    <li><a href="#usage">Usage</a></li>
-    <li><a href="#roadmap">Roadmap</a></li>
-    <li><a href="#contributing">Contributing</a></li>
-    <li><a href="#license">License</a></li>
-    <li><a href="#contact">Contact</a></li>
-    <li><a href="#acknowledgments">Acknowledgments</a></li>
-  </ol>
-</details> -->
-
-
-
-<!-- ABOUT THE PROJECT -->
-## 📌 About The Project
-
-<!-- [![Product Name Screen Shot][product-screenshot]](https://example.com) -->
-
-This bot connects to Cryptocurrency Exchanges (Binance and MEXC) via WebSocket, processes market data in real-time, and executes trades based on a highly optimized **Weighted Signal Density & Consensus (WSDC)** strategy. 
-
-It is designed as an "Always-in-Market" trend-following system. It utilizes a multi-threaded architecture to separate data ingestion, technical indicator processing, and trade orchestration to maximize speed and reliability.
-
-Currently, the bot is successfully deployed and running 24/7 on **Google Cloud Platform (GCP)** via Container-Optimized OS.
+An automated, multi-container algorithmic cryptocurrency trading system built for real-time market data ingestion, high-speed limit orderbook calculations, strategy execution, and historical data persistence.
 
 ---
 
-## 🛠️ Features
-- **WSDC Trading Brain**: Utilizes Weighted Signal Density & Consensus to mathematically filter out market noise and liquidation wicks.
-- **Ultra-Fast Vectorized Backtesting**: Custom Numpy/Pandas grid-search optimizer to simulate months of OHLC data in seconds to find the perfect strategy thresholds.
-- **Cloud-Native Deployment**: Containerized for Google Cloud Platform (Artifact Registry & Compute Engine).
-- **Multi-Threaded Architecture**: Independent threads for WebSocket data fetching, signal generation, and trade execution.
-- **Live Trading**: Fully automated order placement (Market/Reversal) on Binance Futures.
-- **Telegram Integration**: Real-time push notifications for every trade execution.
+## 🏗️ Architecture Overview
 
-<!-- <p align="right">(<a href="#readme-top">back to top</a>)</p> -->
----
+The system is structured as a multi-container microservice architecture composed of dedicated Docker components:
 
-## Milestone
-- Please refer to [Here](https://github.com/JoohanJin/AutoCryptoTrading/tree/dev/Docs/TODO)
-
----
-
-## Architecture Diagram
-
-![Architecture Diagram](https://raw.githubusercontent.com/JoohanJin/AutoCryptoTrading/stable/Media/AutoTradingBot%20DIagram.png)
-
----
-
-## 🧰 Tech Stack
-
-* **Language**: [![Python3][Python3-img]][Python3-url]
-* **Exchanges**: Binance (Futures), MEXC
-* **Libraries**:
-  * [![Pandas][Pandas-img]][Pandas-url]
-  * [![NumPy][Numpy-img]][Numpy-url]
-* **Infrastructure**:
-  * Google Cloud Platform (Artifact Registry, Compute Engine)
-  * Docker (Container-Optimized OS)
-  * Github Actions (CI - Implemented)
-
-<!-- <p align="right">(<a href="#readme-top">back to top</a>)</p> -->
-
---- 
-
-## Branch Structure
-
-```text
-stable (Production)
-└── dev (Main Development)
-    ├── dev-unit_testing (CI & Testing Infrastructure)
-    ├── dev-data_models (Core DTO & Model Refactor)
-    └── backtesting (Vectorized Engine & Simulation)
+```
+AutoCryptoTrading (Root Orchestrator)
+│
+├── 🤖 bot/          -> Python Trading Bot (Strategy execution, exchanges, signals)
+├── ⚡ orderbook/    -> C++ Orderbook Engine (High-performance depth builder & L2/L3 calculations)
+└── 🗄️ db/           -> TimescaleDB / PostgreSQL (Time-series tick/candle & trade persistence)
 ```
 
 ---
 
-## 🚀 Procedure
+## 📁 Repository & Component Breakdown
+
+| Component | Language / Stack | Git Repository | Role & Responsibilities |
+| :--- | :--- | :--- | :--- |
+| **`bot/`** | Python 3.10 | Submodule / Sub-repo | Connects to exchanges (Binance, MEXC), runs technical analysis (WSDC strategy), manages trades. |
+| **`orderbook/`** | C++17 / CMake | Submodule / Sub-repo | High-throughput limit order book engine for fast orderbook matching and depth snapshots. |
+| **`db/`** | TimescaleDB (PostgreSQL 15) | Submodule / Sub-repo | Stores market tick data, OHLCV candles, strategy logs, and executed trade records. |
+
+---
+
+## ⚡ Getting Started
 
 ### Prerequisites
+- [Docker](https://www.docker.com/) & Docker Compose
+- [Git](https://git-scm.com/)
 
-Before getting started, ensure you have:
-- **Python 3.10+** (or Docker as an alternative)
-- **MEXC API Credentials** - [MexC Exchange](https://www.mexc.com/)
-- **Binance API Credentials** - [Binance Exchange](https://www.binance.com/en)
-- **Telegram Bot Token & Chat ID** - For trade notifications
-- **Docker** (optional, but recommended for deployment)
+### 1. Environment Configuration
+Copy the template environment file:
+```bash
+cp .env.example .env
+```
 
-### Getting Started
+### 2. Launch System Containers
+To build and launch all containers in detached mode:
+```bash
+docker-compose up -d --build
+```
 
-#### Option 1: Local Setup
+### 3. Check Container Status
+```bash
+docker-compose ps
+```
 
-1. **Clone the repository**
-    ```sh
-    git clone https://github.com/JoohanJin/AutoCryptoTrading.git
-    cd AutoCryptoTrading
-    ```
-
-2. **Create and configure `.env` file**
-    - Copy `.env_template` to `.env`
-    - Fill in your API credentials and Telegram details
-    ```sh
-    cp .env_template .env
-    ```
-
-3. **Set up Python environment**
-    ```sh
-    python3.10 -m venv <venv_dir_name>
-    source <venv_dir_name>/bin/activate
-    pip install -r requirements.txt
-    ```
-
-4. **Run the bot**
-    ```sh
-    python src/main.py
-    ```
-
-#### Option 2: Docker Deployment (Recommended for 24/7)
-
-1. **Clone the repository**
-    ```sh
-    git clone https://github.com/JoohanJin/AutoCryptoTrading.git
-    cd AutoCryptoTrading
-    ```
-
-2. **Configure `.env` file**
-    ```sh
-    cp .env_template .env
-    # Edit .env with your credentials
-    nano .env
-    ```
-
-3. **Build the Docker image**
-    ```sh
-    docker buildx build --platform linux/amd64 -t autocrypto-trading:latest .
-    ```
-    > Replace `linux/amd64` with your desired architecture (e.g., `linux/arm64` for ARM)
-
-4. **Run the container**
-    ```sh
-    docker run -d \
-      --name crypto-trading-bot \
-      --env-file .env \
-      --restart unless-stopped \
-      autocrypto-trading:latest
-    ```
-
-5. **Monitor the bot**
-    ```sh
-    docker logs -f crypto-trading-bot
-    ```
-
-### Configuration Notes
-
-- **Telegram**: Required for trade notifications (can be optional in future versions)
-- **API Keys**: Ensure you use keys with appropriate permissions (trading enabled, IP whitelisting recommended)
-- **For Production**: Use environment variables instead of storing credentials in `.env` files
+### 4. View Component Logs
+- **All logs:** `docker-compose logs -f`
+- **Bot component:** `docker-compose logs -f bot`
+- **Orderbook engine:** `docker-compose logs -f orderbook`
+- **Database:** `docker-compose logs -f db`
 
 ---
 
-## 🧪 Testing
+## 🛠️ Submodule & Development Management
 
-We use `pytest` for unit and integration testing. The CI pipeline automatically runs these tests on every push.
-
-- **Unit Tests**: Fast, mocked tests for core logic.
-- **Integration Tests**: Connectivity tests for real exchange APIs.
-- **Data Flow Tests**: E2E verification of the multi-threaded pipeline.
-
-For detailed documentation on the testing strategy, see [Testing Architecture](Docs/Testing/testing_architecture.md).
+Each service directory (`bot/`, `orderbook/`, `db/`) functions as an independent module with its own Git system.
 
 ```bash
-# Run all fast unit tests
-pytest -m "not integration" -v
+# Check status across root & submodules
+git status
+
+# Push or pull changes within individual components
+cd bot && git status
 ```
 
-<!-- MARKDOWN LINKS & IMAGES -->
-<!-- https://www.markdownguide.org/basic-syntax/#reference-style-links -->
-[contributors-shield]: https://img.shields.io/github/contributors/github_username/repo_name.svg?style=for-the-badge
-[contributors-url]: https://github.com/JoohanJin/AutoCryptoTrading/graphs/contributors
-[forks-shield]: https://img.shields.io/github/forks/github_username/repo_name.svg?style=for-the-badge
-[forks-url]: https://github.com/JoohanJin/AutoCryptoTrading/network/members
-[stars-shield]: https://img.shields.io/github/stars/github_username/repo_name.svg?style=for-the-badge
-[stars-url]: https://github.com/JoohanJin/AutoCryptoTrading/stargazers
-[issues-shield]: https://img.shields.io/github/issues/github_username/repo_name.svg?style=for-the-badge
-[issues-url]: https://github.com/JoohanJin/AutoCryptoTrading/issues
-[linkedin-shield]: https://img.shields.io/badge/-LinkedIn-black.svg?style=for-the-badge&logo=linkedin&colorB=555
-[linkedin-url]: https://linkedin.com/in/linkedin_username
-[product-screenshot]: images/screenshot.png
-[license-shield]: https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge
-[license-url]: https://github.com/JoohanJin/AutoCryptoTrading/blob/stable/LICENSE
-[Next.js]: https://img.shields.io/badge/next.js-000000?style=for-the-badge&logo=nextdotjs&logoColor=white
-[Next-url]: https://nextjs.org/
-[React.js]: https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB
-[React-url]: https://reactjs.org/
-[Vue.js]: https://img.shields.io/badge/Vue.js-35495E?style=for-the-badge&logo=vuedotjs&logoColor=4FC08D
-[Vue-url]: https://vuejs.org/
-[Angular.io]: https://img.shields.io/badge/Angular-DD0031?style=for-the-badge&logo=angular&logoColor=white
-[Angular-url]: https://angular.io/
-[Svelte.dev]: https://img.shields.io/badge/Svelte-4A4A55?style=for-the-badge&logo=svelte&logoColor=FF3E00
-[Svelte-url]: https://svelte.dev/
-[Laravel.com]: https://img.shields.io/badge/Laravel-FF2D20?style=for-the-badge&logo=laravel&logoColor=white
-[Laravel-url]: https://laravel.com
-[Bootstrap.com]: https://img.shields.io/badge/Bootstrap-563D7C?style=for-the-badge&logo=bootstrap&logoColor=white
-[Bootstrap-url]: https://getbootstrap.com
-[JQuery.com]: https://img.shields.io/badge/jQuery-0769AD?style=for-the-badge&logo=jquery&logoColor=white
-[JQuery-url]: https://jquery.com 
-[Python3-img]: https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54
-[Python3-url]: https://www.python.org/
-[Jupyter-img]: https://img.shields.io/badge/jupyter-%23FA0F00.svg?style=for-the-badge&logo=jupyter&logoColor=white
-[Jupyter-url]: https://jupyter.org/
-[Numpy-img]: https://img.shields.io/badge/numpy-%23013243.svg?style=for-the-badge&logo=numpy&logoColor=white
-[Numpy-url]: https://numpy.org/
-[Pandas-img]: https://img.shields.io/badge/pandas-%23150458.svg?style=for-the-badge&logo=pandas&logoColor=white
-[Pandas-url]: https://pandas.pydata.org/
