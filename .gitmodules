@@ -1,9 +1,9 @@
 [submodule "bot"]
 	path = bot
-	url = ./bot
+	url = https://github.com/JoohanJin/AutoCryptoTrading-bot.git
 [submodule "orderbook"]
 	path = orderbook
-	url = ./orderbook
+	url = https://github.com/JoohanJin/AutoCryptoTrading-orderbook.git
 [submodule "db"]
 	path = db
-	url = ./db
+	url = https://github.com/JoohanJin/AutoCryptoTrading-db.git
